@@ -49,7 +49,7 @@ android {
 }
 
 dependencies {
-
+    implementation project(':commonLib')
     implementation libs.appcompat
     implementation libs.material
     implementation libs.constraintlayout

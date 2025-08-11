@@ -1,5 +1,7 @@
 package com.wangyao.ffmpegpractice.ffmpegpractice;
 
+import android.util.Log;
+
 /**
  * @author wangyongyao
  * @package com.wangyao.ffmpegpractice.ffmpegpractice
@@ -8,6 +10,8 @@ package com.wangyao.ffmpegpractice.ffmpegpractice;
  * @project
  */
 public class FFmpegOperate {
+    private static final String TAG = FFmpegOperate.class.getSimpleName();
+
     // Used to load the 'ffmpegpractice' library on application startup.
     static {
         System.loadLibrary("ffmpegpractice");
@@ -21,10 +25,17 @@ public class FFmpegOperate {
         return native_get_ffmpeg_version();
     }
 
+    public String getVideoMsg(String videPath) {
+        Log.e(TAG, "videPath: " + videPath);
+        return native_get_video_msg(videPath);
+    }
 
 
     private native String native_string_from_jni();
 
     private native String native_get_ffmpeg_version();
+
+    private native String native_get_video_msg(String fragPath);
+
 
 }

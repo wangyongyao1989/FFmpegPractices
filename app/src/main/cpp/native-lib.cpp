@@ -6,8 +6,9 @@
 // 要通过标记“extern "C"{……}”把FFmpeg的头文件包含进来
 extern "C"
 {
-#include "libavutil/common.h"
-#include "libavcodec/avcodec.h"
+    #include "libavutil/common.h"
+    #include "libavcodec/avcodec.h"
+//#include "libavutil/libavformat.h"
 }
 
 //包名+类名字符串定义：
@@ -45,11 +46,26 @@ cpp_get_ffmpeg_version(JNIEnv *env, jobject thiz) {
     return env->NewStringUTF(strBuffer);
 }
 
+JNIEXPORT jstring JNICALL
+cpp_get_video_msg(JNIEnv *env, jobject thiz, jstring videoPath) {
+
+    const char *cFragPath = env->GetStringUTFChars(videoPath, nullptr);
+
+    LOGE("videoPath=== %s", cFragPath);
+
+    char strBuffer[1024 * 4] = {0};
+    strcat(strBuffer, "视频信息 : ");
+
+    LOGD("GetFFmpegVersion\n%s", strBuffer);
+    env->ReleaseStringUTFChars(videoPath, cFragPath);
+    return env->NewStringUTF(strBuffer);
+}
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni",    "()Ljava/lang/String;", (void *) cpp_string_from_jni},
-        {"native_get_ffmpeg_version", "()Ljava/lang/String;", (void *) cpp_get_ffmpeg_version},
+        {"native_string_from_jni",    "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
+        {"native_get_ffmpeg_version", "()Ljava/lang/String;",                   (void *) cpp_get_ffmpeg_version},
+        {"native_get_video_msg",      "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_video_msg},
 
 };
 

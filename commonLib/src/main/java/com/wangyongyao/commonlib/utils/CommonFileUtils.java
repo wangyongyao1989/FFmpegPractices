@@ -11,8 +11,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class FileUtils {
-    private static final String TAG = FileUtils.class.getSimpleName();
+public class CommonFileUtils {
+    private static final String TAG = CommonFileUtils.class.getSimpleName();
 
 
     public static String getModelFilePath(Context context, String modelName) {
