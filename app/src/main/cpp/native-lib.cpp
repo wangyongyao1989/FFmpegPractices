@@ -2,6 +2,8 @@
 #include <string>
 #include "includes/LogUtils.h"
 
+// 因为FFmpeg源码使用C语言编写，所以在C++代码中调用FFmpeg的话，
+// 要通过标记“extern "C"{……}”把FFmpeg的头文件包含进来
 extern "C"
 {
 #include "libavutil/common.h"
