@@ -9,8 +9,14 @@ message(${CMAKE_PROJECT_NAME})
 set(jnilibs ${CMAKE_SOURCE_DIR}/jniLibs)
 
 set(third-party-libs
-       # ${jnilibs}/${ANDROID_ABI}/libassimp.so
-       # ${jnilibs}/${ANDROID_ABI}/libfreetype.a
+        ${jnilibs}/${ANDROID_ABI}/libavcodec.so
+        ${jnilibs}/${ANDROID_ABI}/libavdevice.so
+        ${jnilibs}/${ANDROID_ABI}/libavfilter.so
+        ${jnilibs}/${ANDROID_ABI}/libavformat.so
+        ${jnilibs}/${ANDROID_ABI}/libavutil.so
+        ${jnilibs}/${ANDROID_ABI}/libpostproc.so
+        ${jnilibs}/${ANDROID_ABI}/libswresample.so
+        ${jnilibs}/${ANDROID_ABI}/libswscale.so
 )
 
 include_directories(

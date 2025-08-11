@@ -30,7 +30,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void initEventListener() {
         mBtn1.setOnClickListener(view -> {
-
+            mTv.setText(mFFmpegOperate.getFFmpegVersion() + "");
         });
     }
 

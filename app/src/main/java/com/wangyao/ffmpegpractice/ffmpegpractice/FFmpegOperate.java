@@ -17,9 +17,14 @@ public class FFmpegOperate {
         return native_string_from_jni();
     }
 
+    public String getFFmpegVersion() {
+        return native_get_ffmpeg_version();
+    }
+
 
 
     private native String native_string_from_jni();
 
-    private native boolean native_3d_animation_init_opengl(int width, int height);
+    private native String native_get_ffmpeg_version();
+
 }
