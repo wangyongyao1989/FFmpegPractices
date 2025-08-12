@@ -1,4 +1,4 @@
-package com.wangyao.ffmpegpractice.ffmpegpractice;
+package com.wangyongyao.basictraninglib;
 
 import android.util.Log;
 

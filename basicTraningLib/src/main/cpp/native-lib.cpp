@@ -14,7 +14,7 @@ extern "C"
 }
 
 //包名+类名字符串定义：
-const char *java_class_name = "com/wangyao/ffmpegpractice/ffmpegpractice/FFmpegOperate";
+const char *java_class_name = "com/wangyongyao/basictraninglib/FFmpegOperate";
 
 
 extern "C"
