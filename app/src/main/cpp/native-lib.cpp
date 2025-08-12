@@ -6,9 +6,11 @@
 // 要通过标记“extern "C"{……}”把FFmpeg的头文件包含进来
 extern "C"
 {
-    #include "libavutil/common.h"
-    #include "libavcodec/avcodec.h"
-//#include "libavutil/libavformat.h"
+#include "libavutil/common.h"
+#include "libavcodec/avcodec.h"
+#include "libavformat/avformat.h"
+#include <libavutil/avutil.h>
+
 }
 
 //包名+类名字符串定义：
@@ -50,11 +52,36 @@ JNIEXPORT jstring JNICALL
 cpp_get_video_msg(JNIEnv *env, jobject thiz, jstring videoPath) {
 
     const char *cFragPath = env->GetStringUTFChars(videoPath, nullptr);
+    LOGI("videoPath=== %s", cFragPath);
+    AVFormatContext *fmt_ctx = avformat_alloc_context();
 
-    LOGE("videoPath=== %s", cFragPath);
+    // 打开音视频文件
+    int ret = avformat_open_input(&fmt_ctx, cFragPath, NULL, NULL);
+
+    if (ret < 0) {
+        LOGE("Can't open file %s.\n", cFragPath);
+        return NULL;
+    }
+    LOGI("Success open input_file %s.\n", cFragPath);
+    // 查找音视频文件中的流信息
+    ret = avformat_find_stream_info(fmt_ctx, NULL);
+    if (ret < 0) {
+        LOGE("Can't find stream information.\n");
+        return NULL;
+    }
+    LOGI("Success find stream information.\n");
+    const AVInputFormat *iformat = fmt_ctx->iformat;
+    int64_t duration = fmt_ctx->duration;
+    LOGI("format name is %s.\n", iformat->name);
+    LOGI("duration is %d.\n", duration);
 
     char strBuffer[1024 * 4] = {0};
     strcat(strBuffer, "视频信息 : ");
+    strcat(strBuffer, "\n format name is : ");
+    strcat(strBuffer, iformat->name);
+
+    // 关闭音视频文件
+    avformat_close_input(&fmt_ctx);
 
     LOGD("GetFFmpegVersion\n%s", strBuffer);
     env->ReleaseStringUTFChars(videoPath, cFragPath);
