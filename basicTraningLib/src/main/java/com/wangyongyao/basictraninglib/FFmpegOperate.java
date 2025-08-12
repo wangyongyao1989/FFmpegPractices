@@ -26,8 +26,11 @@ public class FFmpegOperate {
     }
 
     public String getVideoMsg(String videPath) {
-        Log.e(TAG, "videPath: " + videPath);
         return native_get_video_msg(videPath);
+    }
+
+    public String getMediaMsg(String videPath) {
+        return native_get_media_msg(videPath);
     }
 
 
@@ -36,6 +39,8 @@ public class FFmpegOperate {
     private native String native_get_ffmpeg_version();
 
     private native String native_get_video_msg(String fragPath);
+
+    private native String native_get_media_msg(String fragPath);
 
 
 }

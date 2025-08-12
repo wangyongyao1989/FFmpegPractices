@@ -30,7 +30,11 @@ public class BasicTraningFragment extends BaseFragment {
     private FFmpegOperate mFFmpegOperate;
     private Button mBtn1;
     private Button mBtn2;
-    private String mVideoPath;
+    private Button mBtn3;
+
+    private String mVideoPath1;
+    private String mVideoPath2;
+
     private Button mBtnBsBack;
 
     @Override
@@ -46,14 +50,18 @@ public class BasicTraningFragment extends BaseFragment {
         mBtnBsBack = mBinding.btnBsBack;
         mBtn1 = mBinding.btnBs1;
         mBtn2 = mBinding.btnBs2;
+        mBtn3 = mBinding.btnBs3;
+
     }
 
     @Override
     public void initData() {
         mFFmpegOperate = new FFmpegOperate();
         mTv.setText(mFFmpegOperate.stringFromC());
-        mVideoPath = CommonFileUtils.getModelFilePath(getContext()
+        mVideoPath1 = CommonFileUtils.getModelFilePath(getContext()
                 , "video.mp4");
+        mVideoPath2 = CommonFileUtils.getModelFilePath(getContext()
+                , "woman.mp4");
     }
 
     @SuppressLint("RestrictedApi")
@@ -74,8 +82,11 @@ public class BasicTraningFragment extends BaseFragment {
         });
 
         mBtn2.setOnClickListener(view -> {
-            mTv.setText(mFFmpegOperate.getVideoMsg(mVideoPath));
+            mTv.setText(mFFmpegOperate.getVideoMsg(mVideoPath1));
         });
 
+        mBtn3.setOnClickListener(view -> {
+            mTv.setText(mFFmpegOperate.getMediaMsg(mVideoPath2));
+        });
     }
 }
