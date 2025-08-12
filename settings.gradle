@@ -21,3 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "FFmpegPractice"
 include ':app'
+include ':commonLib'
+include ':basicTraningLib'
