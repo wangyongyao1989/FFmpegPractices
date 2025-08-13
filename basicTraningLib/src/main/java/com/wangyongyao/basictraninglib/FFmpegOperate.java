@@ -33,6 +33,9 @@ public class FFmpegOperate {
         return native_get_media_msg(videPath);
     }
 
+    public String getMediaCoderMsg(String videPath) {
+        return native_get_media_coder_msg(videPath);
+    }
 
     private native String native_string_from_jni();
 
@@ -41,6 +44,8 @@ public class FFmpegOperate {
     private native String native_get_video_msg(String fragPath);
 
     private native String native_get_media_msg(String fragPath);
+
+    private native String native_get_media_coder_msg(String fragPath);
 
 
 }

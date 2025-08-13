@@ -40,9 +40,19 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="10dp"
-        android:text="查看视频信息"
+        android:text="查看音视频信息"
         app:layout_constraintStart_toEndOf="@+id/btn_bs_2"
         app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_bs_4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="查看编解码信息"
+        app:layout_constraintStart_toStartOf="@+id/btn_bs_back"
+        app:layout_constraintTop_toBottomOf="@+id/btn_bs_back"
         tools:ignore="HardcodedText" />
 
     <TextView
