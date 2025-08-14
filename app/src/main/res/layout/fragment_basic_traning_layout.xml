@@ -30,9 +30,39 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="10dp"
-        android:text="查看视频信息"
+        android:text="打开与关闭音视频文件"
         app:layout_constraintStart_toEndOf="@+id/btn_bs_1"
         app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_bs_3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="查看音视频信息"
+        app:layout_constraintStart_toEndOf="@+id/btn_bs_2"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_bs_4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="查看编解码信息"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_bs_back"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_bs_5"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="将流中编解码参数复制给解码实例"
+        app:layout_constraintStart_toEndOf="@+id/btn_bs_4"
+        app:layout_constraintTop_toBottomOf="@+id/btn_bs_back"
         tools:ignore="HardcodedText" />
 
     <TextView
