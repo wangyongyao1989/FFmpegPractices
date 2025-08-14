@@ -32,6 +32,7 @@ public class BasicTraningFragment extends BaseFragment {
     private Button mBtn2;
     private Button mBtn3;
     private Button mBtn4;
+    private Button mBtn5;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -53,6 +54,7 @@ public class BasicTraningFragment extends BaseFragment {
         mBtn2 = mBinding.btnBs2;
         mBtn3 = mBinding.btnBs3;
         mBtn4 = mBinding.btnBs4;
+        mBtn5 = mBinding.btnBs5;
 
     }
 
@@ -92,7 +94,11 @@ public class BasicTraningFragment extends BaseFragment {
         });
 
         mBtn4.setOnClickListener(view -> {
-            mTv.setText(mFFmpegOperate.getMediaCoderMsg(mVideoPath2));
+            mTv.setText(mFFmpegOperate.getMediaCodecMsg(mVideoPath2));
+        });
+
+        mBtn5.setOnClickListener(view -> {
+            mTv.setText(mFFmpegOperate.mediaCopyToDecodec(mVideoPath2));
         });
     }
 }
