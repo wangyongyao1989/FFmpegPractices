@@ -284,6 +284,9 @@ cpp_media_codec_copy_new_to_codec(JNIEnv *env, jobject thiz, jstring videoPath) 
         infoMsg = infoMsg + "视频解码器实例参数 : " + "\n Success copy video parameters_to_context "
                   + "\n video_decode_ctx width= " + to_string(video_decode_ctx->width)
                   + "\n video_decode_ctx height = " + to_string(video_decode_ctx->height)
+                  + "\n 双向预测帧（B帧）的最大数量 = " + to_string(video_decode_ctx->max_b_frames)
+                  + "\n 视频的像素格式 = " + to_string(video_decode_ctx->pix_fmt)
+                  + "\n 每两个关键帧（I帧）间隔多少帧 = " + to_string(video_decode_ctx->gop_size)
                   + "\n video_decode_ctx profile = " + to_string(video_decode_ctx->profile);
 
         avcodec_close(video_decode_ctx); // 关闭解码器的实例
@@ -305,7 +308,7 @@ cpp_media_codec_copy_new_to_codec(JNIEnv *env, jobject thiz, jstring videoPath) 
             infoMsg = "audio_codec not find";
             return env->NewStringUTF(infoMsg.c_str());
         }
-        AVCodecContext *audio_decode_ctx = NULL; // 音频解码器的实例
+        AVCodecContext *audio_decode_ctx = nullptr; // 音频解码器的实例
         audio_decode_ctx = avcodec_alloc_context3(audio_codec); // 分配解码器的实例
         if (!audio_decode_ctx) {
             LOGE("audio_decode_ctx is null\n");
@@ -314,7 +317,7 @@ cpp_media_codec_copy_new_to_codec(JNIEnv *env, jobject thiz, jstring videoPath) 
         }
         // 把音频流中的编解码参数复制给解码器的实例
         avcodec_parameters_to_context(audio_decode_ctx, audio_stream->codecpar);
-        ret = avcodec_open2(audio_decode_ctx, audio_codec, NULL); // 打开解码器的实例
+        ret = avcodec_open2(audio_decode_ctx, audio_codec, nullptr); // 打开解码器的实例
         LOGI("Success open audio codec.\n");
         if (ret < 0) {
             LOGE("audio_decode_ctx is null.\n");
@@ -322,10 +325,16 @@ cpp_media_codec_copy_new_to_codec(JNIEnv *env, jobject thiz, jstring videoPath) 
             return env->NewStringUTF(infoMsg.c_str());
         }
 
-        infoMsg = infoMsg + "\n 音频解码器实例参数:" + "\n Success copy audio parameters_to_context. "
-                  + "\n audio_decode_ctx profile = " + to_string(audio_decode_ctx->profile)
-                  + "\n audio_decode_ctx nb_channels = "
-                  + to_string(audio_decode_ctx->ch_layout.nb_channels);
+        infoMsg =
+                infoMsg + "\n 音频解码器实例参数:" + "\n Success copy audio parameters_to_context. "
+                + "\n audio_decode_ctx profile = " + to_string(audio_decode_ctx->profile)
+                + "\n 音频的采样格式 = " + to_string(audio_decode_ctx->sample_fmt)
+                + "\n 音频的采样频率 = " + to_string(audio_decode_ctx->sample_rate)
+                + "\n 音频的帧大小 = " + to_string(audio_decode_ctx->frame_size)
+                + "\n 音频的码率 = " + to_string(audio_decode_ctx->bit_rate)
+                + "\n 音视频的时间基num = " + to_string(audio_decode_ctx->time_base.num)
+                + "\n 音视频的时间基den = " + to_string(audio_decode_ctx->time_base.den)
+                + "\n 音频的声道布局 = " + to_string(audio_decode_ctx->ch_layout.nb_channels);
 
         avcodec_close(audio_decode_ctx); // 关闭解码器的实例
         avcodec_free_context(&audio_decode_ctx); // 释放解码器的实例
@@ -339,11 +348,11 @@ cpp_media_codec_copy_new_to_codec(JNIEnv *env, jobject thiz, jstring videoPath) 
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni",               "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
-        {"native_get_ffmpeg_version",            "()Ljava/lang/String;",                   (void *) cpp_get_ffmpeg_version},
-        {"native_get_video_msg",                 "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_video_msg},
-        {"native_get_media_msg",                 "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_msg},
-        {"native_get_media_codec_msg",           "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_codec_msg},
+        {"native_string_from_jni",       "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
+        {"native_get_ffmpeg_version",    "()Ljava/lang/String;",                   (void *) cpp_get_ffmpeg_version},
+        {"native_get_video_msg",         "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_video_msg},
+        {"native_get_media_msg",         "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_msg},
+        {"native_get_media_codec_msg",   "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_codec_msg},
         {"native_media_copy_to_decodec", "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_media_codec_copy_new_to_codec},
 
 
