@@ -17,6 +17,7 @@ import com.wangyao.ffmpegpractice.databinding.FragmentBasicTraningLayoutBinding;
 import com.wangyongyao.basictraninglib.FFmpegOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 import com.wangyongyao.commonlib.utils.DirectoryPath;
+import com.wangyongyao.commonlib.utils.SaveMediaUtils;
 import com.wangyongyao.commonlib.utils.ToastManager;
 
 /**
@@ -120,6 +121,9 @@ public class BasicTraningFragment extends BaseFragment {
         });
 
         mBtn7.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            String outputPath = videoDir + "filter.mp4";
+            boolean b = SaveMediaUtils.saveFileToNewFile(getContext(), mVideoPath3, outputPath);
             mFFmpegOperate.writeMediaFilter(mVideoPath3);
         });
     }

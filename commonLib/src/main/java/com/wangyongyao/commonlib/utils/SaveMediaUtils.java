@@ -56,6 +56,46 @@ public class SaveMediaUtils {
         }
     }
 
+    /**
+     * 将文件拷贝至新的文件下
+     *
+     * @param inputString
+     * @param destString
+     * @return
+     */
+    public static boolean saveFileToNewFile(String inputString, String destString) {
+        File inputFile = new File(inputString);
+        File destFile = new File(destString);
+        FileInputStream ins = null;
+        BufferedOutputStream ous = null;
+        try {
+            ins = new FileInputStream(inputFile);
+            ous = new BufferedOutputStream(new FileOutputStream(destFile));
+            long nread = 0L;
+            byte[] buf = new byte[1024];
+            int n;
+            while ((n = ins.read(buf)) > 0) {
+                ous.write(buf, 0, n);
+                nread += n;
+            }
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                if (ins != null) {
+                    ins.close();
+                }
+                if (ous != null) {
+                    ous.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     @RequiresApi(api = Build.VERSION_CODES.Q)
     private static boolean saveBitmapToAlbumAfterQ(Context context, Bitmap bitmap) {
         Uri contentUri;
