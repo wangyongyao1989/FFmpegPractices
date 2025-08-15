@@ -36,9 +36,11 @@ public class BasicTraningFragment extends BaseFragment {
     private Button mBtn4;
     private Button mBtn5;
     private Button mBtn6;
+    private Button mBtn7;
 
     private String mVideoPath1;
     private String mVideoPath2;
+    private String mVideoPath3;
 
     private Button mBtnBsBack;
 
@@ -59,6 +61,7 @@ public class BasicTraningFragment extends BaseFragment {
         mBtn4 = mBinding.btnBs4;
         mBtn5 = mBinding.btnBs5;
         mBtn6 = mBinding.btnBs6;
+        mBtn7 = mBinding.btnBs7;
 
     }
 
@@ -70,6 +73,8 @@ public class BasicTraningFragment extends BaseFragment {
                 , "video.mp4");
         mVideoPath2 = CommonFileUtils.getModelFilePath(getContext()
                 , "woman.mp4");
+        mVideoPath3 = CommonFileUtils.getModelFilePath(getContext()
+                , "midway.mp4");
     }
 
     @SuppressLint("RestrictedApi")
@@ -112,6 +117,10 @@ public class BasicTraningFragment extends BaseFragment {
             if (mediaToMP4 >= 0) {
                 ToastManager.getInstance(getContext()).showToast("写入output.mp4成功", 0);
             }
+        });
+
+        mBtn7.setOnClickListener(view -> {
+            mFFmpegOperate.writeMediaFilter(mVideoPath3);
         });
     }
 }

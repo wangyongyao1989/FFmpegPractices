@@ -43,6 +43,10 @@ public class FFmpegOperate {
         return native_write_media_to_mp4(videPath);
     }
 
+    public int writeMediaFilter(String videPath) {
+        return native_write_media_filter(videPath);
+    }
+
     private native String native_string_from_jni();
 
     private native String native_get_ffmpeg_version();
@@ -56,5 +60,7 @@ public class FFmpegOperate {
     private native String native_media_copy_to_decodec(String fragPath);
 
     private native int native_write_media_to_mp4(String fragPath);
+
+    private native int native_write_media_filter(String fragPath);
 
 }
