@@ -65,6 +65,16 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_bs_back"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_bs_6"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="写入一个音视频文件的封装实例"
+        app:layout_constraintStart_toEndOf="@+id/btn_bs_5"
+        app:layout_constraintTop_toBottomOf="@+id/btn_bs_back"
+        tools:ignore="HardcodedText" />
+
     <TextView
         android:id="@+id/sample_text"
         android:layout_width="wrap_content"

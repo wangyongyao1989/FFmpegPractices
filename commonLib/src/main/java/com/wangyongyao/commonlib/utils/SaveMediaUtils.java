@@ -24,6 +24,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.util.Objects;
 
+/**
+ * 将音视频保存插入至系统相册
+ */
 public class SaveMediaUtils {
     private static final String TAG = SaveMediaUtils.class.getSimpleName();
 

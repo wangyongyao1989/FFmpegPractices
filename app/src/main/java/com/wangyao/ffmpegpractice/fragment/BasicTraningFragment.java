@@ -16,6 +16,8 @@ import com.wangyao.ffmpegpractice.FFViewModel;
 import com.wangyao.ffmpegpractice.databinding.FragmentBasicTraningLayoutBinding;
 import com.wangyongyao.basictraninglib.FFmpegOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
+import com.wangyongyao.commonlib.utils.DirectoryPath;
+import com.wangyongyao.commonlib.utils.ToastManager;
 
 /**
  * author : wangyongyao https://github.com/wangyongyao1989
@@ -33,6 +35,7 @@ public class BasicTraningFragment extends BaseFragment {
     private Button mBtn3;
     private Button mBtn4;
     private Button mBtn5;
+    private Button mBtn6;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -55,6 +58,7 @@ public class BasicTraningFragment extends BaseFragment {
         mBtn3 = mBinding.btnBs3;
         mBtn4 = mBinding.btnBs4;
         mBtn5 = mBinding.btnBs5;
+        mBtn6 = mBinding.btnBs6;
 
     }
 
@@ -99,6 +103,15 @@ public class BasicTraningFragment extends BaseFragment {
 
         mBtn5.setOnClickListener(view -> {
             mTv.setText(mFFmpegOperate.mediaCopyToDecodec(mVideoPath2));
+        });
+
+        mBtn6.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            String outputPath = videoDir + "output.mp4";
+            int mediaToMP4 = mFFmpegOperate.writeMediaToMP4(outputPath);
+            if (mediaToMP4 >= 0) {
+                ToastManager.getInstance(getContext()).showToast("写入output.mp4成功", 0);
+            }
         });
     }
 }
