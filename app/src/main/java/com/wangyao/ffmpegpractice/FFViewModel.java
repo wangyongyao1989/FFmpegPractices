@@ -12,6 +12,8 @@ public class FFViewModel extends ViewModel {
     public enum FRAGMENT_STATUS {
         MAIN,
         BASIC_TRANING,
+        CODEC_TRANING,
+
 
     }
 
