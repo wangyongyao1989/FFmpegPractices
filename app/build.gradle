@@ -21,10 +21,6 @@ android {
         }
 
 
-//        ndk {
-//            abiFilters "armeabi-v7a", "arm64-v8a"
-//        }
-
     }
 
     buildTypes {
@@ -51,6 +47,8 @@ android {
 dependencies {
     implementation project(':commonLib')
     implementation project(':basicTraningLib')
+    implementation project(':codecTraningLib')
+
     implementation libs.appcompat
     implementation libs.material
     implementation libs.constraintlayout

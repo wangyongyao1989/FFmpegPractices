@@ -7,6 +7,7 @@
 #include "FFGetMediaCodecMsg.h"
 #include "FFGetMediaCodecCopyNew.h"
 #include "FFWriteMediaToMp4.h"
+#include "FFWriteMediaFilter.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyongyao/basictraninglib/FFmpegOperate";
@@ -18,6 +19,7 @@ FFGetMediaMsg *ffGetMediaMsg;
 FFGetMediaCodecMsg *ffGetMediaCodecMsg;
 FFGetMediaCodecCopyNew *ffGetMediaCodecCopyNew;
 FFWriteMediaToMp4 *ffWriteMediaToMp4;
+FFWriteMediaFilter *ffWriteMediaFilter;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -128,16 +130,21 @@ cpp_write_media_to_mp4(JNIEnv *env, jobject thiz, jstring outPath) {
 }
 
 
-
-JNIEXPORT jint JNICALL
+JNIEXPORT jstring JNICALL
 cpp_write_media_filter(JNIEnv *env, jobject thiz, jstring outPath) {
 
     const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+    string retString = "cpp_write_media_filter:";
     LOGI("cpp_write_media_filter=== %s", cOutPath);
+    if (ffWriteMediaFilter == nullptr) {
+        ffWriteMediaFilter = new FFWriteMediaFilter();
+    }
 
+    const string &filter = ffWriteMediaFilter->writeMediaFilter(cOutPath);
+    retString = retString + filter;
     env->ReleaseStringUTFChars(outPath, cOutPath);
 
-    return 0;
+    return env->NewStringUTF(retString.c_str());
 }
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
@@ -149,7 +156,7 @@ static const JNINativeMethod methods[] = {
         {"native_get_media_codec_msg",   "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_codec_msg},
         {"native_media_copy_to_decodec", "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_media_codec_copy_new_to_codec},
         {"native_write_media_to_mp4",    "(Ljava/lang/String;)I",                  (void *) cpp_write_media_to_mp4},
-        {"native_write_media_filter",    "(Ljava/lang/String;)I",                  (void *) cpp_write_media_filter},
+        {"native_write_media_filter",    "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_write_media_filter},
 
 };
 

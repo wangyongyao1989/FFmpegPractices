@@ -19,6 +19,7 @@ import androidx.lifecycle.ViewModelProviders;
 
 import com.wangyao.ffmpegpractice.databinding.ActivityMainBinding;
 import com.wangyao.ffmpegpractice.fragment.BasicTraningFragment;
+import com.wangyao.ffmpegpractice.fragment.CodecTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.MainFragment;
 
 public class MainActivity extends AppCompatActivity {
@@ -29,7 +30,9 @@ public class MainActivity extends AppCompatActivity {
     private FFViewModel mFFViewModel;
     private MainFragment mMainFragment;
     private BasicTraningFragment mBasicTraningFragment;
+    private CodecTraningFragment mCodecTraningFragment;
     private FrameLayout mFlBasicTraning;
+    private FrameLayout mFlCodecTraning;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
     private void initView() {
         mFlMain = mBinding.flMain;
         mFlBasicTraning = mBinding.flBasicTraning;
+        mFlCodecTraning = mBinding.flCodecTraning;
 
     }
 
@@ -115,6 +119,17 @@ public class MainActivity extends AppCompatActivity {
             }
             break;
 
+            case CODEC_TRANING: {
+                if (mCodecTraningFragment == null) {
+                    mCodecTraningFragment = new CodecTraningFragment();
+                    fragmentTransaction
+                            .add(mFlCodecTraning.getId(), mCodecTraningFragment);
+                }
+                fragmentTransaction.show(mCodecTraningFragment);
+                fragmentTransaction.commit();
+            }
+            break;
+
         }
     }
 
@@ -125,6 +140,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (mBasicTraningFragment != null) {
             ftr.hide(mBasicTraningFragment);
+        }
+
+        if (mCodecTraningFragment != null) {
+            ftr.hide(mCodecTraningFragment);
         }
     }
 
