@@ -19,7 +19,12 @@ public class CodecOperate {
         return native_string_from_jni();
     }
 
+    public String getMediaMsg(String mediaPath) {
+        return native_get_media_msg(mediaPath);
+    }
+
     private native String native_string_from_jni();
 
+    private native String native_get_media_msg(String mediaPath);
 
 }

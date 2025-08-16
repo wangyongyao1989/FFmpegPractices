@@ -71,7 +71,7 @@ public class CodecTraningFragment extends BaseFragment {
         });
 
         mBtn1.setOnClickListener(view -> {
-            mTv.setText(mCodecOperate.stringFromC());
+            mTv.setText(mCodecOperate.getMediaMsg(mVideoPath1));
         });
 
 

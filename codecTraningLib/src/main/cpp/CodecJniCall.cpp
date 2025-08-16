@@ -1,11 +1,13 @@
 #include <jni.h>
 #include <string>
 #include "BasicCommon.h"
-
+#include "GetMediaMsg.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/codectraninglib/CodecOperate";
 using namespace std;
+
+GetMediaMsg *getMediaMsg;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -14,11 +16,27 @@ cpp_string_from_jni(JNIEnv *env, jobject thiz) {
     return env->NewStringUTF(hello.c_str());
 }
 
+extern "C"
+JNIEXPORT jstring JNICALL
+cpp_get_media_msg(JNIEnv *env, jobject thiz, jstring mediaPath) {
+    const char *cMediaPath = env->GetStringUTFChars(mediaPath, nullptr);
+
+    if (getMediaMsg == nullptr) {
+        getMediaMsg = new GetMediaMsg();
+    }
+
+    const string &mediaInfo = getMediaMsg->getMediaMsg(cMediaPath);
+
+    env->ReleaseStringUTFChars(mediaPath, cMediaPath);
+
+    return env->NewStringUTF(mediaInfo.c_str());
+}
 
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni",       "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
+        {"native_string_from_jni", "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
+        {"native_get_media_msg",   "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_msg},
 
 };
 
