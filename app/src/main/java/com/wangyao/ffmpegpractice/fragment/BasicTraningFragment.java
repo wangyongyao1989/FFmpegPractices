@@ -123,8 +123,9 @@ public class BasicTraningFragment extends BaseFragment {
         mBtn7.setOnClickListener(view -> {
             String videoDir = DirectoryPath.createVideoDir(getContext());
             String outputPath = videoDir + "filter.mp4";
-            boolean b = SaveMediaUtils.saveFileToNewFile(getContext(), mVideoPath3, outputPath);
-            mFFmpegOperate.writeMediaFilter(mVideoPath3);
+            boolean b = SaveMediaUtils.saveFileToNewFile(mVideoPath3, outputPath);
+            String filter = mFFmpegOperate.writeMediaFilter(mVideoPath3);
+            mTv.setText(filter);
         });
     }
 }

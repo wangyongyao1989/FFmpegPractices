@@ -33,6 +33,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         FFGetMediaCodecMsg.cpp
         FFGetMediaCodecCopyNew.cpp
         FFWriteMediaToMp4.cpp
+        FFWriteMediaFilter.cpp
 
 )
 
