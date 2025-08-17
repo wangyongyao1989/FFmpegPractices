@@ -35,6 +35,10 @@ public class CodecOperate {
         return native_copy_media_file(srcPath, destPath);
     }
 
+    public String peelAudioOfMedia(String srcPath, String destPath) {
+        return native_peel_audio_of_media(srcPath, destPath);
+    }
+
 
     private native String native_string_from_jni();
 
@@ -45,5 +49,7 @@ public class CodecOperate {
     private native String native_get_media_time_stamp(String mediaPath);
 
     private native String native_copy_media_file(String srcPath, String destPath);
+
+    private native String native_peel_audio_of_media(String srcPath, String destPath);
 
 }

@@ -31,6 +31,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         GetMediaTimeBase.cpp
         GetMeidaTimeStamp.cpp
         CopyMeidaFile.cpp
+        PeelAudioOfMedia.cpp
 
 )
 

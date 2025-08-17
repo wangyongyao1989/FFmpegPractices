@@ -32,8 +32,10 @@ public class CodecTraningFragment extends BaseFragment {
     private Button mBtn2;
     private Button mBtn3;
     private Button mBtn4;
+    private Button mBtn5;
 
     private String mVideoPath1;
+    private String mVideoPath2;
 
     private Button mBtCodecBack;
     private CodecOperate mCodecOperate;
@@ -53,6 +55,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn2 = mBinding.btnCodec2;
         mBtn3 = mBinding.btnCodec3;
         mBtn4 = mBinding.btnCodec4;
+        mBtn5 = mBinding.btnCodec5;
 
     }
 
@@ -61,6 +64,8 @@ public class CodecTraningFragment extends BaseFragment {
         mCodecOperate = new CodecOperate();
         mVideoPath1 = CommonFileUtils.getModelFilePath(getContext()
                 , "video.mp4");
+        mVideoPath2 = CommonFileUtils.getModelFilePath(getContext()
+                , "midway.mp4");
 
     }
 
@@ -93,6 +98,13 @@ public class CodecTraningFragment extends BaseFragment {
             String videoDir = DirectoryPath.createVideoDir(getContext());
             String outputPath = videoDir + "copy.mp4";
             String copyInfo = mCodecOperate.copyMediaFile(mVideoPath1, outputPath);
+            mTv.setText(copyInfo);
+        });
+
+        mBtn5.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            String outputPath = videoDir + "peelaudio.mp4";
+            String copyInfo = mCodecOperate.peelAudioOfMedia(mVideoPath2, outputPath);
             mTv.setText(copyInfo);
         });
 
