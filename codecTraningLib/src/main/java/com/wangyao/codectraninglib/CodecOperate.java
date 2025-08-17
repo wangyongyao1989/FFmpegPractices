@@ -39,6 +39,10 @@ public class CodecOperate {
         return native_peel_audio_of_media(srcPath, destPath);
     }
 
+    public String splitVideoOfMedia(String srcPath, String destPath) {
+        return native_split_video_of_media(srcPath, destPath);
+    }
+
 
     private native String native_string_from_jni();
 
@@ -51,5 +55,7 @@ public class CodecOperate {
     private native String native_copy_media_file(String srcPath, String destPath);
 
     private native String native_peel_audio_of_media(String srcPath, String destPath);
+
+    private native String native_split_video_of_media(String srcPath, String destPath);
 
 }

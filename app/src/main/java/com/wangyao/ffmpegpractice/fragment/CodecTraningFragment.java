@@ -33,6 +33,7 @@ public class CodecTraningFragment extends BaseFragment {
     private Button mBtn3;
     private Button mBtn4;
     private Button mBtn5;
+    private Button mBtn6;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -56,6 +57,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn3 = mBinding.btnCodec3;
         mBtn4 = mBinding.btnCodec4;
         mBtn5 = mBinding.btnCodec5;
+        mBtn6 = mBinding.btnCodec6;
 
     }
 
@@ -105,6 +107,13 @@ public class CodecTraningFragment extends BaseFragment {
             String videoDir = DirectoryPath.createVideoDir(getContext());
             String outputPath = videoDir + "peelaudio.mp4";
             String copyInfo = mCodecOperate.peelAudioOfMedia(mVideoPath2, outputPath);
+            mTv.setText(copyInfo);
+        });
+
+        mBtn6.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            String outputPath = videoDir + "splitvideo.mp4";
+            String copyInfo = mCodecOperate.splitVideoOfMedia(mVideoPath2, outputPath);
             mTv.setText(copyInfo);
         });
 

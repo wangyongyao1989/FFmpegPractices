@@ -6,6 +6,7 @@
 #include "GetMeidaTimeStamp.h"
 #include "CopyMeidaFile.h"
 #include "PeelAudioOfMedia.h"
+#include "SplitVideoOfMedia.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/codectraninglib/CodecOperate";
@@ -16,6 +17,7 @@ GetMediaTimeBase *getMediaTimeBase;
 GetMeidaTimeStamp *getMediaTimeStamp;
 CopyMeidaFile *copyMeidaFile;
 PeelAudioOfMedia *peelAudioOfMedia;
+SplitVideoOfMedia *splitVideoOfMedia;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -106,6 +108,23 @@ cpp_peel_audio_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring dest
     return env->NewStringUTF(peelAudioFile.c_str());
 }
 
+extern "C"
+JNIEXPORT jstring JNICALL
+cpp_split_video_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring destPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cDestPath = env->GetStringUTFChars(destPath, nullptr);
+
+    if (splitVideoOfMedia == nullptr) {
+        splitVideoOfMedia = new SplitVideoOfMedia();
+    }
+    const string &splitVideoFile = splitVideoOfMedia->splitVideoOfMedia(cSrcPath, cDestPath);
+
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+    env->ReleaseStringUTFChars(destPath, cDestPath);
+
+    return env->NewStringUTF(splitVideoFile.c_str());
+}
+
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
         {"native_string_from_jni",      "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
@@ -116,6 +135,8 @@ static const JNINativeMethod methods[] = {
                                         "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_copy_media_file},
         {"native_peel_audio_of_media",  "(Ljava/lang/String;"
                                         "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_peel_audio_of_media},
+        {"native_split_video_of_media", "(Ljava/lang/String;"
+                                        "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_split_video_of_media},
 };
 
 
