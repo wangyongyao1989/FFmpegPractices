@@ -23,8 +23,14 @@ public class CodecOperate {
         return native_get_media_msg(mediaPath);
     }
 
+    public String getMediaTimeBase(String mediaPath) {
+        return native_get_media_time_base(mediaPath);
+    }
+
     private native String native_string_from_jni();
 
     private native String native_get_media_msg(String mediaPath);
+
+    private native String native_get_media_time_base(String mediaPath);
 
 }

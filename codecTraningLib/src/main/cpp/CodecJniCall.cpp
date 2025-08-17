@@ -2,12 +2,15 @@
 #include <string>
 #include "BasicCommon.h"
 #include "GetMediaMsg.h"
+#include "GetMediaTimeBase.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/codectraninglib/CodecOperate";
 using namespace std;
 
 GetMediaMsg *getMediaMsg;
+GetMediaTimeBase *getMediaTimeBase;
+
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -32,11 +35,28 @@ cpp_get_media_msg(JNIEnv *env, jobject thiz, jstring mediaPath) {
     return env->NewStringUTF(mediaInfo.c_str());
 }
 
+extern "C"
+JNIEXPORT jstring JNICALL
+cpp_get_media_time_base(JNIEnv *env, jobject thiz, jstring mediaPath) {
+    const char *cMediaPath = env->GetStringUTFChars(mediaPath, nullptr);
+
+    if (getMediaTimeBase == nullptr) {
+        getMediaTimeBase = new GetMediaTimeBase();
+    }
+
+    const string &timeBaseInfo = getMediaTimeBase->getMediaTimeBase(cMediaPath);
+
+    env->ReleaseStringUTFChars(mediaPath, cMediaPath);
+
+    return env->NewStringUTF(timeBaseInfo.c_str());
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni", "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
-        {"native_get_media_msg",   "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_msg},
+        {"native_string_from_jni",     "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
+        {"native_get_media_msg",       "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_msg},
+        {"native_get_media_time_base", "(Ljava/lang/String;)Ljava/lang/String;", (void *) cpp_get_media_time_base},
 
 };
 
