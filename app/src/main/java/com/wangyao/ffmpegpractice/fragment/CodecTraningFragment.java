@@ -16,6 +16,7 @@ import com.wangyao.codectraninglib.CodecOperate;
 import com.wangyao.ffmpegpractice.FFViewModel;
 import com.wangyao.ffmpegpractice.databinding.FragmentCodecTraningLayoutBinding;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
+import com.wangyongyao.commonlib.utils.DirectoryPath;
 
 /**
  * author : wangyongyao https://github.com/wangyongyao1989
@@ -30,6 +31,7 @@ public class CodecTraningFragment extends BaseFragment {
     private Button mBtn1;
     private Button mBtn2;
     private Button mBtn3;
+    private Button mBtn4;
 
     private String mVideoPath1;
 
@@ -50,6 +52,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn1 = mBinding.btnCodec1;
         mBtn2 = mBinding.btnCodec2;
         mBtn3 = mBinding.btnCodec3;
+        mBtn4 = mBinding.btnCodec4;
 
     }
 
@@ -84,6 +87,13 @@ public class CodecTraningFragment extends BaseFragment {
 
         mBtn3.setOnClickListener(view -> {
             mTv.setText(mCodecOperate.getMediaTimeStamp(mVideoPath1));
+        });
+
+        mBtn4.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            String outputPath = videoDir + "copy.mp4";
+            String copyInfo = mCodecOperate.copyMediaFile(mVideoPath1, outputPath);
+            mTv.setText(copyInfo);
         });
 
     }

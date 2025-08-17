@@ -31,6 +31,10 @@ public class CodecOperate {
         return native_get_media_time_stamp(mediaPath);
     }
 
+    public String copyMediaFile(String srcPath, String destPath) {
+        return native_copy_media_file(srcPath, destPath);
+    }
+
 
     private native String native_string_from_jni();
 
@@ -39,5 +43,7 @@ public class CodecOperate {
     private native String native_get_media_time_base(String mediaPath);
 
     private native String native_get_media_time_stamp(String mediaPath);
+
+    private native String native_copy_media_file(String srcPath, String destPath);
 
 }

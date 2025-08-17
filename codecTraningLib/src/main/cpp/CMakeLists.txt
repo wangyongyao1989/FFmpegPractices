@@ -30,6 +30,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         GetMediaMsg.cpp
         GetMediaTimeBase.cpp
         GetMeidaTimeStamp.cpp
+        CopyMeidaFile.cpp
+
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
