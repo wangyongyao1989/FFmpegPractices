@@ -7,6 +7,7 @@
 #include "CopyMeidaFile.h"
 #include "PeelAudioOfMedia.h"
 #include "SplitVideoOfMedia.h"
+#include "MergeAudio.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/codectraninglib/CodecOperate";
@@ -18,6 +19,7 @@ GetMeidaTimeStamp *getMediaTimeStamp;
 CopyMeidaFile *copyMeidaFile;
 PeelAudioOfMedia *peelAudioOfMedia;
 SplitVideoOfMedia *splitVideoOfMedia;
+MergeAudio *mergeAudio;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -100,12 +102,12 @@ cpp_peel_audio_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring dest
     if (peelAudioOfMedia == nullptr) {
         peelAudioOfMedia = new PeelAudioOfMedia();
     }
-    const string &peelAudioFile = peelAudioOfMedia->peelAudioOfMedia(cSrcPath, cDestPath);
+    const string &peelAudioInfo = peelAudioOfMedia->peelAudioOfMedia(cSrcPath, cDestPath);
 
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
     env->ReleaseStringUTFChars(destPath, cDestPath);
 
-    return env->NewStringUTF(peelAudioFile.c_str());
+    return env->NewStringUTF(peelAudioInfo.c_str());
 }
 
 extern "C"
@@ -117,12 +119,32 @@ cpp_split_video_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring des
     if (splitVideoOfMedia == nullptr) {
         splitVideoOfMedia = new SplitVideoOfMedia();
     }
-    const string &splitVideoFile = splitVideoOfMedia->splitVideoOfMedia(cSrcPath, cDestPath);
+    const string &splitVideoInfo = splitVideoOfMedia->splitVideoOfMedia(cSrcPath, cDestPath);
 
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
     env->ReleaseStringUTFChars(destPath, cDestPath);
 
-    return env->NewStringUTF(splitVideoFile.c_str());
+    return env->NewStringUTF(splitVideoInfo.c_str());
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+cpp_merge_audio(JNIEnv *env, jobject thiz, jstring srcVideoPath,
+                jstring srcAudioPath, jstring destPath) {
+    const char *cSrcVidePath = env->GetStringUTFChars(srcVideoPath, nullptr);
+    const char *cSrcAudioPath = env->GetStringUTFChars(srcVideoPath, nullptr);
+    const char *cDestPath = env->GetStringUTFChars(destPath, nullptr);
+
+    if (mergeAudio == nullptr) {
+        mergeAudio = new MergeAudio();
+    }
+    const string &mergeAudioInfo = mergeAudio->mergeAudio(cSrcVidePath, cSrcAudioPath, cDestPath);
+
+    env->ReleaseStringUTFChars(srcVideoPath, cSrcVidePath);
+    env->ReleaseStringUTFChars(srcAudioPath, cSrcAudioPath);
+    env->ReleaseStringUTFChars(destPath, cDestPath);
+
+    return env->NewStringUTF(mergeAudioInfo.c_str());
 }
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
@@ -137,6 +159,10 @@ static const JNINativeMethod methods[] = {
                                         "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_peel_audio_of_media},
         {"native_split_video_of_media", "(Ljava/lang/String;"
                                         "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_split_video_of_media},
+        {"native_merge_audio",          "(Ljava/lang/String;"
+                                        "Ljava/lang/String;"
+                                        "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_merge_audio},
+
 };
 
 

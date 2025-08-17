@@ -34,9 +34,12 @@ public class CodecTraningFragment extends BaseFragment {
     private Button mBtn4;
     private Button mBtn5;
     private Button mBtn6;
+    private Button mBtn7;
 
     private String mVideoPath1;
     private String mVideoPath2;
+
+    private String mAACPath;
 
     private Button mBtCodecBack;
     private CodecOperate mCodecOperate;
@@ -58,6 +61,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn4 = mBinding.btnCodec4;
         mBtn5 = mBinding.btnCodec5;
         mBtn6 = mBinding.btnCodec6;
+        mBtn7 = mBinding.btnCodec7;
 
     }
 
@@ -69,6 +73,8 @@ public class CodecTraningFragment extends BaseFragment {
         mVideoPath2 = CommonFileUtils.getModelFilePath(getContext()
                 , "midway.mp4");
 
+        mAACPath = CommonFileUtils.getModelFilePath(getContext()
+                , "fuzhous.aac");
     }
 
     @SuppressLint("RestrictedApi")
@@ -106,15 +112,22 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn5.setOnClickListener(view -> {
             String videoDir = DirectoryPath.createVideoDir(getContext());
             String outputPath = videoDir + "peelaudio.mp4";
-            String copyInfo = mCodecOperate.peelAudioOfMedia(mVideoPath2, outputPath);
-            mTv.setText(copyInfo);
+            String info = mCodecOperate.peelAudioOfMedia(mVideoPath2, outputPath);
+            mTv.setText(info);
         });
 
         mBtn6.setOnClickListener(view -> {
             String videoDir = DirectoryPath.createVideoDir(getContext());
             String outputPath = videoDir + "splitvideo.mp4";
-            String copyInfo = mCodecOperate.splitVideoOfMedia(mVideoPath2, outputPath);
-            mTv.setText(copyInfo);
+            String info = mCodecOperate.splitVideoOfMedia(mVideoPath2, outputPath);
+            mTv.setText(info);
+        });
+
+        mBtn7.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            String outputPath = videoDir + "merge_audio.mp4";
+            String info = mCodecOperate.mergeAudio(mVideoPath1, mAACPath, outputPath);
+            mTv.setText(info);
         });
 
     }
