@@ -34,6 +34,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         PeelAudioOfMedia.cpp
         SplitVideoOfMedia.cpp
         MergeAudio.cpp
+        RecodecVideo.cpp
 
 )
 

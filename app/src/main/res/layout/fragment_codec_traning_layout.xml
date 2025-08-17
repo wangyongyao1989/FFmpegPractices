@@ -85,6 +85,16 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_codec_back"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_codec_8"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="对视频流重新编码"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_7"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_back"
+        tools:ignore="HardcodedText" />
+
     <TextView
         android:id="@+id/sample_text"
         android:layout_width="wrap_content"

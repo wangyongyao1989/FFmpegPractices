@@ -35,6 +35,7 @@ public class CodecTraningFragment extends BaseFragment {
     private Button mBtn5;
     private Button mBtn6;
     private Button mBtn7;
+    private Button mBtn8;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -62,6 +63,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn5 = mBinding.btnCodec5;
         mBtn6 = mBinding.btnCodec6;
         mBtn7 = mBinding.btnCodec7;
+        mBtn8 = mBinding.btnCodec8;
 
     }
 
@@ -127,6 +129,13 @@ public class CodecTraningFragment extends BaseFragment {
             String videoDir = DirectoryPath.createVideoDir(getContext());
             String outputPath = videoDir + "merge_audio.mp4";
             String info = mCodecOperate.mergeAudio(mVideoPath1, mAACPath, outputPath);
+            mTv.setText(info);
+        });
+
+        mBtn8.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            String outputPath = videoDir + "recodec_video.mp4";
+            String info = mCodecOperate.recodeVideo(mVideoPath2,outputPath);
             mTv.setText(info);
         });
 

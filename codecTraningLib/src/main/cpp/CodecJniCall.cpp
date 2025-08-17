@@ -8,6 +8,7 @@
 #include "PeelAudioOfMedia.h"
 #include "SplitVideoOfMedia.h"
 #include "MergeAudio.h"
+#include "RecodecVideo.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/codectraninglib/CodecOperate";
@@ -20,6 +21,7 @@ CopyMeidaFile *copyMeidaFile;
 PeelAudioOfMedia *peelAudioOfMedia;
 SplitVideoOfMedia *splitVideoOfMedia;
 MergeAudio *mergeAudio;
+RecodecVideo *recodecVideo;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -132,7 +134,7 @@ JNIEXPORT jstring JNICALL
 cpp_merge_audio(JNIEnv *env, jobject thiz, jstring srcVideoPath,
                 jstring srcAudioPath, jstring destPath) {
     const char *cSrcVidePath = env->GetStringUTFChars(srcVideoPath, nullptr);
-    const char *cSrcAudioPath = env->GetStringUTFChars(srcVideoPath, nullptr);
+    const char *cSrcAudioPath = env->GetStringUTFChars(srcAudioPath, nullptr);
     const char *cDestPath = env->GetStringUTFChars(destPath, nullptr);
 
     if (mergeAudio == nullptr) {
@@ -145,6 +147,23 @@ cpp_merge_audio(JNIEnv *env, jobject thiz, jstring srcVideoPath,
     env->ReleaseStringUTFChars(destPath, cDestPath);
 
     return env->NewStringUTF(mergeAudioInfo.c_str());
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+cpp_recodec_video(JNIEnv *env, jobject thiz, jstring srcVideoPath, jstring destPath) {
+    const char *cSrcVidePath = env->GetStringUTFChars(srcVideoPath, nullptr);
+    const char *cDestPath = env->GetStringUTFChars(destPath, nullptr);
+
+    if (recodecVideo == nullptr) {
+        recodecVideo = new RecodecVideo();
+    }
+    const string &recodecInfo = recodecVideo->recodecVideo(cSrcVidePath, cDestPath);
+
+    env->ReleaseStringUTFChars(srcVideoPath, cSrcVidePath);
+    env->ReleaseStringUTFChars(destPath, cDestPath);
+
+    return env->NewStringUTF(recodecInfo.c_str());
 }
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
@@ -163,6 +182,8 @@ static const JNINativeMethod methods[] = {
                                         "Ljava/lang/String;"
                                         "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_merge_audio},
 
+        {"native_recodec_video",        "(Ljava/lang/String;"
+                                        "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_recodec_video},
 };
 
 

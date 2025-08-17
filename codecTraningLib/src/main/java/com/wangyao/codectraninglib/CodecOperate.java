@@ -47,6 +47,10 @@ public class CodecOperate {
         return native_merge_audio(srcVideoPath, srcAudioPath, destPath);
     }
 
+    public String recodeVideo(String srcVideoPath, String destPath) {
+        return native_recodec_video(srcVideoPath, destPath);
+    }
+
 
     private native String native_string_from_jni();
 
@@ -63,5 +67,7 @@ public class CodecOperate {
     private native String native_split_video_of_media(String srcPath, String destPath);
 
     private native String native_merge_audio(String srcVideoPath, String srcAudioPath, String destPath);
+
+    private native String native_recodec_video(String srcPath, String destPath);
 
 }
