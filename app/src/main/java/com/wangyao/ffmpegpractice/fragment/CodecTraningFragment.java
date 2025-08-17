@@ -29,6 +29,7 @@ public class CodecTraningFragment extends BaseFragment {
     private TextView mTv;
     private Button mBtn1;
     private Button mBtn2;
+    private Button mBtn3;
 
     private String mVideoPath1;
 
@@ -48,6 +49,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtCodecBack = mBinding.btnCodecBack;
         mBtn1 = mBinding.btnCodec1;
         mBtn2 = mBinding.btnCodec2;
+        mBtn3 = mBinding.btnCodec3;
 
     }
 
@@ -78,6 +80,10 @@ public class CodecTraningFragment extends BaseFragment {
 
         mBtn2.setOnClickListener(view -> {
             mTv.setText(mCodecOperate.getMediaTimeBase(mVideoPath1));
+        });
+
+        mBtn3.setOnClickListener(view -> {
+            mTv.setText(mCodecOperate.getMediaTimeStamp(mVideoPath1));
         });
 
     }

@@ -29,6 +29,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         CodecJniCall.cpp
         GetMediaMsg.cpp
         GetMediaTimeBase.cpp
+        GetMeidaTimeStamp.cpp
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}

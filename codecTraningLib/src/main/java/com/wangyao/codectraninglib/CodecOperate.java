@@ -27,10 +27,17 @@ public class CodecOperate {
         return native_get_media_time_base(mediaPath);
     }
 
+    public String getMediaTimeStamp(String mediaPath) {
+        return native_get_media_time_stamp(mediaPath);
+    }
+
+
     private native String native_string_from_jni();
 
     private native String native_get_media_msg(String mediaPath);
 
     private native String native_get_media_time_base(String mediaPath);
+
+    private native String native_get_media_time_stamp(String mediaPath);
 
 }
