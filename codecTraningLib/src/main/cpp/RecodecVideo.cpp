@@ -250,7 +250,9 @@ int RecodecVideo::open_output_file(const char *dest_name) {
         ret = avcodec_open2(video_encode_ctx, video_codec, nullptr); // 打开编码器的实例
         if (ret < 0) {
             LOGE("Can't open video_encode_ctx.\n");
-            recodecInfo = recodecInfo + "\n Can't open video_encode_ctx.";
+            av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
+            LOGE("avcodec_open2失败：%s\n", errbuf);
+            recodecInfo = recodecInfo + "\n avcodec_open2失败：" + string(errbuf);
             return -1;
         }
         dest_video = avformat_new_stream(out_fmt_ctx, nullptr); // 创建数据流
@@ -270,6 +272,8 @@ int RecodecVideo::open_output_file(const char *dest_name) {
     if (ret < 0) {
         LOGE("write file_header occur error %d.\n", ret);
         recodecInfo = recodecInfo + "\n write file_header occur error :" + to_string(ret);
+        av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
+        recodecInfo = recodecInfo + "\n avformat_write_header 失败：" + string(errbuf);
         return -1;
     }
     LOGI("Success write file_header.\n");

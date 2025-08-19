@@ -36,6 +36,7 @@ public class CodecTraningFragment extends BaseFragment {
     private Button mBtn6;
     private Button mBtn7;
     private Button mBtn8;
+    private Button mBtn9;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -64,6 +65,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn6 = mBinding.btnCodec6;
         mBtn7 = mBinding.btnCodec7;
         mBtn8 = mBinding.btnCodec8;
+        mBtn9 = mBinding.btnCodec9;
 
     }
 
@@ -137,6 +139,11 @@ public class CodecTraningFragment extends BaseFragment {
             String outputPath = videoDir + "recodec_video.mp4";
             String info = mCodecOperate.recodeVideo(mVideoPath2,outputPath);
             mTv.setText(info);
+        });
+
+        mBtn9.setOnClickListener(view -> {
+            String stringFromC = mCodecOperate.stringFromC();
+            mTv.setText(stringFromC);
         });
 
     }

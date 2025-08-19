@@ -25,6 +25,8 @@ private:
     AVFormatContext *out_fmt_ctx; // 输出文件的封装器实例
     AVCodecContext *video_encode_ctx = nullptr; // 视频编码器的实例
 
+    char errbuf[1024];
+
     int count = 0;
 
     int open_input_file(const char *src_name);
