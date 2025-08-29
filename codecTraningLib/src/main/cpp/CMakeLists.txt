@@ -17,6 +17,7 @@ set(third-party-libs
         ${jnilibs}/${ANDROID_ABI}/libpostproc.so
         ${jnilibs}/${ANDROID_ABI}/libswresample.so
         ${jnilibs}/${ANDROID_ABI}/libswscale.so
+        ${jnilibs}/${ANDROID_ABI}/libx264.so
 )
 
 include_directories(
