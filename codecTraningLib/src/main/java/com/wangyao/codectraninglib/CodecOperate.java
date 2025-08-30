@@ -1,5 +1,7 @@
 package com.wangyao.codectraninglib;
 
+import android.util.Log;
+
 /**
  * @author wangyongyao
  * @package com.wangyao.codectraninglib
@@ -69,5 +71,9 @@ public class CodecOperate {
     private native String native_merge_audio(String srcVideoPath, String srcAudioPath, String destPath);
 
     private native String native_recodec_video(String srcPath, String destPath);
+
+    private void CppRecodecStatusCallback(String status) {
+        Log.e(TAG, "CppRecodecStatusCallback: "+status );
+    }
 
 }

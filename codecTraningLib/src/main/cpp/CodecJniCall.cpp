@@ -173,7 +173,7 @@ cpp_recodec_video(JNIEnv *env, jobject thiz, jstring srcVideoPath, jstring destP
     const char *cDestPath = env->GetStringUTFChars(destPath, nullptr);
 
     if (recodecVideo == nullptr) {
-        recodecVideo = new RecodecVideo();
+        recodecVideo = new RecodecVideo(env, thiz);
     }
     const string &recodecInfo = recodecVideo->recodecVideo(cSrcVidePath, cDestPath);
 

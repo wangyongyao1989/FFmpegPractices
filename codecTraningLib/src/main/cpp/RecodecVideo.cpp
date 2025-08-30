@@ -4,8 +4,10 @@
 
 #include "includes/RecodecVideo.h"
 
-RecodecVideo::RecodecVideo() {
-
+RecodecVideo::RecodecVideo(JNIEnv *env, jobject thiz) {
+    mEnv = env;
+    env->GetJavaVM(&mJavaVm);
+    mJavaObj = env->NewGlobalRef(thiz);
 }
 
 RecodecVideo::~RecodecVideo() {
@@ -32,13 +34,26 @@ RecodecVideo::~RecodecVideo() {
     if (video_encode_ctx) {
         video_encode_ctx = nullptr;
     }
+    mEnv->DeleteGlobalRef(mJavaObj);
+    if (mEnv) {
+        mEnv = nullptr;
+    }
+
+    if (mJavaVm) {
+        mJavaVm = nullptr;
+    }
+
+    if (mJavaObj) {
+        mJavaObj = nullptr;
+    }
+
 }
 
 string RecodecVideo::recodecVideo(const char *srcPath, const char *destPath) {
     if (open_input_file(srcPath) < 0) { // 打开输入文件
         return recodecInfo;
     }
-    if (open_output_file(srcPath) < 0) { // 打开输出文件
+    if (open_output_file(destPath) < 0) { // 打开输出文件
         return recodecInfo;
     }
     int ret = -1;
@@ -53,7 +68,7 @@ string RecodecVideo::recodecVideo(const char *srcPath, const char *destPath) {
             ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包
             if (ret < 0) {
                 LOGE("write frame occur error %d.\n", ret);
-                recodecInfo = recodecInfo + "\n write frame occur error:" + to_string(ret);
+                recodecInfo = "\n write frame occur error:" + to_string(ret);
                 break;
             }
         }
@@ -65,7 +80,8 @@ string RecodecVideo::recodecVideo(const char *srcPath, const char *destPath) {
     output_video(nullptr); // 传入一个空帧，冲走编码缓存
     av_write_trailer(out_fmt_ctx); // 写文件尾
     LOGI("Success recode file.\n");
-    recodecInfo = recodecInfo + "\n Success recode file!!!!!!";
+    recodecInfo = "\n Success recode file!!!!!!";
+    PostRecodecStatusMessage(recodecInfo.c_str());
 
     av_frame_free(&frame); // 释放数据帧资源
     av_packet_free(&packet); // 释放数据包资源
@@ -85,16 +101,19 @@ int RecodecVideo::open_input_file(const char *src_name) {
     int ret = avformat_open_input(&in_fmt_ctx, src_name, nullptr, nullptr);
     if (ret < 0) {
         LOGE("Can't open file %s.\n", src_name);
-        recodecInfo = recodecInfo + "\n Can't open file :" + string(src_name);
+        recodecInfo = "\n Can't open file :" + string(src_name);
+        PostRecodecStatusMessage(recodecInfo.c_str());
         return -1;
     }
     LOGI("Success open input_file %s.\n", src_name);
-    recodecInfo = recodecInfo + "\n Success open input_file:" + string(src_name);
+    recodecInfo = "\n Success open input_file:" + string(src_name);
+    PostRecodecStatusMessage(recodecInfo.c_str());
     // 查找音视频文件中的流信息
     ret = avformat_find_stream_info(in_fmt_ctx, nullptr);
     if (ret < 0) {
         LOGE("Can't find stream information.\n");
-        recodecInfo = recodecInfo + "\n Can't find stream information. ";
+        recodecInfo = "\n Can't find stream information. ";
+        PostRecodecStatusMessage(recodecInfo.c_str());
         return -1;
     }
     // 找到视频流的索引
@@ -106,13 +125,15 @@ int RecodecVideo::open_input_file(const char *src_name) {
         AVCodec *video_codec = (AVCodec *) avcodec_find_decoder(video_codec_id);
         if (!video_codec) {
             LOGE("video_codec not found\n");
-            recodecInfo = recodecInfo + "\n video_codec not found. ";
+            recodecInfo = "\n video_codec not found. ";
+            PostRecodecStatusMessage(recodecInfo.c_str());
             return -1;
         }
         video_decode_ctx = avcodec_alloc_context3(video_codec); // 分配解码器的实例
         if (!video_decode_ctx) {
             LOGE("video_decode_ctx is nullptr\n");
-            recodecInfo = recodecInfo + "\n video_decode_ctx is nullptr ";
+            recodecInfo = "\n video_decode_ctx is nullptr ";
+            PostRecodecStatusMessage(recodecInfo.c_str());
             return -1;
         }
         // 把视频流中的编解码参数复制给解码器的实例
@@ -120,12 +141,14 @@ int RecodecVideo::open_input_file(const char *src_name) {
         ret = avcodec_open2(video_decode_ctx, video_codec, nullptr); // 打开解码器的实例
         if (ret < 0) {
             LOGE("Can't open video_decode_ctx.\n");
-            recodecInfo = recodecInfo + "\n Can't open video_decode_ctx";
+            recodecInfo = "\n Can't open video_decode_ctx";
+            PostRecodecStatusMessage(recodecInfo.c_str());
             return -1;
         }
     } else {
         LOGE("Can't find video stream.\n");
-        recodecInfo = recodecInfo + "\n Can't find video stream.";
+        recodecInfo = "\n Can't find video stream.";
+        PostRecodecStatusMessage(recodecInfo.c_str());
         return -1;
     }
     // 找到音频流的索引
@@ -142,7 +165,8 @@ int RecodecVideo::output_video(AVFrame *frame) {
     int ret = avcodec_send_frame(video_encode_ctx, frame);
     if (ret < 0) {
         LOGE("send frame occur error %d.\n", ret);
-        recodecInfo = recodecInfo + "\n send frame occur error" + to_string(ret);
+        recodecInfo = "\n send frame occur error" + to_string(ret);
+        PostRecodecStatusMessage(recodecInfo.c_str());
         return ret;
     }
     while (1) {
@@ -153,7 +177,8 @@ int RecodecVideo::output_video(AVFrame *frame) {
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
-            recodecInfo = recodecInfo + "\n encode frame occur error:" + to_string(ret);
+            recodecInfo = "\n encode frame occur error:" + to_string(ret);
+            PostRecodecStatusMessage(recodecInfo.c_str());
             break;
         }
         // 把数据包的时间戳从一个时间基转换为另一个时间基
@@ -163,7 +188,8 @@ int RecodecVideo::output_video(AVFrame *frame) {
         ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包
         if (ret < 0) {
             LOGE("write frame occur error %d.\n", ret);
-            recodecInfo = recodecInfo + "\n write frame occur error:" + to_string(ret);
+            recodecInfo = "\n write frame occur error:" + to_string(ret);
+            PostRecodecStatusMessage(recodecInfo.c_str());
             break;
         }
         av_packet_unref(packet); // 清除数据包
@@ -177,7 +203,8 @@ int RecodecVideo::recode_video(AVPacket *packet, AVFrame *frame) {
     int ret = avcodec_send_packet(video_decode_ctx, packet);
     if (ret < 0) {
         LOGE("send packet occur error %d.\n", ret);
-        recodecInfo = recodecInfo + "\n send packet occur error:" + to_string(ret);
+        recodecInfo = "\n send packet occur error:" + to_string(ret);
+        PostRecodecStatusMessage(recodecInfo.c_str());
         return ret;
     }
     while (1) {
@@ -187,7 +214,8 @@ int RecodecVideo::recode_video(AVPacket *packet, AVFrame *frame) {
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("decode frame occur error %d.\n", ret);
-            recodecInfo = recodecInfo + "\n decode frame occur error :" + to_string(ret);
+            recodecInfo = "\n decode frame occur error :" + to_string(ret);
+            PostRecodecStatusMessage(recodecInfo.c_str());
             break;
         }
         if (frame->pts == AV_NOPTS_VALUE) { // 对H.264裸流做特殊处理
@@ -205,18 +233,20 @@ int RecodecVideo::open_output_file(const char *dest_name) {
     int ret = avformat_alloc_output_context2(&out_fmt_ctx, nullptr, nullptr, dest_name);
     if (ret < 0) {
         LOGE("Can't alloc output_file %s.\n", dest_name);
-        recodecInfo = recodecInfo + "\n Can't alloc output_file :" + string(dest_name);
+        recodecInfo = "\n Can't alloc output_file :" + string(dest_name);
+        PostRecodecStatusMessage(recodecInfo.c_str());
         return -1;
     }
     // 打开输出流
     ret = avio_open(&out_fmt_ctx->pb, dest_name, AVIO_FLAG_READ_WRITE);
     if (ret < 0) {
         LOGE("Can't open output_file %s.\n", dest_name);
-        recodecInfo = recodecInfo + "\n Can't open output_file:" + string(dest_name);
+        recodecInfo = "\n Can't open output_file:" + string(dest_name);
+        PostRecodecStatusMessage(recodecInfo.c_str());
         return -1;
     }
     LOGI("Success open output_file %s.\n", dest_name);
-    recodecInfo = recodecInfo + "\n Success open output_file :" + string(dest_name);
+    recodecInfo = "\n Success open output_file :" + string(dest_name);
     if (video_index >= 0) { // 创建编码器实例和新的视频流
         enum AVCodecID video_codec_id = src_video->codecpar->codec_id;
         // 查找视频编码器
@@ -225,13 +255,15 @@ int RecodecVideo::open_output_file(const char *dest_name) {
         AVCodec *video_codec = (AVCodec *) avcodec_find_encoder_by_name("libx264");
         if (!video_codec) {
             LOGE("video_codec not found\n");
-            recodecInfo = recodecInfo + "\n video_codec not found .";
+            recodecInfo = "\n video_codec not found .";
+            PostRecodecStatusMessage(recodecInfo.c_str());
             return -1;
         }
         video_encode_ctx = avcodec_alloc_context3(video_codec); // 分配编码器的实例
         if (!video_encode_ctx) {
             LOGE("video_encode_ctx is null\n");
-            recodecInfo = recodecInfo + "\n video_encode_ctx is null";
+            recodecInfo = "\n video_encode_ctx is null";
+            PostRecodecStatusMessage(recodecInfo.c_str());
             return -1;
         }
         // 把源视频流中的编解码参数复制给编码器的实例
@@ -254,7 +286,8 @@ int RecodecVideo::open_output_file(const char *dest_name) {
             LOGE("Can't open video_encode_ctx.\n");
             av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
             LOGE("avcodec_open2失败：%s\n", errbuf);
-            recodecInfo = recodecInfo + "\n avcodec_open2失败：" + string(errbuf);
+            recodecInfo = "\n avcodec_open2失败：" + string(errbuf);
+            PostRecodecStatusMessage(recodecInfo.c_str());
             return -1;
         }
         dest_video = avformat_new_stream(out_fmt_ctx, nullptr); // 创建数据流
@@ -273,14 +306,55 @@ int RecodecVideo::open_output_file(const char *dest_name) {
     ret = avformat_write_header(out_fmt_ctx, nullptr); // 写文件头
     if (ret < 0) {
         LOGE("write file_header occur error %d.\n", ret);
-        recodecInfo = recodecInfo + "\n write file_header occur error :" + to_string(ret);
+        recodecInfo = "\n write file_header occur error :" + to_string(ret);
         av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
-        recodecInfo = recodecInfo + "\n avformat_write_header 失败：" + string(errbuf);
+        recodecInfo = "\n avformat_write_header 失败：" + string(errbuf);
+        PostRecodecStatusMessage(recodecInfo.c_str());
         return -1;
     }
     LOGI("Success write file_header.\n");
-    recodecInfo = recodecInfo + "\n Success write file_header.";
+    recodecInfo = "\n Success write file_header.";
+    PostRecodecStatusMessage(recodecInfo.c_str());
     return 0;
 }
+
+
+JNIEnv *RecodecVideo::GetJNIEnv(bool *isAttach) {
+    JNIEnv *env;
+    int status;
+    if (nullptr == mJavaVm) {
+        LOGD("RecodecVideo::GetJNIEnv mJavaVm == nullptr");
+        return nullptr;
+    }
+    *isAttach = false;
+    status = mJavaVm->GetEnv((void **) &env, JNI_VERSION_1_6);
+    if (status != JNI_OK) {
+        status = mJavaVm->AttachCurrentThread(&env, nullptr);
+        if (status != JNI_OK) {
+            LOGD("RecodecVideo::GetJNIEnv failed to attach current thread");
+            return nullptr;
+        }
+        *isAttach = true;
+    }
+    return env;
+}
+
+void RecodecVideo::PostRecodecStatusMessage(const char *msg) {
+    bool isAttach = false;
+    JNIEnv *pEnv = GetJNIEnv(&isAttach);
+    if (pEnv == nullptr) {
+        return;
+    }
+    jobject javaObj = mJavaObj;
+    jmethodID mid = pEnv->GetMethodID(pEnv->GetObjectClass(javaObj), "CppRecodecStatusCallback",
+                                      "(Ljava/lang/String;)V");
+    jstring pJstring = pEnv->NewStringUTF(msg);
+    pEnv->CallVoidMethod(javaObj, mid, pJstring);
+    if (isAttach) {
+        JavaVM *pJavaVm = mJavaVm;
+        pJavaVm->DetachCurrentThread();
+    }
+}
+
 
 

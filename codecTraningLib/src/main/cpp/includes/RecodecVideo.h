@@ -5,6 +5,7 @@
 #ifndef FFMPEGPRACTICE_RECODECVIDEO_H
 #define FFMPEGPRACTICE_RECODECVIDEO_H
 
+#include <jni.h>
 #include "BasicCommon.h"
 #include "string"
 
@@ -25,6 +26,10 @@ private:
     AVFormatContext *out_fmt_ctx; // 输出文件的封装器实例
     AVCodecContext *video_encode_ctx = nullptr; // 视频编码器的实例
 
+    JavaVM *mJavaVm = nullptr;
+    jobject mJavaObj = nullptr;
+    JNIEnv *mEnv = nullptr;
+
     char errbuf[1024];
 
     int count = 0;
@@ -37,12 +42,18 @@ private:
 
     int recode_video(AVPacket *packet, AVFrame *frame);
 
+    JNIEnv *GetJNIEnv(bool *isAttach);
+
+    void PostRecodecStatusMessage(const char *msg);
+
 public:
-    RecodecVideo();
+    RecodecVideo(JNIEnv *env, jobject thiz);
 
     ~RecodecVideo();
 
     string recodecVideo(const char *srcPath, const char *destPath);
+
+    int initCallBack(JNIEnv *env, jobject thiz);
 
 
 };

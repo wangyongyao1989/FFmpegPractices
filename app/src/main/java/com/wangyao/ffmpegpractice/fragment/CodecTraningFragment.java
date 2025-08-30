@@ -137,7 +137,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn8.setOnClickListener(view -> {
             String videoDir = DirectoryPath.createVideoDir(getContext());
             String outputPath = videoDir + "recodec_video.mp4";
-            String info = mCodecOperate.recodeVideo(mVideoPath2,outputPath);
+            String info = mCodecOperate.recodeVideo(mVideoPath2, outputPath);
             mTv.setText(info);
         });
 
