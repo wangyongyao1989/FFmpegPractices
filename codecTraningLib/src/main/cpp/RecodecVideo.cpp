@@ -86,7 +86,7 @@ void RecodecVideo::recodecVideo() {
             packet->stream_index = 0;
             if (packet->buf->size < 600) {
                 recodecInfo =
-                        "读出视频包的大小：" + to_string(packet->buf->size) + "，并重现编码写入...\n";
+                        "读出视频包的大小：" + to_string(packet->buf->size) + "，并重新编码写入...\n";
                 PostRecodecStatusMessage(recodecInfo.c_str());
             }
             LOGD("%s.\n", recodecInfo.c_str());
@@ -96,6 +96,9 @@ void RecodecVideo::recodecVideo() {
             ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包
             if (ret < 0) {
                 LOGE("write frame occur error %d.\n", ret);
+                av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
+                recodecInfo = "write frame occur error:" + to_string(ret) + "\n error msg：" +
+                              string(errbuf) + "\n";
                 recodecInfo = "\n write frame occur error:" + to_string(ret);
                 break;
             }
@@ -108,7 +111,7 @@ void RecodecVideo::recodecVideo() {
     output_video(nullptr); // 传入一个空帧，冲走编码缓存
     av_write_trailer(out_fmt_ctx); // 写文件尾
     LOGI("Success recode file.\n");
-    recodecInfo = "\n Success recode file!!!!!!";
+    recodecInfo = "Success recode file!!!!!!\n\n";
     PostRecodecStatusMessage(recodecInfo.c_str());
 
     av_frame_free(&frame); // 释放数据帧资源
@@ -139,7 +142,9 @@ int RecodecVideo::open_input_file(const char *src_name) {
     ret = avformat_find_stream_info(in_fmt_ctx, nullptr);
     if (ret < 0) {
         LOGE("Can't find stream information.\n");
-        recodecInfo = "\n Can't find stream information. ";
+        av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
+        recodecInfo = "Can't find stream information:" + to_string(ret) + "\n error msg：" +
+                      string(errbuf) + "\n";
         PostRecodecStatusMessage(recodecInfo.c_str());
         return -1;
     }
@@ -168,7 +173,7 @@ int RecodecVideo::open_input_file(const char *src_name) {
         ret = avcodec_open2(video_decode_ctx, video_codec, nullptr); // 打开解码器的实例
         if (ret < 0) {
             LOGE("Can't open video_decode_ctx.\n");
-            recodecInfo = "\n Can't open video_decode_ctx";
+            recodecInfo = "Can't open video_decode_ctx\n";
             PostRecodecStatusMessage(recodecInfo.c_str());
             return -1;
         }
@@ -192,7 +197,9 @@ int RecodecVideo::output_video(AVFrame *frame) {
     int ret = avcodec_send_frame(video_encode_ctx, frame);
     if (ret < 0) {
         LOGE("send frame occur error %d.\n", ret);
-        recodecInfo = "\n send frame occur error" + to_string(ret);
+        av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
+        recodecInfo = "send frame occur error :" + to_string(ret) + "\n error msg：" +
+                      string(errbuf) + "\n";
         PostRecodecStatusMessage(recodecInfo.c_str());
         return ret;
     }
@@ -204,7 +211,9 @@ int RecodecVideo::output_video(AVFrame *frame) {
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
-            recodecInfo = "\n encode frame occur error:" + to_string(ret);
+            av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
+            recodecInfo = "encode frame occur error :" + to_string(ret) + "\n error msg：" +
+                          string(errbuf) + "\n";
             PostRecodecStatusMessage(recodecInfo.c_str());
             break;
         }
@@ -215,7 +224,9 @@ int RecodecVideo::output_video(AVFrame *frame) {
         ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包
         if (ret < 0) {
             LOGE("write frame occur error %d.\n", ret);
-            recodecInfo = "\n write frame occur error:" + to_string(ret);
+            av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
+            recodecInfo = "write frame occur error:" + to_string(ret) + "\n error msg：" +
+                          string(errbuf) + "\n";
             PostRecodecStatusMessage(recodecInfo.c_str());
             break;
         }
@@ -230,7 +241,9 @@ int RecodecVideo::recode_video(AVPacket *packet, AVFrame *frame) {
     int ret = avcodec_send_packet(video_decode_ctx, packet);
     if (ret < 0) {
         LOGE("send packet occur error %d.\n", ret);
-        recodecInfo = "\n send packet occur error:" + to_string(ret);
+        av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
+        recodecInfo = "send packet occur error:" + to_string(ret) + "\n error msg：" +
+                      string(errbuf) + "\n";
         PostRecodecStatusMessage(recodecInfo.c_str());
         return ret;
     }

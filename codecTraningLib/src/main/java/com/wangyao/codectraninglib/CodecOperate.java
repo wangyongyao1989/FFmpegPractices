@@ -50,7 +50,11 @@ public class CodecOperate {
     }
 
     public void recodeVideo(String srcVideoPath, String destPath) {
-         native_recodec_video(srcVideoPath, destPath);
+        native_recodec_video(srcVideoPath, destPath);
+    }
+
+    public void mergeVideo(String srcVideoPath1, String srcVideoPath2, String destPath) {
+        native_merge_video(srcVideoPath1, srcVideoPath2, destPath);
     }
 
 
@@ -72,21 +76,23 @@ public class CodecOperate {
 
     private native void native_recodec_video(String srcPath, String destPath);
 
-    private void CppRecodecStatusCallback(String status) {
-        Log.e(TAG, "CppRecodecStatusCallback: "+status );
-        if (mOnRecodecStatusListener != null) {
-            mOnRecodecStatusListener.onRecodecStatus(status);
+    private native void native_merge_video(String srcPath1, String srcPath2, String destPath);
+
+    private void CppStatusCallback(String status) {
+        Log.e(TAG, "CppStatusCallback: " + status);
+        if (mOnStatusMsgListener != null) {
+            mOnStatusMsgListener.onStatusMsg(status);
         }
     }
 
-    public interface OnRecodecStatusListener {
-        void onRecodecStatus(String msg);
+    public interface OnStatusMsgListener {
+        void onStatusMsg(String msg);
     }
 
-    private OnRecodecStatusListener mOnRecodecStatusListener;
+    private OnStatusMsgListener mOnStatusMsgListener;
 
-    public void setmOnRecodecStatusListener(OnRecodecStatusListener mOnRecodecStatusListener) {
-        this.mOnRecodecStatusListener = mOnRecodecStatusListener;
+    public void setOnStatusMsgListener(OnStatusMsgListener listener) {
+        this.mOnStatusMsgListener = listener;
     }
 
 }

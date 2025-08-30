@@ -39,6 +39,7 @@ public class CodecTraningFragment extends BaseFragment {
     private Button mBtn7;
     private Button mBtn8;
     private Button mBtn9;
+    private Button mBtn10;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -69,6 +70,7 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn7 = mBinding.btnCodec7;
         mBtn8 = mBinding.btnCodec8;
         mBtn9 = mBinding.btnCodec9;
+        mBtn10 = mBinding.btnCodec10;
 
     }
 
@@ -94,7 +96,7 @@ public class CodecTraningFragment extends BaseFragment {
 
     @Override
     public void initListener() {
-        mCodecOperate.setmOnRecodecStatusListener(msg -> {
+        mCodecOperate.setOnStatusMsgListener(msg -> {
             getActivity().runOnUiThread(() -> {
                 mStringBuilder.append(msg);
                 mTv.setText(mStringBuilder);
@@ -159,6 +161,17 @@ public class CodecTraningFragment extends BaseFragment {
             String stringFromC = mCodecOperate.stringFromC();
             mTv.setText(stringFromC);
         });
+
+        mBtn10.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1; // 加1是为了包括100
+            String outputPath = videoDir + "merge_video" + randomInt + ".mp4";
+            mCodecOperate.mergeVideo(mVideoPath1, mVideoPath2, outputPath);
+
+
+        });
+
 
     }
 }

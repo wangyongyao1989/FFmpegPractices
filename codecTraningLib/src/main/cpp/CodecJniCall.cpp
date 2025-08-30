@@ -9,6 +9,7 @@
 #include "SplitVideoOfMedia.h"
 #include "MergeAudio.h"
 #include "RecodecVideo.h"
+#include "MergeVideo.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/codectraninglib/CodecOperate";
@@ -22,6 +23,7 @@ PeelAudioOfMedia *peelAudioOfMedia;
 SplitVideoOfMedia *splitVideoOfMedia;
 MergeAudio *mergeAudio;
 RecodecVideo *recodecVideo;
+MergeVideo *mergeVideo;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -180,7 +182,27 @@ cpp_recodec_video(JNIEnv *env, jobject thiz, jstring srcVideoPath, jstring destP
     env->ReleaseStringUTFChars(srcVideoPath, cSrcVidePath);
     env->ReleaseStringUTFChars(destPath, cDestPath);
 
-    return ;
+    return;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_merge_video(JNIEnv *env, jobject thiz, jstring srcVideoPath1, jstring srcVideoPath2,
+                jstring destPath) {
+    const char *cSrcVidePath1 = env->GetStringUTFChars(srcVideoPath1, nullptr);
+    const char *cSrcVidePath2 = env->GetStringUTFChars(srcVideoPath2, nullptr);
+    const char *cDestPath = env->GetStringUTFChars(destPath, nullptr);
+
+    if (mergeVideo == nullptr) {
+        mergeVideo = new MergeVideo(env, thiz);
+    }
+    mergeVideo->startMergeVideoThread(cSrcVidePath1, cSrcVidePath2, cDestPath);
+
+    env->ReleaseStringUTFChars(srcVideoPath1, cSrcVidePath1);
+    env->ReleaseStringUTFChars(srcVideoPath2, cSrcVidePath2);
+    env->ReleaseStringUTFChars(destPath, cDestPath);
+
+    return;
 }
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
@@ -200,7 +222,11 @@ static const JNINativeMethod methods[] = {
                                         "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_merge_audio},
 
         {"native_recodec_video",        "(Ljava/lang/String;"
-                                        "Ljava/lang/String;)V",  (void *) cpp_recodec_video},
+                                        "Ljava/lang/String;)V",                   (void *) cpp_recodec_video},
+
+        {"native_merge_video",          "(Ljava/lang/String;"
+                                        "Ljava/lang/String;"
+                                        "Ljava/lang/String;)V",                   (void *) cpp_merge_video},
 };
 
 
