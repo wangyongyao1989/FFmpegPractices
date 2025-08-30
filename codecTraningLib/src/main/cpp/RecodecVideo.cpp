@@ -220,7 +220,9 @@ int RecodecVideo::open_output_file(const char *dest_name) {
     if (video_index >= 0) { // 创建编码器实例和新的视频流
         enum AVCodecID video_codec_id = src_video->codecpar->codec_id;
         // 查找视频编码器
-        AVCodec *video_codec = (AVCodec *) avcodec_find_encoder(video_codec_id);
+//        AVCodec *video_codec = (AVCodec *) avcodec_find_encoder(video_codec_id);
+        //使用libx264的编码器
+        AVCodec *video_codec = (AVCodec *) avcodec_find_encoder_by_name("libx264");
         if (!video_codec) {
             LOGE("video_codec not found\n");
             recodecInfo = recodecInfo + "\n video_codec not found .";

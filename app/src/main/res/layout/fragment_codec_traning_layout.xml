@@ -105,15 +105,21 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_codec_5"
         tools:ignore="HardcodedText" />
 
-    <TextView
-        android:id="@+id/sample_text"
-        android:layout_width="wrap_content"
+    <ScrollView
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="10dp"
-        android:text="FFmpeg的编解码"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_codec_1" />
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_1">
+
+        <TextView
+            android:id="@+id/sample_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:text="FFmpeg的编解码" />
+    </ScrollView>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
