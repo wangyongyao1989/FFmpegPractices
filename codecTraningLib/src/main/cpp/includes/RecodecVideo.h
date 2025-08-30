@@ -6,6 +6,7 @@
 #define FFMPEGPRACTICE_RECODECVIDEO_H
 
 #include <jni.h>
+#include <thread>
 #include "BasicCommon.h"
 #include "string"
 
@@ -30,6 +31,11 @@ private:
     jobject mJavaObj = nullptr;
     JNIEnv *mEnv = nullptr;
 
+    thread *codecThread = nullptr;
+
+    const char *mSrcPath;
+    const char *mDestPath;
+
     char errbuf[1024];
 
     int count = 0;
@@ -46,14 +52,17 @@ private:
 
     void PostRecodecStatusMessage(const char *msg);
 
+    void recodecVideo();
+
+    static void DoRecoding(RecodecVideo *recodecVideo);
+
+
 public:
     RecodecVideo(JNIEnv *env, jobject thiz);
 
     ~RecodecVideo();
 
-    string recodecVideo(const char *srcPath, const char *destPath);
-
-    int initCallBack(JNIEnv *env, jobject thiz);
+    void startRecodecThread(const char *srcPath, const char *destPath);
 
 
 };

@@ -18,6 +18,8 @@ import com.wangyao.ffmpegpractice.databinding.FragmentCodecTraningLayoutBinding;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 import com.wangyongyao.commonlib.utils.DirectoryPath;
 
+import java.util.Random;
+
 /**
  * author : wangyongyao https://github.com/wangyongyao1989
  * Create Time : 2025/8/12 17:27
@@ -45,6 +47,7 @@ public class CodecTraningFragment extends BaseFragment {
 
     private Button mBtCodecBack;
     private CodecOperate mCodecOperate;
+    private StringBuilder mStringBuilder;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -79,6 +82,7 @@ public class CodecTraningFragment extends BaseFragment {
 
         mAACPath = CommonFileUtils.getModelFilePath(getContext()
                 , "fuzhous.aac");
+        mStringBuilder = new StringBuilder();
     }
 
     @SuppressLint("RestrictedApi")
@@ -90,6 +94,14 @@ public class CodecTraningFragment extends BaseFragment {
 
     @Override
     public void initListener() {
+        mCodecOperate.setmOnRecodecStatusListener(msg -> {
+            getActivity().runOnUiThread(() -> {
+                mStringBuilder.append(msg);
+                mTv.setText(mStringBuilder);
+            });
+
+        });
+
         mBtCodecBack.setOnClickListener(view -> {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.MAIN);
         });
@@ -136,9 +148,11 @@ public class CodecTraningFragment extends BaseFragment {
 
         mBtn8.setOnClickListener(view -> {
             String videoDir = DirectoryPath.createVideoDir(getContext());
-            String outputPath = videoDir + "recodec_video.mp4";
-            String info = mCodecOperate.recodeVideo(mVideoPath2, outputPath);
-            mTv.setText(info);
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1; // 加1是为了包括100
+            String outputPath = videoDir + "recodec_video" + randomInt + ".mp4";
+            mStringBuilder = new StringBuilder();
+            mCodecOperate.recodeVideo(mVideoPath2, outputPath);
         });
 
         mBtn9.setOnClickListener(view -> {

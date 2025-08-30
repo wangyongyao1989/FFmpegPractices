@@ -47,21 +47,49 @@ RecodecVideo::~RecodecVideo() {
         mJavaObj = nullptr;
     }
 
+    if (codecThread != nullptr) {
+        codecThread->join();
+        delete codecThread;
+        codecThread = nullptr;
+    }
+
+    mSrcPath = nullptr;
+    mDestPath = nullptr;
+
 }
 
-string RecodecVideo::recodecVideo(const char *srcPath, const char *destPath) {
-    if (open_input_file(srcPath) < 0) { // 打开输入文件
-        return recodecInfo;
+void RecodecVideo::startRecodecThread(const char *srcPath, const char *destPath) {
+    mSrcPath = srcPath;
+    mDestPath = destPath;
+    if (open_input_file(mSrcPath) < 0) { // 打开输入文件
+        return;
     }
-    if (open_output_file(destPath) < 0) { // 打开输出文件
-        return recodecInfo;
+    if (open_output_file(mDestPath) < 0) { // 打开输出文件
+        return;
     }
+    if (codecThread == nullptr) {
+        codecThread = new thread(DoRecoding, this);
+        codecThread->detach();
+    }
+}
+
+void RecodecVideo::DoRecoding(RecodecVideo *recodecVideo) {
+    recodecVideo->recodecVideo();
+}
+
+void RecodecVideo::recodecVideo() {
     int ret = -1;
     AVPacket *packet = av_packet_alloc(); // 分配一个数据包
     AVFrame *frame = av_frame_alloc(); // 分配一个数据帧
     while (av_read_frame(in_fmt_ctx, packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index) { // 视频包需要重新编码
             packet->stream_index = 0;
+            if (packet->buf->size < 600) {
+                recodecInfo =
+                        "读出视频包的大小：" + to_string(packet->buf->size) + "，并重现编码写入...\n";
+                PostRecodecStatusMessage(recodecInfo.c_str());
+            }
+            LOGD("%s.\n", recodecInfo.c_str());
             recode_video(packet, frame); // 对视频帧重新编码
         } else { // 音频包暂不重新编码，直接写入目标文件
             packet->stream_index = 1;
@@ -92,7 +120,6 @@ string RecodecVideo::recodecVideo(const char *srcPath, const char *destPath) {
     avcodec_free_context(&video_encode_ctx); // 释放视频编码器的实例
     avformat_free_context(out_fmt_ctx); // 释放封装器的实例
     avformat_close_input(&in_fmt_ctx); // 关闭音视频文件
-    return recodecInfo;
 }
 
 // 打开输入文件
@@ -247,6 +274,7 @@ int RecodecVideo::open_output_file(const char *dest_name) {
     }
     LOGI("Success open output_file %s.\n", dest_name);
     recodecInfo = "\n Success open output_file :" + string(dest_name);
+    PostRecodecStatusMessage(recodecInfo.c_str());
     if (video_index >= 0) { // 创建编码器实例和新的视频流
         enum AVCodecID video_codec_id = src_video->codecpar->codec_id;
         // 查找视频编码器
@@ -313,7 +341,7 @@ int RecodecVideo::open_output_file(const char *dest_name) {
         return -1;
     }
     LOGI("Success write file_header.\n");
-    recodecInfo = "\n Success write file_header.";
+    recodecInfo = "Success write file_header.\n";
     PostRecodecStatusMessage(recodecInfo.c_str());
     return 0;
 }

@@ -167,7 +167,7 @@ cpp_merge_audio(JNIEnv *env, jobject thiz, jstring srcVideoPath,
 }
 
 extern "C"
-JNIEXPORT jstring JNICALL
+JNIEXPORT void JNICALL
 cpp_recodec_video(JNIEnv *env, jobject thiz, jstring srcVideoPath, jstring destPath) {
     const char *cSrcVidePath = env->GetStringUTFChars(srcVideoPath, nullptr);
     const char *cDestPath = env->GetStringUTFChars(destPath, nullptr);
@@ -175,12 +175,12 @@ cpp_recodec_video(JNIEnv *env, jobject thiz, jstring srcVideoPath, jstring destP
     if (recodecVideo == nullptr) {
         recodecVideo = new RecodecVideo(env, thiz);
     }
-    const string &recodecInfo = recodecVideo->recodecVideo(cSrcVidePath, cDestPath);
+    recodecVideo->startRecodecThread(cSrcVidePath, cDestPath);
 
     env->ReleaseStringUTFChars(srcVideoPath, cSrcVidePath);
     env->ReleaseStringUTFChars(destPath, cDestPath);
 
-    return env->NewStringUTF(recodecInfo.c_str());
+    return ;
 }
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
@@ -200,7 +200,7 @@ static const JNINativeMethod methods[] = {
                                         "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_merge_audio},
 
         {"native_recodec_video",        "(Ljava/lang/String;"
-                                        "Ljava/lang/String;)Ljava/lang/String;",  (void *) cpp_recodec_video},
+                                        "Ljava/lang/String;)V",  (void *) cpp_recodec_video},
 };
 
 

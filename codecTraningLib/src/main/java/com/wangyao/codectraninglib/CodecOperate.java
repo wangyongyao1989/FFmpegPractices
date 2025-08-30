@@ -49,8 +49,8 @@ public class CodecOperate {
         return native_merge_audio(srcVideoPath, srcAudioPath, destPath);
     }
 
-    public String recodeVideo(String srcVideoPath, String destPath) {
-        return native_recodec_video(srcVideoPath, destPath);
+    public void recodeVideo(String srcVideoPath, String destPath) {
+         native_recodec_video(srcVideoPath, destPath);
     }
 
 
@@ -70,10 +70,23 @@ public class CodecOperate {
 
     private native String native_merge_audio(String srcVideoPath, String srcAudioPath, String destPath);
 
-    private native String native_recodec_video(String srcPath, String destPath);
+    private native void native_recodec_video(String srcPath, String destPath);
 
     private void CppRecodecStatusCallback(String status) {
         Log.e(TAG, "CppRecodecStatusCallback: "+status );
+        if (mOnRecodecStatusListener != null) {
+            mOnRecodecStatusListener.onRecodecStatus(status);
+        }
+    }
+
+    public interface OnRecodecStatusListener {
+        void onRecodecStatus(String msg);
+    }
+
+    private OnRecodecStatusListener mOnRecodecStatusListener;
+
+    public void setmOnRecodecStatusListener(OnRecodecStatusListener mOnRecodecStatusListener) {
+        this.mOnRecodecStatusListener = mOnRecodecStatusListener;
     }
 
 }
