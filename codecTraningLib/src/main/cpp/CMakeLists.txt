@@ -17,6 +17,7 @@ set(third-party-libs
         ${jnilibs}/${ANDROID_ABI}/libpostproc.so
         ${jnilibs}/${ANDROID_ABI}/libswresample.so
         ${jnilibs}/${ANDROID_ABI}/libswscale.so
+        ${jnilibs}/${ANDROID_ABI}/libx264.so
 )
 
 include_directories(
@@ -27,6 +28,15 @@ include_directories(
 add_library(${CMAKE_PROJECT_NAME} SHARED
         # List C/C++ source files with relative paths to this CMakeLists.txt.
         CodecJniCall.cpp
+        GetMediaMsg.cpp
+        GetMediaTimeBase.cpp
+        GetMeidaTimeStamp.cpp
+        CopyMeidaFile.cpp
+        PeelAudioOfMedia.cpp
+        SplitVideoOfMedia.cpp
+        MergeAudio.cpp
+        RecodecVideo.cpp
+        MergeVideo.cpp
 
 )
 

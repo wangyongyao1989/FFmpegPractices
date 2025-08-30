@@ -25,16 +25,111 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
-
-    <TextView
-        android:id="@+id/sample_text"
+    <Button
+        android:id="@+id/btn_codec_2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="10dp"
-        android:text="FFmpeg的编解码"
-        app:layout_constraintTop_toBottomOf="@+id/btn_codec_1"
+        android:layout_marginStart="10dp"
+        android:text="获取时间基准"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_1"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_codec_3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="获取时间戳"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_2"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_codec_4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="原样复制视频文件"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_3"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_codec_5"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="从视频文件剥离音频流"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_back"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_codec_6"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="切割视频文件"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_5"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_back"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_codec_7"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="合并视频流和音频流"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_6"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_back"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_codec_8"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="对视频流重新编码"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_7"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_back"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_codec_9"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="获取ffmpeg参数"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_5"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/btn_codec_10"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="合并两个视频文件"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_9"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_5"
+        tools:ignore="HardcodedText" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_1">
+
+        <TextView
+            android:id="@+id/sample_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:text="FFmpeg的编解码" />
+    </ScrollView>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
