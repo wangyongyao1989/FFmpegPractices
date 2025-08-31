@@ -10,6 +10,7 @@
 #include "MergeAudio.h"
 #include "RecodecVideo.h"
 #include "MergeVideo.h"
+#include "H264ToMP4.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/codectraninglib/CodecOperate";
@@ -24,6 +25,8 @@ SplitVideoOfMedia *splitVideoOfMedia;
 MergeAudio *mergeAudio;
 RecodecVideo *recodecVideo;
 MergeVideo *mergeVideo;
+H264ToMP4 *h264ToMP4;
+
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -205,6 +208,23 @@ cpp_merge_video(JNIEnv *env, jobject thiz, jstring srcVideoPath1, jstring srcVid
     return;
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_h264_to_mp4(JNIEnv *env, jobject thiz, jstring srcVideoPath, jstring destPath) {
+    const char *cSrcVidePath = env->GetStringUTFChars(srcVideoPath, nullptr);
+    const char *cDestPath = env->GetStringUTFChars(destPath, nullptr);
+
+    if (h264ToMP4 == nullptr) {
+        h264ToMP4 = new H264ToMP4(env, thiz);
+    }
+    h264ToMP4->startRecodecThread(cSrcVidePath, cDestPath);
+
+    env->ReleaseStringUTFChars(srcVideoPath, cSrcVidePath);
+    env->ReleaseStringUTFChars(destPath, cDestPath);
+
+    return;
+}
+
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
         {"native_string_from_jni",      "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
@@ -227,6 +247,8 @@ static const JNINativeMethod methods[] = {
         {"native_merge_video",          "(Ljava/lang/String;"
                                         "Ljava/lang/String;"
                                         "Ljava/lang/String;)V",                   (void *) cpp_merge_video},
+        {"native_h264_to_mp4",        "(Ljava/lang/String;"
+                                        "Ljava/lang/String;)V",                   (void *) cpp_h264_to_mp4},
 };
 
 

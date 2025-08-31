@@ -387,7 +387,7 @@ void RecodecVideo::PostRecodecStatusMessage(const char *msg) {
         return;
     }
     jobject javaObj = mJavaObj;
-    jmethodID mid = pEnv->GetMethodID(pEnv->GetObjectClass(javaObj), "CppRecodecStatusCallback",
+    jmethodID mid = pEnv->GetMethodID(pEnv->GetObjectClass(javaObj), "CppStatusCallback",
                                       "(Ljava/lang/String;)V");
     jstring pJstring = pEnv->NewStringUTF(msg);
     pEnv->CallVoidMethod(javaObj, mid, pJstring);

@@ -37,6 +37,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         MergeAudio.cpp
         RecodecVideo.cpp
         MergeVideo.cpp
+        H264ToMP4.cpp
 
 )
 
