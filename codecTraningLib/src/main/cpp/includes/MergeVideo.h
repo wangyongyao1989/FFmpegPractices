@@ -1,5 +1,5 @@
 //
-// Created by 王耀 on 2025/8/30.
+// Created by on 2025/8/30.
 //
 
 #ifndef FFMPEGPRACTICE_MERGEVIDEO_H

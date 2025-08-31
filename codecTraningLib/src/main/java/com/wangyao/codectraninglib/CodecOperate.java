@@ -57,6 +57,10 @@ public class CodecOperate {
         native_merge_video(srcVideoPath1, srcVideoPath2, destPath);
     }
 
+    public void h264ToMP4(String srcVideoPath, String destPath) {
+        native_h264_to_mp4(srcVideoPath, destPath);
+    }
+
 
     private native String native_string_from_jni();
 
@@ -77,6 +81,8 @@ public class CodecOperate {
     private native void native_recodec_video(String srcPath, String destPath);
 
     private native void native_merge_video(String srcPath1, String srcPath2, String destPath);
+
+    private native void native_h264_to_mp4(String srcPath1, String destPath);
 
     private void CppStatusCallback(String status) {
         Log.e(TAG, "CppStatusCallback: " + status);

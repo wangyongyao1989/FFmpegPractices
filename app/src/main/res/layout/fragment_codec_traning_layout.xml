@@ -115,6 +115,16 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_codec_5"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_codec_11"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="H264封装成MP4"
+        app:layout_constraintStart_toEndOf="@+id/btn_codec_10"
+        app:layout_constraintTop_toBottomOf="@+id/btn_codec_5"
+        tools:ignore="HardcodedText" />
+
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

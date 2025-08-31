@@ -40,11 +40,14 @@ public class CodecTraningFragment extends BaseFragment {
     private Button mBtn8;
     private Button mBtn9;
     private Button mBtn10;
+    private Button mBtn11;
 
     private String mVideoPath1;
     private String mVideoPath2;
 
     private String mAACPath;
+
+    private String mH264Path;
 
     private Button mBtCodecBack;
     private CodecOperate mCodecOperate;
@@ -71,6 +74,8 @@ public class CodecTraningFragment extends BaseFragment {
         mBtn8 = mBinding.btnCodec8;
         mBtn9 = mBinding.btnCodec9;
         mBtn10 = mBinding.btnCodec10;
+        mBtn11 = mBinding.btnCodec11;
+
 
     }
 
@@ -84,6 +89,9 @@ public class CodecTraningFragment extends BaseFragment {
 
         mAACPath = CommonFileUtils.getModelFilePath(getContext()
                 , "fuzhous.aac");
+
+        mH264Path = CommonFileUtils.getModelFilePath(getContext()
+                , "out.h264");
         mStringBuilder = new StringBuilder();
     }
 
@@ -153,7 +161,6 @@ public class CodecTraningFragment extends BaseFragment {
             Random rand = new Random();
             int randomInt = rand.nextInt(100) + 1; // 加1是为了包括100
             String outputPath = videoDir + "recodec_video" + randomInt + ".mp4";
-            mStringBuilder = new StringBuilder();
             mCodecOperate.recodeVideo(mVideoPath2, outputPath);
         });
 
@@ -168,8 +175,14 @@ public class CodecTraningFragment extends BaseFragment {
             int randomInt = rand.nextInt(100) + 1; // 加1是为了包括100
             String outputPath = videoDir + "merge_video" + randomInt + ".mp4";
             mCodecOperate.mergeVideo(mVideoPath1, mVideoPath2, outputPath);
+        });
 
-
+        mBtn11.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1; // 加1是为了包括100
+            String outputPath = videoDir + "h264tomp4" + randomInt + ".mp4";
+            mCodecOperate.h264ToMP4(mH264Path, outputPath);
         });
 
 
