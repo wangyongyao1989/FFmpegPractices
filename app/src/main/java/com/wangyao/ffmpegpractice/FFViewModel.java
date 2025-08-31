@@ -13,6 +13,7 @@ public class FFViewModel extends ViewModel {
         MAIN,
         BASIC_TRANING,
         CODEC_TRANING,
+        PROCESS_IMAGE,
 
 
     }

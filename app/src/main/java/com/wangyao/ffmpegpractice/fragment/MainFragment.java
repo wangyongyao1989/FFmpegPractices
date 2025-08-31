@@ -28,6 +28,7 @@ public class MainFragment extends BaseFragment {
     private FFViewModel mFfViewModel;
     private FragmentMainLayoutBinding mBinding;
     private Button mBtnCodecTraining;
+    private Button mBtnProcessImage;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -40,6 +41,7 @@ public class MainFragment extends BaseFragment {
     public void initView() {
         mBtnBasicTraining = mBinding.btnBasicTraining;
         mBtnCodecTraining = mBinding.btnCodecTraining;
+        mBtnProcessImage = mBinding.btnProcessImage;
 
     }
 
@@ -63,6 +65,10 @@ public class MainFragment extends BaseFragment {
 
         mBtnCodecTraining.setOnClickListener(view -> {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.CODEC_TRANING);
+        });
+
+        mBtnProcessImage.setOnClickListener(view -> {
+            mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PROCESS_IMAGE);
         });
 
     }
