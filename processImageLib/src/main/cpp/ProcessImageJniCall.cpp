@@ -4,12 +4,15 @@
 #include <jni.h>
 #include <string>
 #include "BasicCommon.h"
+#include "WriteYUVFrame.h"
 
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/processimagelib/ProcessImageOperate";
 using namespace std;
 
+
+WriteYUVFrame *mWriteFrame;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -35,11 +38,26 @@ cpp_string_from_jni(JNIEnv *env, jobject thiz) {
     return env->NewStringUTF(strBuffer);
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_write_yuv(JNIEnv *env, jobject thiz, jstring outPath) {
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+
+    if (mWriteFrame == nullptr) {
+        mWriteFrame = new WriteYUVFrame(env, thiz);
+    }
+
+    mWriteFrame->startWriteYUVThread(cOutPath);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+
+}
 
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni",      "()Ljava/lang/String;",                   (void *) cpp_string_from_jni},
+        {"native_string_from_jni", "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
+        {"native_write_yuv",       "(Ljava/lang/String;)V", (void *) cpp_write_yuv},
 
 };
 

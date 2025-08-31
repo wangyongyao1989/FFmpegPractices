@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -17,6 +18,8 @@ import com.wangyao.ffmpegpractice.databinding.FragmentProcessImageLayoutBinding;
 import com.wangyao.processimagelib.ProcessImageOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 import com.wangyongyao.commonlib.utils.DirectoryPath;
+
+import java.util.Random;
 
 /**
  * @author wangyongyao
@@ -30,7 +33,7 @@ public class ProcessImageFragment extends BaseFragment {
     private FragmentProcessImageLayoutBinding mBinding;
     private TextView mTv;
     private Button mBtn1;
-
+    private Button mBtn2;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -54,7 +57,8 @@ public class ProcessImageFragment extends BaseFragment {
     public void initView() {
         mTv = mBinding.tvProcessImage;
         mBtCodecBack = mBinding.btnCodecBack;
-        mBtn1 = mBinding.btnCodec1;
+        mBtn1 = mBinding.btnProcessImage1;
+        mBtn2 = mBinding.btnProcessImage2;
 
 
     }
@@ -98,6 +102,14 @@ public class ProcessImageFragment extends BaseFragment {
 
         mBtn1.setOnClickListener(view -> {
             mTv.setText(mProcessImage.getFFmpegVersion());
+        });
+
+        mBtn2.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1; // 加1是为了包括100
+            String outputPath = videoDir + "write_yuv" + randomInt + ".mp4";
+            mProcessImage.writeYUV(outputPath);
         });
 
     }

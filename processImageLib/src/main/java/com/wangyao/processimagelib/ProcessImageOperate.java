@@ -21,9 +21,14 @@ public class ProcessImageOperate {
         return native_string_from_jni();
     }
 
+    public void writeYUV(String destPath) {
+        native_write_yuv(destPath);
+    }
+
 
     private native String native_string_from_jni();
 
+    private native void native_write_yuv(String destPath);
 
 
     private void CppStatusCallback(String status) {

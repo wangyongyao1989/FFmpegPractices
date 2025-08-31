@@ -136,7 +136,7 @@
   - **av_write_trailer** 写文件尾;
   - **av_packet_free()** 释放数据包资源;
   - **avio_close()** 关闭输出流;
-  - **avformat_free_context()** 释放封装器的实例;
+  - **avformat_free_context()** 释放封装器的实例
   - **avformat_close_input()** 关闭音视频文件;
   - *SplitVideoOfMedia.cpp*
 
@@ -187,6 +187,33 @@
 
 - 16.练习十六：把原始的H264文件封装成MP4格式的文件:
   - 基本流程和以上练习十五中的流程大致一致；
+
+
+## processImageLib —— FFmpeg处理图像：
+
+- 17.练习十七：向视频文件写入YUV视频帧数据：
+  - **open_output_file()** 打开输出文件;
+    - **avformat_alloc_output_context2()** 分配音视频文件的封装实例
+    - **avio_open()** 打开输出流
+    - **avcodec_find_encoder()** 查找编码器
+    - **avcodec_alloc_context3** 分配编解码器的实例
+    - 设置*video_encode_ctx* 的像素格式/视频画面的宽高/帧率/时间基
+    - **avcodec_open2()** 打开编码器的实例
+    - **avformat_new_stream()** 创建指定编码器的数据流
+    - **avcodec_parameters_from_context** 把编码器实例中的参数复制给数据流
+    - **avformat_write_header()** 写文件头
+  - **av_frame_alloc()** 分配一个数据帧
+  - 设置数据帧的像素格式/视频宽高
+  - **av_frame_get_buffer()** 为数据帧分配缓冲区
+  - 写入数据帧
+    - **av_frame_make_writable()** 确保数据帧是可写的
+    - 写入yuv数据
+    - **output_video()** 给视频帧编码，并写入压缩后的视频包
+  - **av_write_trailer()**  写文件尾
+  - 释放数据帧资源/关闭输出流/关闭视频编码器的实例/释放视频编码器的实例/释放封装器的实例
+
+
+
 
 
   
