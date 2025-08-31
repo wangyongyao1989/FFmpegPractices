@@ -18,13 +18,18 @@ private:
 
     AVFormatContext *in_fmt_ctx = nullptr; // 输入文件的封装器实例
     AVCodecContext *video_decode_ctx = nullptr; // 视频解码器的实例
+    AVCodecContext *audio_decode_ctx = nullptr; // 音频解码器的实例
+
     int video_index = -1; // 视频流的索引
     int audio_index = -1; // 音频流的索引
     AVStream *src_video = nullptr; // 源文件的视频流
     AVStream *src_audio = nullptr; // 源文件的音频流
     AVStream *dest_video = nullptr; // 目标文件的视频流
+    AVStream *dest_audio = nullptr; // 目标文件的音频流
     AVFormatContext *out_fmt_ctx; // 输出文件的封装器实例
     AVCodecContext *video_encode_ctx = nullptr; // 视频编码器的实例
+
+    int packet_index = 0; // 数据包的索引序号
 
     JavaVM *mJavaVm = nullptr;
     jobject mJavaObj = nullptr;
@@ -61,7 +66,7 @@ public:
 
     ~H264ToMP4();
 
-    void startRecodecThread(const char *srcPath, const char *destPath);
+    void startWriteMP4Thread(const char *srcPath, const char *destPath);
 
 };
 

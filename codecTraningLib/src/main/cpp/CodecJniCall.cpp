@@ -217,7 +217,7 @@ cpp_h264_to_mp4(JNIEnv *env, jobject thiz, jstring srcVideoPath, jstring destPat
     if (h264ToMP4 == nullptr) {
         h264ToMP4 = new H264ToMP4(env, thiz);
     }
-    h264ToMP4->startRecodecThread(cSrcVidePath, cDestPath);
+    h264ToMP4->startWriteMP4Thread(cSrcVidePath, cDestPath);
 
     env->ReleaseStringUTFChars(srcVideoPath, cSrcVidePath);
     env->ReleaseStringUTFChars(destPath, cDestPath);

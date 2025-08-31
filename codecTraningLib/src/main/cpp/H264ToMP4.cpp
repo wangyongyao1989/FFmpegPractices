@@ -18,6 +18,10 @@ H264ToMP4::~H264ToMP4() {
     if (video_encode_ctx) {
         video_encode_ctx = nullptr;
     }
+    if (audio_decode_ctx) {
+        audio_decode_ctx = nullptr;
+    }
+
     video_index = -1;
     audio_index = -1;
     if (src_video) {
@@ -28,6 +32,9 @@ H264ToMP4::~H264ToMP4() {
     }
     if (dest_video) {
         dest_video = nullptr;
+    }
+    if (dest_audio) {
+        dest_audio = nullptr;
     }
     if (out_fmt_ctx) {
         out_fmt_ctx = nullptr;
@@ -57,9 +64,11 @@ H264ToMP4::~H264ToMP4() {
     mSrcPath = nullptr;
     mDestPath = nullptr;
 
+    packet_index = 0;
+
 }
 
-void H264ToMP4::startRecodecThread(const char *srcPath, const char *destPath) {
+void H264ToMP4::startWriteMP4Thread(const char *srcPath, const char *destPath) {
     mSrcPath = srcPath;
     mDestPath = destPath;
     if (open_input_file(mSrcPath) < 0) { // 打开输入文件
@@ -92,9 +101,14 @@ void H264ToMP4::recodecVideo() {
             }
             LOGD("%s.\n", h264ToMP4Info.c_str());
             recode_video(packet, frame); // 对视频帧重新编码
-        } else { // 音频包暂不重新编码，直接写入目标文件
+        } else if (packet->stream_index == audio_index) { // 音频包暂不重新编码，直接写入目标文件
             packet->stream_index = 1;
+            av_packet_rescale_ts(packet, src_audio->time_base, dest_audio->time_base);
             ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包
+            h264ToMP4Info =
+                    "读出音频包的大小：" + to_string(packet->buf->size) + "，并写入...\n";
+            PostStatusMessage(h264ToMP4Info.c_str());
+            LOGD("%s.\n", h264ToMP4Info.c_str());
             if (ret < 0) {
                 LOGE("write frame occur error %d.\n", ret);
                 av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
@@ -131,8 +145,10 @@ int H264ToMP4::open_input_file(const char *src_name) {
     // 打开音视频文件
     int ret = avformat_open_input(&in_fmt_ctx, src_name, nullptr, nullptr);
     if (ret < 0) {
+        av_strerror(ret, errbuf, sizeof(errbuf)); // 将错误码转换为字符串
         LOGE("Can't open file %s.\n", src_name);
-        h264ToMP4Info = "\n Can't open file :" + string(src_name);
+        h264ToMP4Info = "\n Can't open file :" + string(src_name) + "\n error msg：" +
+                        string(errbuf) + "\n";
         PostStatusMessage(h264ToMP4Info.c_str());
         return -1;
     }
@@ -341,7 +357,7 @@ int H264ToMP4::open_output_file(const char *dest_name) {
         dest_video->codecpar->codec_tag = 0;
     }
     if (audio_index >= 0) { // 源文件有音频流，就给目标文件创建音频流
-        AVStream *dest_audio = avformat_new_stream(out_fmt_ctx, nullptr); // 创建数据流
+        dest_audio = avformat_new_stream(out_fmt_ctx, nullptr); // 创建数据流
         // 把源文件的音频参数原样复制过来
         avcodec_parameters_copy(dest_audio->codecpar, src_audio->codecpar);
         dest_audio->codecpar->codec_tag = 0;
