@@ -195,8 +195,10 @@ int WriteYUVFrame::open_output_file(const char *destPath) {
     LOGI("Success open output_file %s.\n", mDestPath);
     writeYUVInfo = "Success open output_file:" + string(mDestPath);
     PostStatusMessage(writeYUVInfo.c_str());
-    // 查找编码器
-    AVCodec *video_codec = (AVCodec *) avcodec_find_encoder(AV_CODEC_ID_H264);
+//    // 查找编码器
+//    AVCodec *video_codec = (AVCodec *) avcodec_find_encoder(AV_CODEC_ID_H264);
+    //使用libx264的编码器
+    AVCodec *video_codec = (AVCodec *) avcodec_find_encoder_by_name("libx264");
     if (!video_codec) {
         LOGE("AV_CODEC_ID_H264 not found\n");
         writeYUVInfo = "AV_CODEC_ID_H264 not found \n";

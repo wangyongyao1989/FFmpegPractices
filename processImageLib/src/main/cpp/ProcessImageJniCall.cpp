@@ -5,6 +5,7 @@
 #include <string>
 #include "BasicCommon.h"
 #include "WriteYUVFrame.h"
+#include "SaveYUVFromVideo.h"
 
 
 //包名+类名字符串定义：
@@ -13,6 +14,7 @@ using namespace std;
 
 
 WriteYUVFrame *mWriteFrame;
+SaveYUVFromVideo *mSaveYUVFromVideo;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -53,11 +55,31 @@ cpp_write_yuv(JNIEnv *env, jobject thiz, jstring outPath) {
 
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_save_yuv_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+
+    if (mSaveYUVFromVideo == nullptr) {
+        mSaveYUVFromVideo = new SaveYUVFromVideo(env, thiz);
+    }
+
+    mSaveYUVFromVideo->startWriteYUVThread(cSrcPath, cOutPath);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+
+
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni", "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
-        {"native_write_yuv",       "(Ljava/lang/String;)V", (void *) cpp_write_yuv},
+        {"native_string_from_jni",     "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
+        {"native_write_yuv",           "(Ljava/lang/String;)V", (void *) cpp_write_yuv},
+        {"native_save_yuv_from_video", "(Ljava/lang/String;"
+                                       "Ljava/lang/String;)V",  (void *) cpp_save_yuv_from_video},
 
 };
 

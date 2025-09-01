@@ -1,8 +1,11 @@
 package com.wangyongyao.commonlib.utils;
 
 import android.content.Context;
+import android.os.Build;
 import android.os.Environment;
 import android.util.Log;
+
+import androidx.annotation.RequiresApi;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -10,13 +13,16 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
 public class CommonFileUtils {
     private static final String TAG = CommonFileUtils.class.getSimpleName();
 
 
     public static String getModelFilePath(Context context, String modelName) {
-        copyFileIfNeed(context,modelName);
+        copyFileIfNeed(context, modelName);
         return context.getFilesDir().getAbsolutePath() + File.separator + modelName;
     }
 
@@ -61,7 +67,7 @@ public class CommonFileUtils {
         }
     }
 
-    public  static  void writeBytes(byte[] array) {
+    public static void writeBytes(byte[] array) {
         FileOutputStream writer = null;
         try {
             // 打开一个写文件器，构造函数中的第二个参数true表示以追加形式写文件
@@ -83,7 +89,7 @@ public class CommonFileUtils {
         }
     }
 
-    public  static String writeContent(byte[] array) {
+    public static String writeContent(byte[] array) {
         char[] HEX_CHAR_TABLE = {
                 '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
         };
@@ -112,5 +118,26 @@ public class CommonFileUtils {
         }
         return sb.toString();
     }
+
+
+    // 创建文件的方法
+    public static boolean createFile(String filePath) {
+        File file = new File(filePath);
+        try {
+            return file.createNewFile(); // 创建新文件
+        } catch (IOException e) {
+            e.printStackTrace(); // 捕获异常并打印
+            return false;
+        }
+    }
+
+
+
+    // 删除文件的方法
+    public static boolean deleteFile(String filePath) {
+        File file = new File(filePath);
+        return file.delete(); // 删除文件
+    }
+
 
 }

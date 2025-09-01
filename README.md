@@ -30,7 +30,7 @@
 - 3.练习三：打开一个音视频文件后，获取视频及音频的解码ID及解码器名字：
   - 通过 **avcodec_find_decoder()** 找到对应的视频及音频编解码器；
   - 打印输出视频及音频的编解码器的相关信息。
-  - *FFGetMediaCodecMsg*
+  - *FFGetMediaCodecMsg.cpp*
 
 - 4.练习四：把音视频流中的编码参数复制给解码器实例参数：
   - 通过 **avcodec_parameters_to_context()** 把视频流及音频流中的编解码参数复制给解码器的实例；
@@ -69,11 +69,11 @@
 
 - 8.练习八：获取媒体文件的时间基准:
   - 基于 **AVStream** 的结构体获取音频流及视频流的时间基；
-  - *GetMediaTimeBase*
+  - *GetMediaTimeBase.cpp*
 
 - 9.练习九：获取媒体文件的时间戳：
   - 基于时间基和fps的参数计算出音频及视频的时间戳增量；
-  - *GetMeidaTimeStamp*
+  - *GetMeidaTimeStamp.cpp*
 
 - 10.练习十：原样复制视频文件：
   - **avformat_open_input()** 打开音视频文件;
@@ -187,6 +187,7 @@
 
 - 16.练习十六：把原始的H264文件封装成MP4格式的文件:
   - 基本流程和以上练习十五中的流程大致一致；
+  - *H264ToMP4.cpp*
 
 
 ## processImageLib —— FFmpeg处理图像：
@@ -211,6 +212,7 @@
     - **output_video()** 给视频帧编码，并写入压缩后的视频包
   - **av_write_trailer()**  写文件尾
   - 释放数据帧资源/关闭输出流/关闭视频编码器的实例/释放视频编码器的实例/释放封装器的实例
+  - *WriteYUVFrame.cpp*
 
 
 
