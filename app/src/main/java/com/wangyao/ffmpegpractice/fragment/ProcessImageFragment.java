@@ -35,6 +35,7 @@ public class ProcessImageFragment extends BaseFragment {
     private Button mBtn1;
     private Button mBtn2;
     private Button mBtn3;
+    private Button mBtn4;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -57,10 +58,11 @@ public class ProcessImageFragment extends BaseFragment {
     @Override
     public void initView() {
         mTv = mBinding.tvProcessImage;
-        mBtCodecBack = mBinding.btnCodecBack;
+        mBtCodecBack = mBinding.btnProcessImageBack;
         mBtn1 = mBinding.btnProcessImage1;
         mBtn2 = mBinding.btnProcessImage2;
         mBtn3 = mBinding.btnProcessImage3;
+        mBtn4 = mBinding.btnProcessImage4;
 
 
     }
@@ -121,6 +123,15 @@ public class ProcessImageFragment extends BaseFragment {
             String outputPath = videoDir + "out_yuv" + randomInt + ".yuv";
             CommonFileUtils.createFile(outputPath);
             mProcessImage.saveYUVFromVideo(mVideoPath2, outputPath);
+        });
+
+        mBtn4.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createPhotoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath = videoDir + "out" + randomInt + ".jpg";
+            CommonFileUtils.createFile(outputPath);
+            mProcessImage.saveJPGFromVideo(mVideoPath2, outputPath);
         });
 
     }

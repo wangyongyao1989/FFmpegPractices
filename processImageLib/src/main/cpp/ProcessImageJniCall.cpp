@@ -6,6 +6,7 @@
 #include "BasicCommon.h"
 #include "WriteYUVFrame.h"
 #include "SaveYUVFromVideo.h"
+#include "SaveJPGFromVideo.h"
 
 
 //包名+类名字符串定义：
@@ -15,6 +16,7 @@ using namespace std;
 
 WriteYUVFrame *mWriteFrame;
 SaveYUVFromVideo *mSaveYUVFromVideo;
+SaveJPGFromVideo *mSaveJPGFromVideo;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -69,8 +71,21 @@ cpp_save_yuv_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outP
 
     env->ReleaseStringUTFChars(outPath, cOutPath);
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
+}
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_save_jpg_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
 
+    if (mSaveJPGFromVideo == nullptr) {
+        mSaveJPGFromVideo = new SaveJPGFromVideo(env, thiz);
+    }
+
+    mSaveJPGFromVideo->startWriteJPGThread(cSrcPath, cOutPath);
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
 }
 
 
@@ -80,7 +95,8 @@ static const JNINativeMethod methods[] = {
         {"native_write_yuv",           "(Ljava/lang/String;)V", (void *) cpp_write_yuv},
         {"native_save_yuv_from_video", "(Ljava/lang/String;"
                                        "Ljava/lang/String;)V",  (void *) cpp_save_yuv_from_video},
-
+        {"native_save_jpg_from_video", "(Ljava/lang/String;"
+                                       "Ljava/lang/String;)V",  (void *) cpp_save_jpg_from_video},
 };
 
 

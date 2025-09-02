@@ -220,11 +220,37 @@
     - **decode_video()** 对视频帧解码
     - **save_yuv_file()** 把视频帧保存为YUV图像
   - 释放数据帧资源/关闭输出流/关闭视频编码器的实例/释放视频编码器的实例/释放封装器的实例
+  - *SaveYUVFromVideo.cpp*
 
 
-
-  
-
+- 19.练习十九：把视频解码后的视频帧保存为JPG图片
+  - 常规的*打开音视频文件*、*查找音视频文件中的流信息*、*找到视频流的索引*、*打开解码器的实例*等操作；
+  - **av_read_frame()** 轮询数据包
+    - **decode_video()** 对视频帧解码
+      - **avcodec_send_packet()** 把未解压的数据包发给解码器实例
+      - **avcodec_receive_frame()** 从解码器实例获取还原后的数据帧
+      - 轮询数据帧传入*save_jpg_file()*
+      - **save_jpg_file()** 把视频帧保存为JPEG图片
+        - **avformat_alloc_output_context2()** 分配JPEG文件的封装实例
+        - **avcodec_find_encoder()** 查找MJPEG编码器
+        - **avcodec_alloc_context3()** 获取编解码器上下文信息
+        - 设置*jpg_encode_ctx* 的像素格式/视频宽高/时间基
+        - **avcodec_open2()** 打开编码器的实例
+        - **avformat_new_stream()** 创建数据流
+        - **avformat_write_header()** 写文件头
+        - **av_packet_alloc()** 分配一个数据包
+        - **avcodec_receive_packet** 从编码器实例获取压缩后的数据包
+          - *av_write_frame* 轮询写数据包
+        - av_packet_unref()清除数据包/av_write_trailer()写入文件尾/av_packet_free()释放数据包资源
+        - avio_close()关闭输出流/avcodec_close()关闭视频编码器的实例/avcodec_free_context()释放视频编码器的实例
+        - avformat_free_context()释放封装器的实例
+  - **av_frame_free()** 释放数据帧资源
+  - **av_packet_free()** 释放数据包资源
+  - **avcodec_close()** 关闭视频解码器的实例
+  - **avcodec_free_context()** 释放视频解码器的实例
+  - **avformat_close_input()** 关闭音视频文件
+  - 释放数据帧资源/关闭输出流/关闭视频编码器的实例/释放视频编码器的实例/释放封装器的实例
+  - *SaveJPGFromVideo.cpp*
     
 
     

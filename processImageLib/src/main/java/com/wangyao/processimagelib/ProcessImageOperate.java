@@ -29,12 +29,18 @@ public class ProcessImageOperate {
         native_save_yuv_from_video(srcPath, destPath);
     }
 
+    public void saveJPGFromVideo(String srcPath, String destPath) {
+        native_save_jpg_from_video(srcPath, destPath);
+    }
+
 
     private native String native_string_from_jni();
 
     private native void native_write_yuv(String destPath);
 
     private native void native_save_yuv_from_video(String srcPath, String destPath);
+
+    private native void native_save_jpg_from_video(String srcPath, String destPath);
 
 
     private void CppStatusCallback(String status) {
