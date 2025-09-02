@@ -24,9 +24,6 @@ private:
 
     thread *mThread = nullptr;
 
-//    const char *mSrcPath = nullptr;
-//    const char *mDestPath = nullptr;
-
     string sSrcPath;
     string sDestPath;
 
