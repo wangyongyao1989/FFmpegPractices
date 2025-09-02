@@ -24,8 +24,11 @@ private:
 
     thread *mThread = nullptr;
 
-    const char *mSrcPath = nullptr;
-    const char *mDestPath = nullptr;
+//    const char *mSrcPath = nullptr;
+//    const char *mDestPath = nullptr;
+
+    string sSrcPath;
+    string sDestPath;
 
     AVFormatContext *in_fmt_ctx = nullptr; // 输入文件的封装器实例
     AVCodecContext *video_decode_ctx = nullptr; // 视频解码器的实例

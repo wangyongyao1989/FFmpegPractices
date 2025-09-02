@@ -47,9 +47,8 @@ SaveYUVFromVideo::~SaveYUVFromVideo() {
 }
 
 void SaveYUVFromVideo::startWriteYUVThread(const char *srcPath, const char *destPath) {
-    LOGE("startWriteYUVThread destPath %s.\n", destPath);
-    mSrcPath = srcPath;
-    mDestPath = destPath;
+    sSrcPath = srcPath;
+    sDestPath = destPath;
     if (mThread == nullptr) {
         mThread = new thread(DoThreading, this);
         mThread->detach();
@@ -63,19 +62,18 @@ void SaveYUVFromVideo::DoThreading(SaveYUVFromVideo *saveYUV) {
 
 void SaveYUVFromVideo::processImageProcedure() {
     // 打开音视频文件
-    int ret = avformat_open_input(&in_fmt_ctx, mSrcPath, nullptr, nullptr);
+    int ret = avformat_open_input(&in_fmt_ctx, sSrcPath.c_str(), nullptr, nullptr);
     if (ret < 0) {
-        LOGE("Can't open file %s.\n", mSrcPath);
+        LOGE("Can't open file %s.\n", sSrcPath.c_str());
         av_strerror(ret, errbuf, sizeof(errbuf));
         saveYUVInfo = "Can't open file:" + to_string(ret) + "\n error msg：" +
                       string(errbuf) + "\n";
         PostStatusMessage(saveYUVInfo.c_str());
         return;
     }
-    LOGE("processImageProcedure11 destPath %s.\n", mDestPath);
 
-    LOGI("Success open input_file %s.\n", mSrcPath);
-    saveYUVInfo = "Success open input_file:" + string(mSrcPath) + "\n";
+    LOGI("Success open input_file %s.\n", sSrcPath.c_str());
+    saveYUVInfo = "Success open input_file:" + string(sSrcPath.c_str()) + "\n";
     PostStatusMessage(saveYUVInfo.c_str());
 
     // 查找音视频文件中的流信息
@@ -88,8 +86,6 @@ void SaveYUVFromVideo::processImageProcedure() {
         PostStatusMessage(saveYUVInfo.c_str());
         return;
     }
-    LOGE("processImageProcedure22 destPath %s.\n", mSrcPath);
-    LOGE("processImageProcedure22 srcPath %s.\n", mSrcPath);
 
     // 找到视频流的索引
     int video_index = av_find_best_stream(in_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
@@ -128,13 +124,12 @@ void SaveYUVFromVideo::processImageProcedure() {
         PostStatusMessage(saveYUVInfo.c_str());
         return;
     }
-    LOGE("processImageProcedure33 destPath %s.\n", mSrcPath);
 
     packet = av_packet_alloc(); // 分配一个数据包
     frame = av_frame_alloc(); // 分配一个数据帧
     while (av_read_frame(in_fmt_ctx, packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index) { // 视频包需要重新编码
-            ret = decode_video(packet, frame,save_index); // 对视频帧解码
+            ret = decode_video(packet, frame, save_index); // 对视频帧解码
             if (ret == 0) {
                 break; // 只保存一幅图像就退出
             }
@@ -142,7 +137,7 @@ void SaveYUVFromVideo::processImageProcedure() {
         av_packet_unref(packet); // 清除数据包
     }
     LOGI("Success save %d_index frame as yuv file.\n", save_index);
-    saveYUVInfo = "Success save %d_index frame as yuv file.\n";
+    saveYUVInfo = "Success save " + to_string(save_index) + "_index frame as yuv file.\n";
     PostStatusMessage(saveYUVInfo.c_str());
     av_frame_free(&frame); // 释放数据帧资源
     av_packet_free(&packet); // 释放数据包资源
@@ -153,20 +148,21 @@ void SaveYUVFromVideo::processImageProcedure() {
 
 // 把视频帧保存为YUV图像。save_index表示要把第几个视频帧保存为图片
 int SaveYUVFromVideo::save_yuv_file(AVFrame *frame, int save_index) {
-    LOGE("save_yuv_file destPath %s.\n", mDestPath);
 
     // 视频帧的format字段为AVPixelFormat枚举类型，为0时表示AV_PIX_FMT_YUV420P
     LOGI("format = %d, width = %d, height = %d\n",
          frame->format, frame->width, frame->height);
-    LOGI("target image file is %s\n", mDestPath);
+    LOGI("target image file is %s\n", sDestPath.c_str());
     saveYUVInfo = "format =" + to_string(frame->format) + ",width =" + to_string(frame->width) +
                   ",height =" + to_string(frame->width) + "\n";
-    saveYUVInfo = saveYUVInfo + "target image file is:" + string(mDestPath);
+    saveYUVInfo = saveYUVInfo + "target image file is:" + sDestPath.c_str() + "\n";
     PostStatusMessage(saveYUVInfo.c_str());
 
-    FILE *fp = fopen(mDestPath, "wb"); // 以写方式打开文件
+    FILE *fp = fopen(sDestPath.c_str(), "wb"); // 以写方式打开文件
     if (!fp) {
-        LOGE("open file %s fail.\n", mDestPath);
+        LOGE("open file %s fail.\n", sDestPath.c_str());
+        saveYUVInfo = "open file " + sDestPath + " fail.";
+        PostStatusMessage(saveYUVInfo.c_str());
         return -1;
     }
     // 把YUV数据依次写入文件（按照YUV420P格式分解视频帧数据）
@@ -189,7 +185,7 @@ int SaveYUVFromVideo::save_yuv_file(AVFrame *frame, int save_index) {
 
 // 对视频帧解码。save_index表示要把第几个视频帧保存为图片
 int SaveYUVFromVideo::decode_video(AVPacket *packet, AVFrame *frame, int save_index) {
-    LOGE("decode_video destPath %s.\n", mDestPath);
+//    LOGE("decode_video destPath %s.\n", mDestPath);
 
     // 把未解压的数据包发给解码器实例
     int ret = avcodec_send_packet(video_decode_ctx, packet);
