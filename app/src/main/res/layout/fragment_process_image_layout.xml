@@ -55,6 +55,15 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_process_image_back"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_process_image_5"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="保存视频帧为YUVJ图片"
+        app:layout_constraintStart_toEndOf="@+id/btn_process_image_4"
+        app:layout_constraintTop_toBottomOf="@+id/btn_process_image_back"
+        tools:ignore="HardcodedText" />
 
     <ScrollView
         android:id="@+id/scorll_view"

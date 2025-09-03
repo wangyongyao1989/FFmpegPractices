@@ -8,7 +8,7 @@
 #include "SaveYUVFromVideo.h"
 #include "SaveJPGFromVideo.h"
 #include "AndroidThreadManager.h"
-
+#include "SaveJPGSwsFromVideo.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/processimagelib/ProcessImageOperate";
@@ -20,6 +20,7 @@ std::unique_ptr<AndroidThreadManager> g_threadManager;
 WriteYUVFrame *mWriteFrame;
 SaveYUVFromVideo *mSaveYUVFromVideo;
 SaveJPGFromVideo *mSaveJPGFromVideo;
+SaveJPGSwsFromVideo *mSaveJPGSwsFromVideo;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -96,6 +97,26 @@ cpp_save_jpg_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outP
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_save_jpg_sws_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+
+    if (mSaveJPGSwsFromVideo == nullptr) {
+        mSaveJPGSwsFromVideo = new SaveJPGSwsFromVideo(env, thiz);
+    }
+
+    ThreadTask task = [cSrcPath, cOutPath]() {
+        mSaveJPGSwsFromVideo->startWriteJPGSws(cSrcPath, cOutPath);
+    };
+
+    g_threadManager->submitTask("WriteJPGThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
@@ -105,6 +126,8 @@ static const JNINativeMethod methods[] = {
                                        "Ljava/lang/String;)V",  (void *) cpp_save_yuv_from_video},
         {"native_save_jpg_from_video", "(Ljava/lang/String;"
                                        "Ljava/lang/String;)V",  (void *) cpp_save_jpg_from_video},
+        {"native_save_jpg_sws_from_video", "(Ljava/lang/String;"
+                                       "Ljava/lang/String;)V",  (void *) cpp_save_jpg_sws_from_video},
 };
 
 

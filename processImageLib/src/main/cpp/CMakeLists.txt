@@ -33,6 +33,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         SaveYUVFromVideo.cpp
         SaveJPGFromVideo.cpp
         AndroidThreadManager.cpp
+        SaveJPGSwsFromVideo.cpp
 
 
 )
