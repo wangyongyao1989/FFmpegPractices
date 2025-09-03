@@ -9,6 +9,7 @@
 #include "SaveJPGFromVideo.h"
 #include "AndroidThreadManager.h"
 #include "SaveJPGSwsFromVideo.h"
+#include "SavePNGSwsFromVideo.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/processimagelib/ProcessImageOperate";
@@ -21,6 +22,8 @@ WriteYUVFrame *mWriteFrame;
 SaveYUVFromVideo *mSaveYUVFromVideo;
 SaveJPGFromVideo *mSaveJPGFromVideo;
 SaveJPGSwsFromVideo *mSaveJPGSwsFromVideo;
+SavePNGSwsFromVideo *mSavePNGSwsFromVideo;
+
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -117,17 +120,39 @@ cpp_save_jpg_sws_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring 
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_save_png_sws_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+
+    if (mSavePNGSwsFromVideo == nullptr) {
+        mSavePNGSwsFromVideo = new SavePNGSwsFromVideo(env, thiz);
+    }
+
+    ThreadTask task = [cSrcPath, cOutPath]() {
+        mSavePNGSwsFromVideo->startWritePNGSws(cSrcPath, cOutPath);
+    };
+
+    g_threadManager->submitTask("WriteJPGThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni",     "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
-        {"native_write_yuv",           "(Ljava/lang/String;)V", (void *) cpp_write_yuv},
-        {"native_save_yuv_from_video", "(Ljava/lang/String;"
-                                       "Ljava/lang/String;)V",  (void *) cpp_save_yuv_from_video},
-        {"native_save_jpg_from_video", "(Ljava/lang/String;"
-                                       "Ljava/lang/String;)V",  (void *) cpp_save_jpg_from_video},
+        {"native_string_from_jni",         "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
+        {"native_write_yuv",               "(Ljava/lang/String;)V", (void *) cpp_write_yuv},
+        {"native_save_yuv_from_video",     "(Ljava/lang/String;"
+                                           "Ljava/lang/String;)V",  (void *) cpp_save_yuv_from_video},
+        {"native_save_jpg_from_video",     "(Ljava/lang/String;"
+                                           "Ljava/lang/String;)V",  (void *) cpp_save_jpg_from_video},
         {"native_save_jpg_sws_from_video", "(Ljava/lang/String;"
-                                       "Ljava/lang/String;)V",  (void *) cpp_save_jpg_sws_from_video},
+                                           "Ljava/lang/String;)V",  (void *) cpp_save_jpg_sws_from_video},
+        {"native_save_png_sws_from_video", "(Ljava/lang/String;"
+                                           "Ljava/lang/String;)V",  (void *) cpp_save_png_sws_from_video},
 };
 
 

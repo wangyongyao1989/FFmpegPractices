@@ -37,6 +37,10 @@ public class ProcessImageOperate {
         native_save_jpg_sws_from_video(srcPath, destPath);
     }
 
+    public void savePNGSwsFromVideo(String srcPath, String destPath) {
+        native_save_png_sws_from_video(srcPath, destPath);
+    }
+
 
     private native String native_string_from_jni();
 
@@ -47,6 +51,8 @@ public class ProcessImageOperate {
     private native void native_save_jpg_from_video(String srcPath, String destPath);
 
     private native void native_save_jpg_sws_from_video(String srcPath, String destPath);
+
+    private native void native_save_png_sws_from_video(String srcPath, String destPath);
 
     private void CppStatusCallback(String status) {
         Log.e(TAG, "CppStatusCallback: " + status);

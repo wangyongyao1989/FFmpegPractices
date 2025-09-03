@@ -197,8 +197,8 @@ int SaveJPGFromVideo::save_jpg_file(AVFrame *frame, int save_index) {
     // 获取编解码器上下文信息
     jpg_encode_ctx = avcodec_alloc_context3(jpg_codec);
     if (!jpg_encode_ctx) {
-        LOGE("jpg_encode_ctx is null\n");
-        saveJPGInfo = "jpg_encode_ctx is null\n";
+        LOGE("png_encode_ctx is null\n");
+        saveJPGInfo = "png_encode_ctx is null\n";
         PostStatusMessage(saveJPGInfo.c_str());
         return -1;
     }
@@ -212,15 +212,15 @@ int SaveJPGFromVideo::save_jpg_file(AVFrame *frame, int save_index) {
     PostStatusMessage(saveJPGInfo.c_str());
     ret = avcodec_open2(jpg_encode_ctx, jpg_codec, nullptr); // 打开编码器的实例
     if (ret < 0) {
-        LOGE("Can't open jpg_encode_ctx.\n");
+        LOGE("Can't open png_encode_ctx.\n");
         av_strerror(ret, errbuf, sizeof(errbuf));
-        saveJPGInfo = "Can't open jpg_encode_ctx :" + to_string(ret) + "\n error msg：" +
+        saveJPGInfo = "Can't open png_encode_ctx :" + to_string(ret) + "\n error msg：" +
                       string(errbuf) + "\n";
         PostStatusMessage(saveJPGInfo.c_str());
         return -1;
     }
     AVStream *jpg_stream = avformat_new_stream(jpg_fmt_ctx, 0); // 创建数据流
-    ret = avformat_write_header(jpg_fmt_ctx, NULL); // 写文件头
+    ret = avformat_write_header(jpg_fmt_ctx, nullptr); // 写文件头
     if (ret < 0) {
         LOGE("write file_header occur error %d.\n", ret);
         av_strerror(ret, errbuf, sizeof(errbuf));

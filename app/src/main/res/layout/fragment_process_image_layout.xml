@@ -65,6 +65,16 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_process_image_back"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_process_image_6"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="保存视频帧为PNG图片"
+        app:layout_constraintStart_toEndOf="@+id/btn_process_image_5"
+        app:layout_constraintTop_toBottomOf="@+id/btn_process_image_back"
+        tools:ignore="HardcodedText" />
+
     <ScrollView
         android:id="@+id/scorll_view"
         android:layout_width="match_parent"

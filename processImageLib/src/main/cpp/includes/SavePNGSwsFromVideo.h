@@ -2,8 +2,8 @@
 // Created by wangyao on 2025/9/3.
 //
 
-#ifndef FFMPEGPRACTICE_SAVEJPGSWSFROMVIDEO_H
-#define FFMPEGPRACTICE_SAVEJPGSWSFROMVIDEO_H
+#ifndef FFMPEGPRACTICE_SAVEPNGSWSFROMVIDEO_H
+#define FFMPEGPRACTICE_SAVEPNGSWSFROMVIDEO_H
 
 #include <jni.h>
 #include <thread>
@@ -12,22 +12,23 @@
 
 using namespace std;
 
+class SavePNGSwsFromVideo {
 
-class SaveJPGSwsFromVideo {
 private:
-    string saveJPGInfo;
+    string savePNGInfo;
 
     JavaVM *mJavaVm = nullptr;
     jobject mJavaObj = nullptr;
     JNIEnv *mEnv = nullptr;
 
+    thread *mThread = nullptr;
+
     AVFormatContext *in_fmt_ctx = nullptr; // 输入文件的封装器实例
 
     AVCodecContext *video_decode_ctx = nullptr;
-    AVCodecContext *jpg_encode_ctx = nullptr;
+    AVCodecContext *png_encode_ctx = nullptr;
 
-    AVFormatContext *jpg_fmt_ctx = nullptr;
-
+    AVFormatContext *png_fmt_ctx = nullptr;
 
     string sSrcPath;
     string sDestPath;
@@ -46,15 +47,16 @@ private:
 
     int decode_video(AVPacket *packet, AVFrame *frame, int save_index);
 
-    int save_jpg_file(AVFrame *frame, int save_index);
+    int save_png_file(AVFrame *frame, int save_index);
 
 public:
-    SaveJPGSwsFromVideo(JNIEnv *env, jobject thiz);
+    SavePNGSwsFromVideo(JNIEnv *env, jobject thiz);
 
-    ~SaveJPGSwsFromVideo();
+    ~SavePNGSwsFromVideo();
 
-    void startWriteJPGSws(const char *srcPath, const char *destPath);
+    void startWritePNGSws(const char *srcPath, const char *destPath);
+
 };
 
 
-#endif //FFMPEGPRACTICE_SAVEJPGSWSFROMVIDEO_H
+#endif //FFMPEGPRACTICE_SAVEPNGSWSFROMVIDEO_H

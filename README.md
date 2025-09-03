@@ -234,7 +234,7 @@
         - **avformat_alloc_output_context2()** 分配JPEG文件的封装实例
         - **avcodec_find_encoder()** 查找MJPEG编码器
         - **avcodec_alloc_context3()** 获取编解码器上下文信息
-        - 设置*jpg_encode_ctx* 的像素格式/视频宽高/时间基
+        - 设置*png_encode_ctx* 的像素格式/视频宽高/时间基
         - **avcodec_open2()** 打开编码器的实例
         - **avformat_new_stream()** 创建数据流
         - **avformat_write_header()** 写文件头
@@ -269,7 +269,7 @@
         - **avformat_alloc_output_context2()** 分配JPEG文件的封装实例
         - **avcodec_find_encoder()** 查找MJPEG编码器
         - **avcodec_alloc_context3()** 获取编解码器上下文信息
-        - 设置*jpg_encode_ctx* 的像素格式/视频宽高/时间基
+        - 设置*png_encode_ctx* 的像素格式/视频宽高/时间基
         - **avcodec_open2()** 打开编码器的实例
         - **avformat_new_stream()** 创建数据流
         - **avformat_write_header()** 写文件头
@@ -288,4 +288,11 @@
   - 释放数据帧资源/关闭输出流/关闭视频编码器的实例/释放视频编码器的实例/释放封装器的实例
   - *SaveJPGSwsFromVideo.cpp*
 
+- 21.练习二十一：把视频解码后的视频帧保存为PNG图片
+  - 操作流程与练习二十中类似
+  - 这里要注意的是**save_png_file()** 时
+    - **sws_getContext()** 设置的 *target_format*格式为：*AV_PIX_FMT_RGB24*
+    - **avcodec_find_encoder()** 查找的编码器为*AV_CODEC_ID_PNG* 
+      - ffmpeg中自带有对PNG图片编解码的PNG库，PNG编码器依赖于zlib库，所以在交叉编译时configure命令要加上*--enbale-zlib*
+  - *SavePNGSwsFromVideo.cpp*
     

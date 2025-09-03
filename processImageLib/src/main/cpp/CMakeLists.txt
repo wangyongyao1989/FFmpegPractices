@@ -34,6 +34,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         SaveJPGFromVideo.cpp
         AndroidThreadManager.cpp
         SaveJPGSwsFromVideo.cpp
+        SavePNGSwsFromVideo.cpp
 
 
 )
