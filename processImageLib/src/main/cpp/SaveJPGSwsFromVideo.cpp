@@ -243,9 +243,9 @@ int SaveJPGSwsFromVideo::save_jpg_file(AVFrame *frame, int save_index) {
     LOGI("jpg codec_id = %d\n", jpg_encode_ctx->codec_id);
     ret = avcodec_open2(jpg_encode_ctx, jpg_codec, nullptr); // 打开编码器的实例
     if (ret < 0) {
-        LOGE("Can't open png_encode_ctx.\n");
+        LOGE("Can't open jpg_encode_ctx.\n");
         av_strerror(ret, errbuf, sizeof(errbuf));
-        saveJPGInfo = "Can't open png_encode_ctx. :" + to_string(ret) + "\n error msg：" +
+        saveJPGInfo = "Can't open jpg_encode_ctx. :" + to_string(ret) + "\n error msg：" +
                       string(errbuf) + "\n";
         PostStatusMessage(saveJPGInfo.c_str());
         return -1;
