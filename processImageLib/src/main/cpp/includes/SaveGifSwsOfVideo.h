@@ -2,8 +2,8 @@
 // Created by MMM on 2025/9/4.
 //
 
-#ifndef FFMPEGPRACTICE_SAVEGIFOFVIDEO_H
-#define FFMPEGPRACTICE_SAVEGIFOFVIDEO_H
+#ifndef FFMPEGPRACTICE_SAVEGIFSWSOFVIDEO_H
+#define FFMPEGPRACTICE_SAVEGIFSWSOFVIDEO_H
 
 #include <jni.h>
 #include <thread>
@@ -12,7 +12,7 @@
 
 using namespace std;
 
-class SaveGifOfVideo {
+class SaveGifSwsOfVideo {
 
 private:
 
@@ -25,7 +25,7 @@ private:
     string sSrcPath;
     string sDestPath;
 
-    int save_index = 50;
+    int save_pro_index = 100;   //保存前几帧的数据作为GIF
 
     int packet_index = -1; // 数据包的索引序号
 
@@ -60,13 +60,13 @@ private:
 
 public:
 
-    SaveGifOfVideo(JNIEnv *env, jobject thiz);
+    SaveGifSwsOfVideo(JNIEnv *env, jobject thiz);
 
-    ~SaveGifOfVideo();
+    ~SaveGifSwsOfVideo();
 
     void startWriteGif(const char *srcPath, const char *destPath);
 
 };
 
 
-#endif //FFMPEGPRACTICE_SAVEGIFOFVIDEO_H
+#endif //FFMPEGPRACTICE_SAVEGIFSWSOFVIDEO_H

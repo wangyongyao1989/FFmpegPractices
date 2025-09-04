@@ -2,15 +2,15 @@
 // Created by MMM on 2025/9/4.
 //
 
-#include "SaveGifOfVideo.h"
+#include "SaveGifSwsOfVideo.h"
 
-SaveGifOfVideo::SaveGifOfVideo(JNIEnv *env, jobject thiz) {
+SaveGifSwsOfVideo::SaveGifSwsOfVideo(JNIEnv *env, jobject thiz) {
     mEnv = env;
     env->GetJavaVM(&mJavaVm);
     mJavaObj = env->NewGlobalRef(thiz);
 }
 
-SaveGifOfVideo::~SaveGifOfVideo() {
+SaveGifSwsOfVideo::~SaveGifSwsOfVideo() {
 
     mEnv->DeleteGlobalRef(mJavaObj);
     if (mEnv) {
@@ -28,13 +28,13 @@ SaveGifOfVideo::~SaveGifOfVideo() {
 
 }
 
-void SaveGifOfVideo::startWriteGif(const char *srcPath, const char *destPath) {
+void SaveGifSwsOfVideo::startWriteGif(const char *srcPath, const char *destPath) {
     sSrcPath = srcPath;
     sDestPath = destPath;
     processImageProcedure();
 }
 
-void SaveGifOfVideo::processImageProcedure() {
+void SaveGifSwsOfVideo::processImageProcedure() {
     if (open_input_file(sSrcPath.c_str()) < 0) { // 打开输入文件
         return;
     }
@@ -54,14 +54,14 @@ void SaveGifOfVideo::processImageProcedure() {
     while (av_read_frame(in_fmt_ctx, packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index) { // 视频包需要重新编码
             packet_index++;
-            decode_video(packet, frame, save_index); // 对视频帧解码
-            if (packet_index > save_index) { // 已经采集到足够数量的帧
+            decode_video(packet, frame, packet_index); // 对视频帧解码
+            if (packet_index > save_pro_index) { // 已经采集到足够数量的帧
                 break;
             }
         }
         av_packet_unref(packet); // 清除数据包
     }
-    LOGI("Success save %d_index frame as gif file.\n", save_index);
+    LOGI("Success save %d_index frame as gif file.\n", save_pro_index);
     saveGifInfo = "Success save %d_index frame as gif file \n";
     PostStatusMessage(saveGifInfo.c_str());
 
@@ -81,7 +81,7 @@ void SaveGifOfVideo::processImageProcedure() {
 }
 
 // 打开输入文件
-int SaveGifOfVideo::open_input_file(const char *srcPath) {
+int SaveGifSwsOfVideo::open_input_file(const char *srcPath) {
     // 打开音视频文件
     int ret = avformat_open_input(&in_fmt_ctx, srcPath, nullptr, nullptr);
     if (ret < 0) {
@@ -142,7 +142,7 @@ int SaveGifOfVideo::open_input_file(const char *srcPath) {
 }
 
 // 打开输出文件
-int SaveGifOfVideo::open_output_file(const char *gif_name) {
+int SaveGifSwsOfVideo::open_output_file(const char *gif_name) {
     // 分配GIF文件的封装实例
     int ret = avformat_alloc_output_context2(&gif_fmt_ctx, nullptr, nullptr, gif_name);
     if (ret < 0) {
@@ -209,7 +209,7 @@ int SaveGifOfVideo::open_output_file(const char *gif_name) {
     return 0;
 }
 
-int SaveGifOfVideo::init_sws_context(void) {
+int SaveGifSwsOfVideo::init_sws_context(void) {
     // 分配图像转换器的实例，并分别指定来源和目标的宽度、高度、像素格式
     swsContext = sws_getContext(
             video_decode_ctx->width, video_decode_ctx->height, AV_PIX_FMT_YUV420P,
@@ -239,7 +239,7 @@ int SaveGifOfVideo::init_sws_context(void) {
 }
 
 // 对视频帧解码。save_index表示要把第几个视频帧保存为图片
-int SaveGifOfVideo::decode_video(AVPacket *packet, AVFrame *frame, int save_index) {
+int SaveGifSwsOfVideo::decode_video(AVPacket *packet, AVFrame *frame, int save_index) {
     // 把未解压的数据包发给解码器实例
     int ret = avcodec_send_packet(video_decode_ctx, packet);
     if (ret < 0) {
@@ -275,13 +275,13 @@ int SaveGifOfVideo::decode_video(AVPacket *packet, AVFrame *frame, int save_inde
 
 // 把视频帧保存为GIF图片。save_index表示要把第几个视频帧保存为图片
 // 这个警告不影响gif生成：No accelerated colorspace conversion found from yuv420p to bgr8
-int SaveGifOfVideo::save_gif_file(AVFrame *frame, int save_index) {
+int SaveGifSwsOfVideo::save_gif_file(AVFrame *frame, int save_index) {
     // 视频帧的format字段为AVPixelFormat枚举类型，为0时表示AV_PIX_FMT_YUV420P
     LOGI("format = %d, width = %d, height = %d\n",
          frame->format, frame->width, frame->height);
     saveGifInfo = "format =" + to_string(frame->format) + ",width =" + to_string(frame->width) +
                   ",height =" + to_string(frame->width) + "\n";
-    saveGifInfo = saveGifInfo + "target image file is:" + sDestPath.c_str() + "\n";
+    saveGifInfo = saveGifInfo + "现在保存的是第:" + to_string(save_index) + "帧数据。。。。。的\n";
     PostStatusMessage(saveGifInfo.c_str());
 
     AVPacket *packet = av_packet_alloc(); // 分配一个数据包
@@ -318,7 +318,7 @@ int SaveGifOfVideo::save_gif_file(AVFrame *frame, int save_index) {
 }
 
 
-JNIEnv *SaveGifOfVideo::GetJNIEnv(bool *isAttach) {
+JNIEnv *SaveGifSwsOfVideo::GetJNIEnv(bool *isAttach) {
     JNIEnv *env;
     int status;
     if (nullptr == mJavaVm) {
@@ -338,7 +338,7 @@ JNIEnv *SaveGifOfVideo::GetJNIEnv(bool *isAttach) {
     return env;
 }
 
-void SaveGifOfVideo::PostStatusMessage(const char *msg) {
+void SaveGifSwsOfVideo::PostStatusMessage(const char *msg) {
     bool isAttach = false;
     JNIEnv *pEnv = GetJNIEnv(&isAttach);
     if (pEnv == nullptr) {

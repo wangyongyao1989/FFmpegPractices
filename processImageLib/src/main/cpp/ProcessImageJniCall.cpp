@@ -11,7 +11,7 @@
 #include "SaveJPGSwsFromVideo.h"
 #include "SavePNGSwsFromVideo.h"
 #include "SaveBMPSwsFromVideo.h"
-#include "SaveGifOfVideo.h"
+#include "SaveGifSwsOfVideo.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/processimagelib/ProcessImageOperate";
@@ -26,7 +26,7 @@ SaveJPGFromVideo *mSaveJPGFromVideo;
 SaveJPGSwsFromVideo *mSaveJPGSwsFromVideo;
 SavePNGSwsFromVideo *mSavePNGSwsFromVideo;
 SaveBMPSwsFromVideo *mSaveBMPSwsFromVideo;
-SaveGifOfVideo *mSaveGifOfVideo;
+SaveGifSwsOfVideo *mSaveGifOfVideo;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -170,7 +170,7 @@ native_save_gif_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring o
     const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
 
     if (mSaveGifOfVideo == nullptr) {
-        mSaveGifOfVideo = new SaveGifOfVideo(env, thiz);
+        mSaveGifOfVideo = new SaveGifSwsOfVideo(env, thiz);
     }
 
     ThreadTask task = [cSrcPath, cOutPath]() {

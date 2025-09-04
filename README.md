@@ -306,3 +306,9 @@
     - **fwrite()** 分别写入bmp文件头、bmp信息头
     - 把缓冲区的图像数据frame倒置过来，并写入文件中。
   - *SaveBMPSwsFromVideo.cpp*
+  
+- 23.练习二十三：把视频解码后的视频帧保存为GIF
+- 操作流程与练习二十中类似
+- 在**avcodec_find_encoder()** 时查找 *AV_CODEC_ID_GIF*的GIF编码器
+- **save_gif_file()** 时保留的是多个帧frame的数据
+- *SaveGifSwsOfVideo.cpp*

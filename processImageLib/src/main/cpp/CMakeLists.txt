@@ -36,7 +36,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         SaveJPGSwsFromVideo.cpp
         SavePNGSwsFromVideo.cpp
         SaveBMPSwsFromVideo.cpp
-        SaveGifOfVideo.cpp
+        SaveGifSwsOfVideo.cpp
 
 
 )
