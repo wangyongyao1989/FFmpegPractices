@@ -228,7 +228,7 @@ build_all() {
   COMMON_OPTIONS="$COMMON_OPTIONS --enable-pthreads"
   COMMON_OPTIONS="$COMMON_OPTIONS --enable-mediacodec"
   COMMON_OPTIONS="$COMMON_OPTIONS --enable-jni"
-  COMMON_OPTIONS="$COMMON_OPTIONS --enable-zlib"
+  COMMON_OPTIONS="$COMMON_OPTIONS --enable-zlib"    #png编码器依赖于zlib库
   COMMON_OPTIONS="$COMMON_OPTIONS --enable-pic"
   COMMON_OPTIONS="$COMMON_OPTIONS --enable-muxer=flv"
   COMMON_OPTIONS="$COMMON_OPTIONS --enable-decoder=h264"

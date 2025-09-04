@@ -21,6 +21,7 @@ import com.wangyao.ffmpegpractice.databinding.ActivityMainBinding;
 import com.wangyao.ffmpegpractice.fragment.BasicTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.CodecTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.MainFragment;
+import com.wangyao.ffmpegpractice.fragment.ProcessImageFragment;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -31,8 +32,10 @@ public class MainActivity extends AppCompatActivity {
     private MainFragment mMainFragment;
     private BasicTraningFragment mBasicTraningFragment;
     private CodecTraningFragment mCodecTraningFragment;
+    private ProcessImageFragment mProcessImageFragment;
     private FrameLayout mFlBasicTraning;
     private FrameLayout mFlCodecTraning;
+    private FrameLayout mFlProcessImage;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,6 +95,7 @@ public class MainActivity extends AppCompatActivity {
         mFlMain = mBinding.flMain;
         mFlBasicTraning = mBinding.flBasicTraning;
         mFlCodecTraning = mBinding.flCodecTraning;
+        mFlProcessImage = mBinding.flProcessImage;
 
     }
 
@@ -130,6 +134,16 @@ public class MainActivity extends AppCompatActivity {
             }
             break;
 
+            case PROCESS_IMAGE: {
+                if (mProcessImageFragment == null) {
+                    mProcessImageFragment = new ProcessImageFragment();
+                    fragmentTransaction
+                            .add(mFlProcessImage.getId(), mProcessImageFragment);
+                }
+                fragmentTransaction.show(mProcessImageFragment);
+                fragmentTransaction.commit();
+            }
+            break;
         }
     }
 
@@ -144,6 +158,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (mCodecTraningFragment != null) {
             ftr.hide(mCodecTraningFragment);
+        }
+
+        if (mProcessImageFragment != null) {
+            ftr.hide(mProcessImageFragment);
         }
     }
 
