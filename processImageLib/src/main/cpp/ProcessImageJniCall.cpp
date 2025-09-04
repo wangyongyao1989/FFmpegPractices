@@ -11,6 +11,7 @@
 #include "SaveJPGSwsFromVideo.h"
 #include "SavePNGSwsFromVideo.h"
 #include "SaveBMPSwsFromVideo.h"
+#include "SaveGifOfVideo.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/processimagelib/ProcessImageOperate";
@@ -25,6 +26,7 @@ SaveJPGFromVideo *mSaveJPGFromVideo;
 SaveJPGSwsFromVideo *mSaveJPGSwsFromVideo;
 SavePNGSwsFromVideo *mSavePNGSwsFromVideo;
 SaveBMPSwsFromVideo *mSaveBMPSwsFromVideo;
+SaveGifOfVideo *mSaveGifOfVideo;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -161,6 +163,25 @@ cpp_save_bmp_sws_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring 
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+native_save_gif_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+
+    if (mSaveGifOfVideo == nullptr) {
+        mSaveGifOfVideo = new SaveGifOfVideo(env, thiz);
+    }
+
+    ThreadTask task = [cSrcPath, cOutPath]() {
+        mSaveGifOfVideo->startWriteGif(cSrcPath, cOutPath);
+    };
+
+    g_threadManager->submitTask("WriteGIFThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+}
 
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
@@ -177,6 +198,8 @@ static const JNINativeMethod methods[] = {
                                            "Ljava/lang/String;)V",  (void *) cpp_save_png_sws_from_video},
         {"native_save_bmp_sws_from_video", "(Ljava/lang/String;"
                                            "Ljava/lang/String;)V",  (void *) cpp_save_bmp_sws_from_video},
+        {"native_save_gif_from_video",     "(Ljava/lang/String;"
+                                           "Ljava/lang/String;)V",  (void *) native_save_gif_from_video},
 };
 
 

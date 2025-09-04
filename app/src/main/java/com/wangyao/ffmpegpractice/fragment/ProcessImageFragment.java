@@ -39,6 +39,7 @@ public class ProcessImageFragment extends BaseFragment {
     private Button mBtn5;
     private Button mBtn6;
     private Button mBtn7;
+    private Button mBtn8;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -69,6 +70,7 @@ public class ProcessImageFragment extends BaseFragment {
         mBtn5 = mBinding.btnProcessImage5;
         mBtn6 = mBinding.btnProcessImage6;
         mBtn7 = mBinding.btnProcessImage7;
+        mBtn8 = mBinding.btnProcessImage8;
 
     }
 
@@ -164,6 +166,15 @@ public class ProcessImageFragment extends BaseFragment {
             String outputPath = videoDir + "out" + randomInt + ".bmp";
             CommonFileUtils.createFile(outputPath);
             mProcessImage.saveBMPSwsFromVideo(mVideoPath2, outputPath);
+        });
+
+        mBtn8.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createPhotoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath = videoDir + "out" + randomInt + ".gif";
+            CommonFileUtils.createFile(outputPath);
+            mProcessImage.saveGIFFromVideo(mVideoPath2, outputPath);
         });
 
     }
