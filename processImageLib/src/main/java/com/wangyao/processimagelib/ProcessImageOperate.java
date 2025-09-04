@@ -49,6 +49,10 @@ public class ProcessImageOperate {
         native_save_gif_from_video(srcPath, destPath);
     }
 
+    public void saveImage2Video(String srcPath1, String srcPath2, String destPath) {
+        native_save_image_to_video(srcPath1, srcPath2,destPath);
+    }
+
     private native String native_string_from_jni();
 
     private native void native_write_yuv(String destPath);
@@ -65,6 +69,7 @@ public class ProcessImageOperate {
 
     private native void native_save_gif_from_video(String srcPath, String destPath);
 
+    private native void native_save_image_to_video(String srcPath1,String srcPath2,  String destPath);
 
     private void CppStatusCallback(String status) {
         Log.e(TAG, "CppStatusCallback: " + status);

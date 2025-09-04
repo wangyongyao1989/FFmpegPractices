@@ -40,6 +40,7 @@ public class ProcessImageFragment extends BaseFragment {
     private Button mBtn6;
     private Button mBtn7;
     private Button mBtn8;
+    private Button mBtn9;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -47,6 +48,9 @@ public class ProcessImageFragment extends BaseFragment {
     private String mAACPath;
 
     private String mH264Path;
+
+    private String mWindowPngPath;
+    private String mYaoJpgPath;
 
     private Button mBtCodecBack;
     private ProcessImageOperate mProcessImage;
@@ -71,6 +75,7 @@ public class ProcessImageFragment extends BaseFragment {
         mBtn6 = mBinding.btnProcessImage6;
         mBtn7 = mBinding.btnProcessImage7;
         mBtn8 = mBinding.btnProcessImage8;
+        mBtn9 = mBinding.btnProcessImage9;
 
     }
 
@@ -87,6 +92,12 @@ public class ProcessImageFragment extends BaseFragment {
 
         mH264Path = CommonFileUtils.getModelFilePath(getContext()
                 , "out.h264");
+
+        mWindowPngPath = CommonFileUtils.getModelFilePath(getContext()
+                , "window.png");
+
+        mYaoJpgPath = CommonFileUtils.getModelFilePath(getContext()
+                , "yao.jpg");
         mStringBuilder = new StringBuilder();
     }
 
@@ -175,6 +186,15 @@ public class ProcessImageFragment extends BaseFragment {
             String outputPath = videoDir + "out" + randomInt + ".gif";
             CommonFileUtils.createFile(outputPath);
             mProcessImage.saveGIFFromVideo(mVideoPath2, outputPath);
+        });
+
+        mBtn9.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createPhotoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath = videoDir + "image2video" + randomInt + ".mp4";
+            CommonFileUtils.createFile(outputPath);
+            mProcessImage.saveImage2Video(mYaoJpgPath, mWindowPngPath, outputPath);
         });
 
     }

@@ -12,6 +12,7 @@
 #include "SavePNGSwsFromVideo.h"
 #include "SaveBMPSwsFromVideo.h"
 #include "SaveGifSwsOfVideo.h"
+#include "SaveImage2Video.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/processimagelib/ProcessImageOperate";
@@ -27,6 +28,7 @@ SaveJPGSwsFromVideo *mSaveJPGSwsFromVideo;
 SavePNGSwsFromVideo *mSavePNGSwsFromVideo;
 SaveBMPSwsFromVideo *mSaveBMPSwsFromVideo;
 SaveGifSwsOfVideo *mSaveGifOfVideo;
+SaveImage2Video *mSaveImage2Video;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -182,6 +184,29 @@ native_save_gif_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring o
     env->ReleaseStringUTFChars(outPath, cOutPath);
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
 }
+extern "C"
+JNIEXPORT void JNICALL
+native_save_image_to_video(JNIEnv *env, jobject thiz, jstring srcPath1,
+                           jstring srcPath2, jstring outPath) {
+    const char *cSrcPath1 = env->GetStringUTFChars(srcPath1, nullptr);
+    const char *cSrcPath2 = env->GetStringUTFChars(srcPath2, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+
+    if (mSaveImage2Video == nullptr) {
+        mSaveImage2Video = new SaveImage2Video(env, thiz);
+    }
+
+    ThreadTask task = [cSrcPath1, cSrcPath2, cOutPath]() {
+        mSaveImage2Video->startImage2Video(cSrcPath1, cSrcPath2, cOutPath);
+    };
+
+    g_threadManager->submitTask("Image2VideoThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath1, cSrcPath1);
+    env->ReleaseStringUTFChars(srcPath2, cSrcPath2);
+
+}
 
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
@@ -200,6 +225,9 @@ static const JNINativeMethod methods[] = {
                                            "Ljava/lang/String;)V",  (void *) cpp_save_bmp_sws_from_video},
         {"native_save_gif_from_video",     "(Ljava/lang/String;"
                                            "Ljava/lang/String;)V",  (void *) native_save_gif_from_video},
+        {"native_save_image_to_video",     "(Ljava/lang/String;"
+                                           "Ljava/lang/String;"
+                                           "Ljava/lang/String;)V",  (void *) native_save_image_to_video},
 };
 
 
