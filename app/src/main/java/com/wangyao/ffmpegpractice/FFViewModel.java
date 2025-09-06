@@ -14,6 +14,7 @@ public class FFViewModel extends ViewModel {
         BASIC_TRANING,
         CODEC_TRANING,
         PROCESS_IMAGE,
+        PROCESS_AUDIO,
 
 
     }
