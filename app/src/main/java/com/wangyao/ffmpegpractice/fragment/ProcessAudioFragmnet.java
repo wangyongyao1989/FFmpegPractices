@@ -14,6 +14,7 @@ import androidx.lifecycle.ViewModelProviders;
 
 import com.wangyao.ffmpegpractice.FFViewModel;
 import com.wangyao.ffmpegpractice.databinding.FragmentProcessAudioLayoutBinding;
+import com.wangyao.processaudiolib.ProcessAuidoOperate;
 import com.wangyao.processimagelib.ProcessImageOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 
@@ -41,7 +42,7 @@ public class ProcessAudioFragmnet extends BaseFragment{
     private String mYaoJpgPath;
 
     private Button mBtCodecBack;
-    private ProcessImageOperate mProcessImage;
+    private ProcessAuidoOperate mAuidoOperate;
     private StringBuilder mStringBuilder;
 
     @Override
@@ -62,7 +63,7 @@ public class ProcessAudioFragmnet extends BaseFragment{
 
     @Override
     public void initData() {
-        mProcessImage = new ProcessImageOperate();
+        mAuidoOperate = new ProcessAuidoOperate();
         mVideoPath1 = CommonFileUtils.getModelFilePath(getContext()
                 , "video.mp4");
         mVideoPath2 = CommonFileUtils.getModelFilePath(getContext()
@@ -91,7 +92,7 @@ public class ProcessAudioFragmnet extends BaseFragment{
 
     @Override
     public void initListener() {
-        mProcessImage.setOnStatusMsgListener(msg -> {
+        mAuidoOperate.setOnStatusMsgListener(msg -> {
             getActivity().runOnUiThread(() -> {
                 mStringBuilder.append(msg);
                 mTv.setText(mStringBuilder);
@@ -104,7 +105,7 @@ public class ProcessAudioFragmnet extends BaseFragment{
         });
 
         mBtn1.setOnClickListener(view -> {
-            mTv.setText(mProcessImage.getFFmpegVersion());
+            mTv.setText(mAuidoOperate.getFFmpegVersion());
         });
 
 
