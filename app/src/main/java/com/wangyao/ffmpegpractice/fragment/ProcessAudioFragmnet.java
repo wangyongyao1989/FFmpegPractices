@@ -33,6 +33,7 @@ public class ProcessAudioFragmnet extends BaseFragment {
     private TextView mTv;
     private Button mBtn1;
     private Button mBtn2;
+    private Button mBtn3;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -61,6 +62,7 @@ public class ProcessAudioFragmnet extends BaseFragment {
         mBtCodecBack = mBinding.btnProcessAudioBack;
         mBtn1 = mBinding.btnProcessAudio1;
         mBtn2 = mBinding.btnProcessAudio2;
+        mBtn3 = mBinding.btnProcessAudio3;
 
 
     }
@@ -113,12 +115,22 @@ public class ProcessAudioFragmnet extends BaseFragment {
         });
 
         mBtn2.setOnClickListener(view -> {
-            String videoDir = DirectoryPath.createPhotoDir(getContext());
+            String videoDir = DirectoryPath.createAudioDir(getContext());
             Random rand = new Random();
             int randomInt = rand.nextInt(100) + 1;
             String outputPath = videoDir + "out_save_pcm" + randomInt + ".pcm";
             CommonFileUtils.createFile(outputPath);
             mAuidoOperate.savePCMOfMedia(mVideoPath1, outputPath);
+
+        });
+
+        mBtn3.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createAudioDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath = videoDir + "out_save_acc" + randomInt + ".aac";
+            CommonFileUtils.createFile(outputPath);
+            mAuidoOperate.saveAACOfMedia(mVideoPath1, outputPath);
 
         });
 

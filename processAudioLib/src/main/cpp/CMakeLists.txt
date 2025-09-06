@@ -30,6 +30,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         AndroidThreadManager.cpp
         ProcessAudioJniCall.cpp
         SavePCMOfMeida.cpp
+        SaveAACOfMedia.cpp
 
 )
 

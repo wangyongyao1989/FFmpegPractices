@@ -25,10 +25,16 @@ public class ProcessAuidoOperate {
         native_save_pcm_of_media(srcPath, destPath);
     }
 
+    public void saveAACOfMedia(String srcPath, String destPath) {
+        native_save_aac_of_media(srcPath, destPath);
+    }
+
 
     private native String native_get_audio_ffmpeg_version();
 
     private native void native_save_pcm_of_media(String srcPath, String destPath);
+
+    private native void native_save_aac_of_media(String srcPath, String destPath);
 
 
 

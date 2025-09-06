@@ -357,4 +357,24 @@
     - **av_get_bytes_per_sample()** 平面模式的音频在存储时要改为交错模式
     - 非平面模式，直接写入文件
 
+- 26.练习二十六：解码出音频帧保存为AAC
+  - **open_input_file()** 打开输入文件
+  - **init_audio_encoder** 初始化AAC编码器的实例
+    - **avcodec_find_encoder(AV_CODEC_ID_AAC)** 查找AAC编码器
+    - **avcodec_alloc_context3()** 获取编解码器上下文信息
+    - 设置采样格式/声道布局/比特率，单位比特每秒/采样率，单位次每秒/AAC规格
+    - **avcodec_open2()** 打开编码器的实例
+  - **fopen()** 以写方式打开文件
+  - **av_read_frame()** 轮询数据包
+    - **avcodec_send_packet()** 把未解压的数据包发给解码器实例
+    - **avcodec_receive_frame()** 从解码器实例获取还原后的数据帧
+  - **save_aac_file()** 把音频帧保存到AAC文件
+    - **avcodec_send_frame()** 把原始的数据帧发给编码器实例
+    - **avcodec_receive_packet()** 从编码器实例获取压缩后的数据包
+    - **get_adts_header()** AAC格式需要获取ADTS头部
+    _ **fwrite()** 写入ADTS头部
+    - **fwrite()** 把编码后的AAC数据包写入文件
+
+
+
   

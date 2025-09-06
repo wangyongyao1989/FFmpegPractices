@@ -6,6 +6,7 @@
 #include "BasicCommon.h"
 #include "AndroidThreadManager.h"
 #include "SavePCMOfMeida.h"
+#include "SaveAACOfMedia.h"
 
 
 //包名+类名字符串定义：
@@ -16,6 +17,7 @@ JavaVM *g_jvm = nullptr;
 std::unique_ptr<AndroidThreadManager> g_threadManager;
 
 SavePCMOfMeida *mSavePCMOfMeida;
+SaveAACOfMedia *mSaveAACOfMedia;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -61,12 +63,33 @@ cpp_save_pcm_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPat
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_save_aac_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+
+    if (mSaveAACOfMedia == nullptr) {
+        mSaveAACOfMedia = new SaveAACOfMedia(env, thiz);
+    }
+
+    ThreadTask task = [cSrcPath, cOutPath]() {
+        mSaveAACOfMedia->startSaveAAC(cSrcPath, cOutPath);
+    };
+
+    g_threadManager->submitTask("saveAACThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+}
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
         {"native_get_audio_ffmpeg_version", "()Ljava/lang/String;", (void *) cpp_string_from_jni},
         {"native_save_pcm_of_media",        "(Ljava/lang/String;"
                                             "Ljava/lang/String;)V", (void *) cpp_save_pcm_of_media},
+        {"native_save_aac_of_media",        "(Ljava/lang/String;"
+                                            "Ljava/lang/String;)V", (void *) cpp_save_aac_of_media},
 };
 
 
