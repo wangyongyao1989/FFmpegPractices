@@ -25,6 +25,16 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_process_audio_2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="保存PCM"
+        app:layout_constraintStart_toEndOf="@+id/btn_process_audio_1"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
 
     <ScrollView
         android:id="@+id/scorll_view"
@@ -41,7 +51,8 @@
             android:layout_height="wrap_content"
             android:layout_margin="10dp"
             android:layout_marginBottom="50dp"
-            android:text="FFmpeg的编解码" />
+            android:text="FFmpeg的编解码"
+            tools:ignore="HardcodedText" />
     </ScrollView>
 
 

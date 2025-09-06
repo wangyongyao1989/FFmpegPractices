@@ -15,8 +15,10 @@ import androidx.lifecycle.ViewModelProviders;
 import com.wangyao.ffmpegpractice.FFViewModel;
 import com.wangyao.ffmpegpractice.databinding.FragmentProcessAudioLayoutBinding;
 import com.wangyao.processaudiolib.ProcessAuidoOperate;
-import com.wangyao.processimagelib.ProcessImageOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
+import com.wangyongyao.commonlib.utils.DirectoryPath;
+
+import java.util.Random;
 
 /**
  * @author wangyongyao
@@ -25,11 +27,12 @@ import com.wangyongyao.commonlib.utils.CommonFileUtils;
  * @decribe TODO
  * @project
  */
-public class ProcessAudioFragmnet extends BaseFragment{
+public class ProcessAudioFragmnet extends BaseFragment {
     private FFViewModel mFfViewModel;
     private FragmentProcessAudioLayoutBinding mBinding;
     private TextView mTv;
     private Button mBtn1;
+    private Button mBtn2;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -57,6 +60,7 @@ public class ProcessAudioFragmnet extends BaseFragment{
         mTv = mBinding.tvProcessAudio;
         mBtCodecBack = mBinding.btnProcessAudioBack;
         mBtn1 = mBinding.btnProcessAudio1;
+        mBtn2 = mBinding.btnProcessAudio2;
 
 
     }
@@ -108,7 +112,15 @@ public class ProcessAudioFragmnet extends BaseFragment{
             mTv.setText(mAuidoOperate.getFFmpegVersion());
         });
 
+        mBtn2.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createPhotoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath = videoDir + "out_save_pcm" + randomInt + ".pcm";
+            CommonFileUtils.createFile(outputPath);
+            mAuidoOperate.savePCMOfMedia(mVideoPath1, outputPath);
 
+        });
 
     }
 }

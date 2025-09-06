@@ -247,7 +247,7 @@ static const JNINativeMethod methods[] = {
         {"native_merge_video",          "(Ljava/lang/String;"
                                         "Ljava/lang/String;"
                                         "Ljava/lang/String;)V",                   (void *) cpp_merge_video},
-        {"native_h264_to_mp4",        "(Ljava/lang/String;"
+        {"native_h264_to_mp4",          "(Ljava/lang/String;"
                                         "Ljava/lang/String;)V",                   (void *) cpp_h264_to_mp4},
 };
 
@@ -278,4 +278,37 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         LOGI("动态注册 success result = %d", regist_result);
     }
     return JNI_VERSION_1_6;
+}
+
+JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
+    if (getMediaMsg) {
+        getMediaMsg = nullptr;
+    }
+    if (getMediaTimeBase) {
+        getMediaTimeBase = nullptr;
+    }
+    if (getMediaTimeStamp) {
+        getMediaTimeStamp = nullptr;
+    }
+    if (copyMeidaFile) {
+        copyMeidaFile = nullptr;
+    }
+    if (peelAudioOfMedia) {
+        peelAudioOfMedia = nullptr;
+    }
+    if (splitVideoOfMedia) {
+        splitVideoOfMedia = nullptr;
+    }
+    if (mergeAudio) {
+        mergeAudio = nullptr;
+    }
+    if (recodecVideo) {
+        recodecVideo = nullptr;
+    }
+    if (mergeVideo) {
+        mergeVideo = nullptr;
+    }
+    if (h264ToMP4) {
+        h264ToMP4 = nullptr;
+    }
 }

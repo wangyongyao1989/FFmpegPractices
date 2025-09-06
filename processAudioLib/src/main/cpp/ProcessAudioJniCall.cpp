@@ -5,6 +5,7 @@
 #include <string>
 #include "BasicCommon.h"
 #include "AndroidThreadManager.h"
+#include "SavePCMOfMeida.h"
 
 
 //包名+类名字符串定义：
@@ -14,6 +15,7 @@ using namespace std;
 JavaVM *g_jvm = nullptr;
 std::unique_ptr<AndroidThreadManager> g_threadManager;
 
+SavePCMOfMeida *mSavePCMOfMeida;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -39,13 +41,32 @@ cpp_string_from_jni(JNIEnv *env, jobject thiz) {
     return env->NewStringUTF(strBuffer);
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_save_pcm_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
 
+    if (mSavePCMOfMeida == nullptr) {
+        mSavePCMOfMeida = new SavePCMOfMeida(env, thiz);
+    }
+
+    ThreadTask task = [cSrcPath, cOutPath]() {
+        mSavePCMOfMeida->startSavePCM(cSrcPath, cOutPath);
+    };
+
+    g_threadManager->submitTask("savePCMThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+}
 
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_get_audio_ffmpeg_version",         "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
-
+        {"native_get_audio_ffmpeg_version", "()Ljava/lang/String;", (void *) cpp_string_from_jni},
+        {"native_save_pcm_of_media",        "(Ljava/lang/String;"
+                                            "Ljava/lang/String;)V", (void *) cpp_save_pcm_of_media},
 };
 
 
@@ -91,4 +112,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     g_threadManager.reset();
+    if (mSavePCMOfMeida) {
+        mSavePCMOfMeida = nullptr;
+    }
 }

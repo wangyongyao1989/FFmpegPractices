@@ -21,9 +21,15 @@ public class ProcessAuidoOperate {
         return native_get_audio_ffmpeg_version();
     }
 
+    public void savePCMOfMedia(String srcPath, String destPath) {
+        native_save_pcm_of_media(srcPath, destPath);
+    }
 
 
     private native String native_get_audio_ffmpeg_version();
+
+    private native void native_save_pcm_of_media(String srcPath, String destPath);
+
 
 
     private void CppStatusCallback(String status) {
