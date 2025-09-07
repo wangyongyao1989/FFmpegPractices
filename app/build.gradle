@@ -50,6 +50,7 @@ dependencies {
     implementation project(':codecTraningLib')
     implementation project(':processImageLib')
     implementation project(':processAudioLib')
+    implementation project(':processFilterLib')
 
     implementation libs.appcompat
     implementation libs.material

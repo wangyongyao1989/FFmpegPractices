@@ -22,6 +22,7 @@ import com.wangyao.ffmpegpractice.fragment.BasicTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.CodecTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.MainFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessAudioFragmnet;
+import com.wangyao.ffmpegpractice.fragment.ProcessFilterFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessImageFragment;
 
 public class MainActivity extends AppCompatActivity {
@@ -35,11 +36,13 @@ public class MainActivity extends AppCompatActivity {
     private CodecTraningFragment mCodecTraningFragment;
     private ProcessImageFragment mProcessImageFragment;
     private ProcessAudioFragmnet mProcessAudioFragmnet;
+    private ProcessFilterFragment mProcessFilterFragment;
 
     private FrameLayout mFlBasicTraning;
     private FrameLayout mFlCodecTraning;
     private FrameLayout mFlProcessImage;
     private FrameLayout mFlProcessAudio;
+    private FrameLayout mFlProcessFilter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,7 +83,7 @@ public class MainActivity extends AppCompatActivity {
     private void initObserver() {
         mFFViewModel = ViewModelProviders.of(this).get(FFViewModel.class);
         mFFViewModel.getSwitchFragment().observe(this, fragmentStatus -> {
-            Log.e(TAG, "initObserver fragmentStatus: "+fragmentStatus);
+            Log.e(TAG, "initObserver fragmentStatus: " + fragmentStatus);
             selectionFragment(fragmentStatus);
         });
     }
@@ -92,7 +95,6 @@ public class MainActivity extends AppCompatActivity {
     private void initData() {
 
 
-
     }
 
     private void initView() {
@@ -101,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
         mFlCodecTraning = mBinding.flCodecTraning;
         mFlProcessImage = mBinding.flProcessImage;
         mFlProcessAudio = mBinding.flProcessAudio;
+        mFlProcessFilter = mBinding.flProcessFilter;
 
     }
 
@@ -160,6 +163,17 @@ public class MainActivity extends AppCompatActivity {
                 fragmentTransaction.commit();
             }
             break;
+
+            case PROCESS_FILTER: {
+                if (mProcessFilterFragment == null) {
+                    mProcessFilterFragment = new ProcessFilterFragment();
+                    fragmentTransaction
+                            .add(mFlProcessFilter.getId(), mProcessFilterFragment);
+                }
+                fragmentTransaction.show(mProcessFilterFragment);
+                fragmentTransaction.commit();
+            }
+            break;
         }
     }
 
@@ -183,6 +197,12 @@ public class MainActivity extends AppCompatActivity {
         if (mProcessAudioFragmnet != null) {
             ftr.hide(mProcessAudioFragmnet);
         }
+
+        if (mProcessFilterFragment != null) {
+            ftr.hide(mProcessFilterFragment);
+        }
+
+
     }
 
 
