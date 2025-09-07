@@ -33,6 +33,8 @@ public class ProcessFilterFragment extends BaseFragment {
     private FragmentProcessFilterLayoutBinding mBinding;
     private TextView mTv;
     private Button mBtn1;
+    private Button mBtn2;
+
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -60,6 +62,7 @@ public class ProcessFilterFragment extends BaseFragment {
         mTv = mBinding.tvProcessFilter;
         mBtCodecBack = mBinding.btnProcessFilterBack;
         mBtn1 = mBinding.btnProcessFilter1;
+        mBtn2 = mBinding.btnProcessFilter2;
 
 
     }
@@ -111,6 +114,16 @@ public class ProcessFilterFragment extends BaseFragment {
             mTv.setText(mFilterOperate.getFFmpegVersion());
         });
 
+        mBtn2.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = videoDir + "out_video_filter" + randomInt + ".mp4";
+            CommonFileUtils.createFile(outputPath1);
+//            String filterCmd = "fps=5";
+            String filterCmd = "setpts=0.5*PTS";
+            mFilterOperate.processVideoFilter(mVideoPath2, outputPath1, filterCmd);
+        });
 
     }
 }

@@ -117,33 +117,33 @@ public class ProcessAudioFragmnet extends BaseFragment {
         });
 
         mBtn2.setOnClickListener(view -> {
-            String videoDir = DirectoryPath.createAudioDir(getContext());
+            String audioDir = DirectoryPath.createAudioDir(getContext());
             Random rand = new Random();
             int randomInt = rand.nextInt(100) + 1;
-            String outputPath = videoDir + "out_save_pcm" + randomInt + ".pcm";
+            String outputPath = audioDir + "out_save_pcm" + randomInt + ".pcm";
             CommonFileUtils.createFile(outputPath);
             mAuidoOperate.savePCMOfMedia(mVideoPath1, outputPath);
 
         });
 
         mBtn3.setOnClickListener(view -> {
-            String videoDir = DirectoryPath.createAudioDir(getContext());
+            String audioDir = DirectoryPath.createAudioDir(getContext());
             Random rand = new Random();
             int randomInt = rand.nextInt(100) + 1;
-            String outputPath = videoDir + "out_save_acc" + randomInt + ".aac";
+            String outputPath = audioDir + "out_save_acc" + randomInt + ".aac";
             CommonFileUtils.createFile(outputPath);
             mAuidoOperate.saveAACOfMedia(mVideoPath1, outputPath);
 
         });
 
         mBtn4.setOnClickListener(view -> {
-            String videoDir = DirectoryPath.createAudioDir(getContext());
+            String audioDir = DirectoryPath.createAudioDir(getContext());
             Random rand = new Random();
             int randomInt = rand.nextInt(100) + 1;
-            String outputPath1 = videoDir + "out_save_wav_pcm" + randomInt + ".pcm";
+            String outputPath1 = audioDir + "out_save_wav_pcm" + randomInt + ".pcm";
             CommonFileUtils.createFile(outputPath1);
-            String outputPath2 = videoDir + "out_save_wav" + randomInt + ".wav";
-            CommonFileUtils.createFile(outputPath1);
+            String outputPath2 = audioDir + "out_save_wav" + randomInt + ".wav";
+            CommonFileUtils.createFile(outputPath2);
             mAuidoOperate.saveWAVOfMedia(mVideoPath1, outputPath1, outputPath2);
 
         });

@@ -5,6 +5,7 @@
 #include <string>
 #include "BasicCommon.h"
 #include "AndroidThreadManager.h"
+#include "ProcessVideoFilter.h"
 
 
 //包名+类名字符串定义：
@@ -13,6 +14,8 @@ using namespace std;
 
 JavaVM *g_jvm = nullptr;
 std::unique_ptr<AndroidThreadManager> g_threadManager;
+
+ProcessVideoFilter *mProcessVideoFilter;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -38,12 +41,36 @@ cpp_string_from_jni(JNIEnv *env, jobject thiz) {
     return env->NewStringUTF(strBuffer);
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_process_video_filter(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath,
+                         jstring filterCmd) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+    const char *cFilterCmd = env->GetStringUTFChars(filterCmd, nullptr);
+
+    if (mProcessVideoFilter == nullptr) {
+        mProcessVideoFilter = new ProcessVideoFilter(env, thiz);
+    }
+    ThreadTask task = [cSrcPath, cOutPath, cFilterCmd]() {
+        mProcessVideoFilter->startProcessVideoFilter(cSrcPath, cOutPath, cFilterCmd);
+    };
+
+    g_threadManager->submitTask("videoFilterThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+    env->ReleaseStringUTFChars(filterCmd, cFilterCmd);
+
+}
 
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
         {"native_get_filter_ffmpeg_version", "()Ljava/lang/String;", (void *) cpp_string_from_jni},
-
+        {"native_process_video_filter",      "(Ljava/lang/String;"
+                                             "Ljava/lang/String;"
+                                             "Ljava/lang/String;)V", (void *) cpp_process_video_filter},
 
 };
 

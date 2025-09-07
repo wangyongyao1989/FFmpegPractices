@@ -22,10 +22,15 @@ public class ProcessFilterOperate {
 
     }
 
+    public void processVideoFilter(String srcPath, String outputPath, String filterCmd) {
+        native_process_video_filter(srcPath, outputPath, filterCmd);
+    }
+
 
     private native String native_get_filter_ffmpeg_version();
 
-
+    private native void native_process_video_filter(String srcPath, String destPath
+            , String filterCmd);
 
 
     private void CppStatusCallback(String status) {
