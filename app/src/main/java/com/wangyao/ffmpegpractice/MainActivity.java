@@ -21,6 +21,7 @@ import com.wangyao.ffmpegpractice.databinding.ActivityMainBinding;
 import com.wangyao.ffmpegpractice.fragment.BasicTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.CodecTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.MainFragment;
+import com.wangyao.ffmpegpractice.fragment.ProcessAudioFragmnet;
 import com.wangyao.ffmpegpractice.fragment.ProcessImageFragment;
 
 public class MainActivity extends AppCompatActivity {
@@ -33,9 +34,12 @@ public class MainActivity extends AppCompatActivity {
     private BasicTraningFragment mBasicTraningFragment;
     private CodecTraningFragment mCodecTraningFragment;
     private ProcessImageFragment mProcessImageFragment;
+    private ProcessAudioFragmnet mProcessAudioFragmnet;
+
     private FrameLayout mFlBasicTraning;
     private FrameLayout mFlCodecTraning;
     private FrameLayout mFlProcessImage;
+    private FrameLayout mFlProcessAudio;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,6 +100,7 @@ public class MainActivity extends AppCompatActivity {
         mFlBasicTraning = mBinding.flBasicTraning;
         mFlCodecTraning = mBinding.flCodecTraning;
         mFlProcessImage = mBinding.flProcessImage;
+        mFlProcessAudio = mBinding.flProcessAudio;
 
     }
 
@@ -144,6 +149,17 @@ public class MainActivity extends AppCompatActivity {
                 fragmentTransaction.commit();
             }
             break;
+
+            case PROCESS_AUDIO: {
+                if (mProcessAudioFragmnet == null) {
+                    mProcessAudioFragmnet = new ProcessAudioFragmnet();
+                    fragmentTransaction
+                            .add(mFlProcessAudio.getId(), mProcessAudioFragmnet);
+                }
+                fragmentTransaction.show(mProcessAudioFragmnet);
+                fragmentTransaction.commit();
+            }
+            break;
         }
     }
 
@@ -162,6 +178,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (mProcessImageFragment != null) {
             ftr.hide(mProcessImageFragment);
+        }
+
+        if (mProcessAudioFragmnet != null) {
+            ftr.hide(mProcessAudioFragmnet);
         }
     }
 

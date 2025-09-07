@@ -13,6 +13,7 @@
             <option value="$PROJECT_DIR$/basicTraningLib" />
             <option value="$PROJECT_DIR$/codecTraningLib" />
             <option value="$PROJECT_DIR$/commonLib" />
+            <option value="$PROJECT_DIR$/processAudioLib" />
             <option value="$PROJECT_DIR$/processImageLib" />
           </set>
         </option>

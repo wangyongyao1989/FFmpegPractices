@@ -167,7 +167,7 @@ cpp_save_bmp_sws_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring 
 
 extern "C"
 JNIEXPORT void JNICALL
-native_save_gif_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
+cpp_save_gif_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
     const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
     const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
 
@@ -186,7 +186,7 @@ native_save_gif_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring o
 }
 extern "C"
 JNIEXPORT void JNICALL
-native_save_image_to_video(JNIEnv *env, jobject thiz, jstring srcPath1,
+cpp_save_image_to_video(JNIEnv *env, jobject thiz, jstring srcPath1,
                            jstring srcPath2, jstring outPath) {
     const char *cSrcPath1 = env->GetStringUTFChars(srcPath1, nullptr);
     const char *cSrcPath2 = env->GetStringUTFChars(srcPath2, nullptr);
@@ -224,10 +224,10 @@ static const JNINativeMethod methods[] = {
         {"native_save_bmp_sws_from_video", "(Ljava/lang/String;"
                                            "Ljava/lang/String;)V",  (void *) cpp_save_bmp_sws_from_video},
         {"native_save_gif_from_video",     "(Ljava/lang/String;"
-                                           "Ljava/lang/String;)V",  (void *) native_save_gif_from_video},
+                                           "Ljava/lang/String;)V",  (void *) cpp_save_gif_from_video},
         {"native_save_image_to_video",     "(Ljava/lang/String;"
                                            "Ljava/lang/String;"
-                                           "Ljava/lang/String;)V",  (void *) native_save_image_to_video},
+                                           "Ljava/lang/String;)V",  (void *) cpp_save_image_to_video},
 };
 
 
@@ -273,4 +273,29 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     g_threadManager.reset();
+    if (mWriteFrame) {
+        mWriteFrame = nullptr;
+    }
+    if (mSaveYUVFromVideo) {
+        mSaveYUVFromVideo = nullptr;
+    }
+    if (mSaveJPGFromVideo) {
+        mSaveJPGFromVideo = nullptr;
+    }
+    if (mSaveJPGSwsFromVideo) {
+        mSaveJPGSwsFromVideo = nullptr;
+    }
+    if (mSavePNGSwsFromVideo) {
+        mSavePNGSwsFromVideo = nullptr;
+    }
+    if (mSaveBMPSwsFromVideo) {
+        mSaveBMPSwsFromVideo = nullptr;
+    }
+    if (mSaveGifOfVideo) {
+        mSaveGifOfVideo = nullptr;
+    }
+    if (mSaveImage2Video) {
+        mSaveImage2Video = nullptr;
+    }
+
 }

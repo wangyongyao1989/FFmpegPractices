@@ -308,46 +308,80 @@
   - *SaveBMPSwsFromVideo.cpp*
   
 - 23.练习二十三：把视频解码后的视频帧保存为GIF
-- 操作流程与练习二十中类似
-- 在**avcodec_find_encoder()** 时查找 *AV_CODEC_ID_GIF*的GIF编码器
-- **save_gif_file()** 时保留的是多个帧frame的数据
-- *SaveGifSwsOfVideo.cpp*
+  - 操作流程与练习二十中类似
+  - 在**avcodec_find_encoder()** 时查找 *AV_CODEC_ID_GIF*的GIF编码器
+  - **save_gif_file()** 时保留的是多个帧frame的数据
+  - *SaveGifSwsOfVideo.cpp*
 
 - 24.练习二十四：把图片转成视频
-- **open_input_file()** 打开第一个图片文件
-  - **avformat_open_input()** 打开图像文件
-  - **avformat_find_stream_info()** 查找图像文件中的流信息
-  - **av_find_best_stream()** 找到视频流的索引
-  - **avcodec_find_decoder()** 查找图像解码器
-  - **avcodec_parameters_to_context()** 把视频流中的编解码参数复制给解码器的实例
-  - **avcodec_open2()** 打开解码器的实例
-- **open_input_file()** 打开第二个图片文件
-- **open_output_file()** 打开输出文件
-  - **avformat_alloc_output_context2()** 分配音视频文件的封装实例
-  - **avio_open()** 打开输出流
-  - **avcodec_find_encoder_by_name()** 使用libx264的编码器
-  - **video_encode_ctx** 设置编码器的相关参数集
-  - **avcodec_open2()** 打开编码器的实例
-  - **avformat_new_stream()** 创建数据流
-  - **avcodec_parameters_from_context()** 把编码器实例的参数复制给目标视频流
-  - **avformat_write_header()** 写文件头
-- **init_sws_context()** 初始化第一个图像转换器的实例
-  - **sws_getContext()** 分配图像转换器的实例，并分别指定来源和目标的宽度、高度、像素格式
-  - **av_image_alloc()** 分配缓冲区空间，用于存放转换后的图像数据
-- **init_sws_context()** 初始化第二个图像转换器的实例
-- **av_packet_alloc()** 分配一个数据包
-- **av_frame_alloc()** 分配一个数据帧
-- **av_read_frame()** 轮询数据包
-  - **recode_video()** 对视频帧重新编码
+  - **open_input_file()** 打开第一个图片文件
+    - **avformat_open_input()** 打开图像文件
+    - **avformat_find_stream_info()** 查找图像文件中的流信息
+    - **av_find_best_stream()** 找到视频流的索引
+    - **avcodec_find_decoder()** 查找图像解码器
+    - **avcodec_parameters_to_context()** 把视频流中的编解码参数复制给解码器的实例
+    - **avcodec_open2()** 打开解码器的实例
+  - **open_input_file()** 打开第二个图片文件
+  - **open_output_file()** 打开输出文件
+    - **avformat_alloc_output_context2()** 分配音视频文件的封装实例
+    - **avio_open()** 打开输出流
+    - **avcodec_find_encoder_by_name()** 使用libx264的编码器
+    - **video_encode_ctx** 设置编码器的相关参数集
+    - **avcodec_open2()** 打开编码器的实例
+    - **avformat_new_stream()** 创建数据流
+    - **avcodec_parameters_from_context()** 把编码器实例的参数复制给目标视频流
+    - **avformat_write_header()** 写文件头
+  - **init_sws_context()** 初始化第一个图像转换器的实例
+    - **sws_getContext()** 分配图像转换器的实例，并分别指定来源和目标的宽度、高度、像素格式
+    - **av_image_alloc()** 分配缓冲区空间，用于存放转换后的图像数据
+  - **init_sws_context()** 初始化第二个图像转换器的实例
+  - **av_packet_alloc()** 分配一个数据包
+  - **av_frame_alloc()** 分配一个数据帧
+  - **av_read_frame()** 轮询数据包
+    - **recode_video()** 对视频帧重新编码
+      - **avcodec_send_packet()** 把未解压的数据包发给解码器实例
+      - **avcodec_receive_frame** 从解码器实例获取还原后的数据帧
+      - **sws_scale()** 转换器开始处理图像数据，把RGB图像转为YUV图像
+      - **output_video()** 给视频帧编码，并写入压缩后的视频包
+        - **avcodec_send_frame()** 把原始的数据帧发给编码器实例
+        - **avcodec_receive_packet()** 从编码器实例获取压缩后的数据包
+        - **av_packet_rescale_ts()** 把数据包的时间戳从一个时间基转换为另一个时间基
+        - **av_write_frame()** 往文件写入一个数据包
+    - 释放数据帧资源/释放数据包资源/关闭输出流/关闭视频解码器的实例
+       /释放视频解码器的实例/释放图像转换器的实例/释放封装器的实例/关闭音视频文件
+  - *SaveImage2Video.cpp*
+
+- 25.练习二十五：解码出音频帧保存为PCM
+  - **avcodec_receive_frame** 从解码器实例获取还原后的数据帧
+  - **av_sample_fmt_is_planar()** 判断指定音频采样格式是否为交错模式
+    - **av_get_bytes_per_sample()** 平面模式的音频在存储时要改为交错模式
+    - 非平面模式，直接写入文件
+    - *SavePCMOfMeida.cpp*
+
+- 26.练习二十六：解码出音频帧保存为AAC
+  - **open_input_file()** 打开输入文件
+  - **init_audio_encoder** 初始化AAC编码器的实例
+    - **avcodec_find_encoder(AV_CODEC_ID_AAC)** 查找AAC编码器
+    - **avcodec_alloc_context3()** 获取编解码器上下文信息
+    - 设置采样格式/声道布局/比特率，单位比特每秒/采样率，单位次每秒/AAC规格
+    - **avcodec_open2()** 打开编码器的实例
+  - **fopen()** 以写方式打开文件
+  - **av_read_frame()** 轮询数据包
     - **avcodec_send_packet()** 把未解压的数据包发给解码器实例
-    - **avcodec_receive_frame** 从解码器实例获取还原后的数据帧
-    - **sws_scale()** 转换器开始处理图像数据，把RGB图像转为YUV图像
-    - **output_video()** 给视频帧编码，并写入压缩后的视频包
-      - **avcodec_send_frame()** 把原始的数据帧发给编码器实例
-      - **avcodec_receive_packet()** 从编码器实例获取压缩后的数据包
-      - **av_packet_rescale_ts()** 把数据包的时间戳从一个时间基转换为另一个时间基
-      - **av_write_frame()** 往文件写入一个数据包
-  - 释放数据帧资源/释放数据包资源/关闭输出流/关闭视频解码器的实例
-     /释放视频解码器的实例/释放图像转换器的实例/释放封装器的实例/关闭音视频文件
-- *SaveImage2Video.cpp*
+    - **avcodec_receive_frame()** 从解码器实例获取还原后的数据帧
+  - **save_aac_file()** 把音频帧保存到AAC文件
+    - **avcodec_send_frame()** 把原始的数据帧发给编码器实例
+    - **avcodec_receive_packet()** 从编码器实例获取压缩后的数据包
+    - **get_adts_header()** AAC格式需要获取ADTS头部
+    _ **fwrite()** 写入ADTS头部
+    - **fwrite()** 把编码后的AAC数据包写入文件
+  - *SaveAACOfMedia.cpp*
+
+- 27.练习二十七：解码出音频帧保存为WAV
+  - 类似于练习二十五的过程，先解码出PCM原始音频数据
+  - 之后在原始PCM数据的基础上加入WAV头文件信息之后拼接上PCM数据
+  - *SaveWavOfMedia.cpp*
+
+
+
   

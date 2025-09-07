@@ -22,6 +22,7 @@ public class DirectoryPath {
     private static final String MM_DIR = "WY";
     private static final String MM_VIDEO = "Video";
     private static final String MM_PHOTO = "Photo";
+    private static final String MM_AUDIO = "Audio";
     private static final String MM_CARSHLOG = "CarshLog";
     private static final String MM_DATA = "data";
 
@@ -35,6 +36,13 @@ public class DirectoryPath {
 
     public static String createVideoDir(Context context) {
         String filesDirString = getVideoDirString(context);
+        String videoString = filesDirString
+                + File.separator;
+        return videoString;
+    }
+
+    public static String createAudioDir(Context context) {
+        String filesDirString = getAudioDirString(context);
         String videoString = filesDirString
                 + File.separator;
         return videoString;
@@ -85,6 +93,27 @@ public class DirectoryPath {
                     + MM_DIR
                     + File.separator
                     + MM_VIDEO
+                    + File.separator;
+            filePath = new File(path);
+            if (!filePath.exists()) {
+                filePath.mkdirs();
+            }
+        } else {
+            filePath = new File(createSDCardVideoDir());
+        }
+        return filePath.toString();
+    }
+
+    @SuppressLint("ObsoleteSdkInt")
+    private static String getAudioDirString(Context context) {
+        File filePath;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD_MR1) {
+            File externalFilesDir = context.getExternalFilesDir(null);
+            String path = externalFilesDir.getAbsolutePath()
+                    + File.separator
+                    + MM_DIR
+                    + File.separator
+                    + MM_AUDIO
                     + File.separator;
             filePath = new File(path);
             if (!filePath.exists()) {

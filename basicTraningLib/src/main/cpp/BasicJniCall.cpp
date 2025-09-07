@@ -188,3 +188,27 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     }
     return JNI_VERSION_1_6;
 }
+
+JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
+    if (ffGetVideoMsg) {
+        ffGetVideoMsg = nullptr;
+    }
+    if (ffGetVersion) {
+        ffGetVersion = nullptr;
+    }
+    if (ffGetMediaMsg) {
+        ffGetMediaMsg = nullptr;
+    }
+    if (ffGetMediaCodecMsg) {
+        ffGetMediaCodecMsg = nullptr;
+    }
+    if (ffGetMediaCodecCopyNew) {
+        ffGetMediaCodecCopyNew = nullptr;
+    }
+    if (ffWriteMediaToMp4) {
+        ffWriteMediaToMp4 = nullptr;
+    }
+    if (ffWriteMediaFilter) {
+        ffWriteMediaFilter = nullptr;
+    }
+}
