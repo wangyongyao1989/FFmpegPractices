@@ -356,6 +356,7 @@
   - **av_sample_fmt_is_planar()** 判断指定音频采样格式是否为交错模式
     - **av_get_bytes_per_sample()** 平面模式的音频在存储时要改为交错模式
     - 非平面模式，直接写入文件
+    - *SavePCMOfMeida.cpp*
 
 - 26.练习二十六：解码出音频帧保存为AAC
   - **open_input_file()** 打开输入文件
@@ -374,6 +375,12 @@
     - **get_adts_header()** AAC格式需要获取ADTS头部
     _ **fwrite()** 写入ADTS头部
     - **fwrite()** 把编码后的AAC数据包写入文件
+  - *SaveAACOfMedia.cpp*
+
+- 27.练习二十七：解码出音频帧保存为WAV
+  - 类似于练习二十五的过程，先解码出PCM原始音频数据
+  - 之后在原始PCM数据的基础上加入WAV头文件信息之后拼接上PCM数据
+  - *SaveWavOfMedia.cpp*
 
 
 

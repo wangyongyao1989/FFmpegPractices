@@ -59,9 +59,13 @@ void SaveAACOfMedia::processAudioProcedure() {
     FILE *fp_out = fopen(sDestPath.c_str(), "wb"); // 以写方式打开文件
     if (!fp_out) {
         LOGE("open file %s fail.\n", sSrcPath.c_str());
+        saveAACInfo = "open file fail ：" + sDestPath + "\n";
+        PostStatusMessage(saveAACInfo.c_str());
         return;
     }
     LOGI("target audio file is %s\n", sDestPath.c_str());
+    saveAACInfo = "target audio file is ：" + sDestPath + "\n";
+    PostStatusMessage(saveAACInfo.c_str());
     int ret = -1;
     AVPacket *packet = av_packet_alloc(); // 分配一个数据包
     AVFrame *frame = av_frame_alloc(); // 分配一个数据帧

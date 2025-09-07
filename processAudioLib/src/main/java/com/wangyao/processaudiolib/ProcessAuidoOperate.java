@@ -29,6 +29,10 @@ public class ProcessAuidoOperate {
         native_save_aac_of_media(srcPath, destPath);
     }
 
+    public void saveWAVOfMedia(String srcPath, String destPath1, String destPath2) {
+        native_save_wav_of_media(srcPath, destPath1, destPath2);
+    }
+
 
     private native String native_get_audio_ffmpeg_version();
 
@@ -36,6 +40,7 @@ public class ProcessAuidoOperate {
 
     private native void native_save_aac_of_media(String srcPath, String destPath);
 
+    private native void native_save_wav_of_media(String srcPath1, String destPath1, String destPath2);
 
 
     private void CppStatusCallback(String status) {

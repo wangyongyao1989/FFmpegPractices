@@ -31,6 +31,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         ProcessAudioJniCall.cpp
         SavePCMOfMeida.cpp
         SaveAACOfMedia.cpp
+        SaveWavOfMedia.cpp
 
 )
 
