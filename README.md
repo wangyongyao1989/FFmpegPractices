@@ -384,4 +384,37 @@
 
 
 
+## processFilterLib —— ffmpeg的滤镜处理
+
+- 28.练习二十八：通过滤镜处理来调节视频的帧率及播放速度。
+  - **open_input_file()** 打开输入文件
+  - 调整过滤字符串如“fps=fps=15,stept=expr=0.5*PTS,trim=start=1.2:end=5.2”
+    - 该过滤字串表示：fps滤镜的fps值为15，stept滤镜参数为0.5*PTS，trim滤镜start参数为1.2及end参数为5.2
+  - **init_filter()** 初始化滤镜
+    - **avfilter_get_by_name("buffer")** 获取输入滤镜
+    - **avfilter_get_by_name("buffersink")** 获取输出滤镜
+    - **avfilter_inout_alloc()** 分配滤镜的输入输出参数
+    - **avfilter_graph_alloc()** 分配一个滤镜图
+    - **avfilter_graph_create_filter(&buffersrc_ctx, buffersrc, "in",
+      args, nullptr, filter_graph)** 创建输入滤镜的实例，并将其添加到现有的滤镜图
+    - **avfilter_graph_create_filter(&buffersink_ctx, buffersink, "out",
+      nullptr, nullptr, filter_graph)** 创建输出滤镜的实例，并将其添加到现有的滤镜图
+    - **av_opt_set_int_list()** 将二进制选项设置为整数列表，此处给输出滤镜的实例设置像素格式
+    - 设置滤镜的输入输出参数
+    - **avfilter_graph_parse_ptr()** 把采用过滤字符串描述的图形添加到滤镜图
+    - **avfilter_graph_config()** 检查过滤字符串的有效性，并配置滤镜图中的所有前后连接和图像格式
+    - **avfilter_inout_free()** 释放滤镜的输入/输出参数
+  - **av_packet_alloc()** 分配一个数据包
+  - **av_frame_alloc()** 分配一个数据帧
+  - **while (av_read_frame(in_fmt_ctx, packet) >= 0)** 轮询数据包
+    - **recode_video(packet, frame, filt_frame)** 对视频帧重新编码
+    - **avcodec_send_packet(video_decode_ctx, packet)** 把未解压的数据包发给解码器实例
+    - **avcodec_receive_frame()** 从解码器实例获取还原后的数据帧
+    - **av_buffersrc_add_frame_flags()** 把原始的数据帧添加到输入滤镜的缓冲区
+    - **av_buffersink_get_frame(buffersink_ctx, filt_frame)** 从输出滤镜的接收器获取一个已加工的过滤帧
+    - **output_video()** 给视频帧编码，并写入压缩后的视频包
+  - *ProcessVideoFilter.cpp*
+
+
+
   
