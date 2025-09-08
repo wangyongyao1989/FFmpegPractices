@@ -6,6 +6,7 @@
 #include "BasicCommon.h"
 #include "AndroidThreadManager.h"
 #include "ProcessVideoFilter.h"
+#include "ProcessVideoToPNG.h"
 
 
 //包名+类名字符串定义：
@@ -15,7 +16,10 @@ using namespace std;
 JavaVM *g_jvm = nullptr;
 std::unique_ptr<AndroidThreadManager> g_threadManager;
 
-ProcessVideoFilter *mProcessVideoFilter;
+ProcessVideoFilter *mProcessVideoFilter = nullptr;
+ProcessVideoToPNG *mProcessVideoToPNG = nullptr;
+
+
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -64,6 +68,29 @@ cpp_process_video_filter(JNIEnv *env, jobject thiz, jstring srcPath, jstring out
 
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_process_video_to_png(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath,
+                         jstring filterCmd) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
+    const char *cFilterCmd = env->GetStringUTFChars(filterCmd, nullptr);
+
+    if (mProcessVideoToPNG == nullptr) {
+        mProcessVideoToPNG = new ProcessVideoToPNG(env, thiz);
+    }
+    ThreadTask task = [cSrcPath, cOutPath, cFilterCmd]() {
+        mProcessVideoToPNG->startProcessVideoToPNG(cSrcPath, cOutPath, cFilterCmd);
+    };
+
+    g_threadManager->submitTask("videoToPNGThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(outPath, cOutPath);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+    env->ReleaseStringUTFChars(filterCmd, cFilterCmd);
+
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
@@ -71,7 +98,9 @@ static const JNINativeMethod methods[] = {
         {"native_process_video_filter",      "(Ljava/lang/String;"
                                              "Ljava/lang/String;"
                                              "Ljava/lang/String;)V", (void *) cpp_process_video_filter},
-
+        {"native_process_video_to_png",      "(Ljava/lang/String;"
+                                             "Ljava/lang/String;"
+                                             "Ljava/lang/String;)V", (void *) cpp_process_video_to_png},
 };
 
 
@@ -117,5 +146,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     g_threadManager.reset();
+    if (mProcessVideoFilter) {
+        mProcessVideoFilter = nullptr;
+    }
+    if (mProcessVideoToPNG) {
+        mProcessVideoFilter = nullptr;
+    }
 
 }

@@ -34,6 +34,7 @@ public class ProcessFilterFragment extends BaseFragment {
     private TextView mTv;
     private Button mBtn1;
     private Button mBtn2;
+    private Button mBtn3;
 
 
     private String mVideoPath1;
@@ -63,6 +64,7 @@ public class ProcessFilterFragment extends BaseFragment {
         mBtCodecBack = mBinding.btnProcessFilterBack;
         mBtn1 = mBinding.btnProcessFilter1;
         mBtn2 = mBinding.btnProcessFilter2;
+        mBtn3 = mBinding.btnProcessFilter3;
 
 
     }
@@ -120,9 +122,27 @@ public class ProcessFilterFragment extends BaseFragment {
             int randomInt = rand.nextInt(100) + 1;
             String outputPath1 = videoDir + "out_video_filter" + randomInt + ".mp4";
             CommonFileUtils.createFile(outputPath1);
-//            String filterCmd = "fps=5";
-            String filterCmd = "setpts=0.5*PTS";
-            mFilterOperate.processVideoFilter(mVideoPath2, outputPath1, filterCmd);
+            String filterCmd1 = "fps=5";
+            //setpts滤镜实现视频快进
+            String filterCmd2 = "setpts=0.5*PTS";
+            //trim滤镜实现视频的切割
+            String filterCmd3 = "trim=start=2:end=5";
+            //negate滤镜实现底片特效
+            String filterCmd4 = "negate=negate_alpha=false";
+            //drawbox滤镜给视频添加方格
+            String filterCmd5 = "drawbox=x=50:y=20:width=150:height=100:color=white:thickness=fill";
+
+            mFilterOperate.processVideoFilter(mVideoPath2, outputPath1, filterCmd5);
+        });
+
+        mBtn3.setOnClickListener(view -> {
+            String photoDir = DirectoryPath.createPhotoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = photoDir + "out_png_filter" + randomInt + ".png";
+            CommonFileUtils.createFile(outputPath1);
+            String filterCmd1 = "format=pix_fmts=rgb24";
+            mFilterOperate.processVideoToPNG(mVideoPath2, outputPath1, filterCmd1);
         });
 
     }
