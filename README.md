@@ -414,6 +414,24 @@
     - **av_buffersink_get_frame(buffersink_ctx, filt_frame)** 从输出滤镜的接收器获取一个已加工的过滤帧
     - **output_video()** 给视频帧编码，并写入压缩后的视频包
   - *ProcessVideoFilter.cpp*
+  - 滤镜字符串：
+    - "fps=5" 调节帧率
+    - "setpts=0.5*PTS" setpts滤镜实现视频快进
+    - "trim=start=2:end=5" trim滤镜实现视频的切割
+    - "negate=negate_alpha=false" negate滤镜实现底片特效
+    - "drawbox=x=50:y=20:width=150:height=100:color=white:thickness=fill" drawbox滤镜给视频添加方格
+    - "format=pix_fmts=rgba,colorchannelmixer=rr=0.3:rg=0.4" +
+      ":rb=0.3:br=0.3:bg=0.4:bb=0.3"  把彩色画面转成黑白画面
+    - "format=pix_fmts=rgba,colorchannelmixer=rr=0.393:rg=0.769" +
+      ":rb=0.189:gr=0.349:gg=0.686:gb=0.168:br=0.272:bg=0.534:bb=0.131" 把彩色画面转成怀旧特效
+    - "eq=brightness=0.1:contrast=1.0:gamma=0.1:saturation=1.0" 调整明暗对比度
+    - "vignette=angle=PI/4" 光晕效果
+    - "fade=type=in:start_time=0:duration=2" 淡入淡出特效
+    - "hflip" ，"vflip"翻转视频方向
+    - "scale=width=iw/3:height=ih/3" 缩放视频
+    - "rotate=angle=PI/2:out_w=ih:out_h=iw" 旋转视频
+    - "crop=out_w=iw*2/3:out_h=ih*2/3:x=(in_w-out_w)/2:y=(in_h-out_h)/2" 裁剪视频
+    - "pad=width=iw+80:height=ih+60:x=40:y=30:color=blue" 填充视频
 
 
 

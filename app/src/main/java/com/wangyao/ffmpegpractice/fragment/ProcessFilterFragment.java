@@ -131,8 +131,40 @@ public class ProcessFilterFragment extends BaseFragment {
             String filterCmd4 = "negate=negate_alpha=false";
             //drawbox滤镜给视频添加方格
             String filterCmd5 = "drawbox=x=50:y=20:width=150:height=100:color=white:thickness=fill";
+            //把彩色画面转成黑白画面
+            String filterCmd6 = "format=pix_fmts=rgba,colorchannelmixer=rr=0.3:rg=0.4" +
+                    ":rb=0.3:br=0.3:bg=0.4:bb=0.3";
+            //把彩色画面转成怀旧特效
+            String filterCmd7 = "format=pix_fmts=rgba,colorchannelmixer=rr=0.393:rg=0.769" +
+                    ":rb=0.189:gr=0.349:gg=0.686:gb=0.168:br=0.272:bg=0.534:bb=0.131";
+            //调整明暗对比度
+            String filterCmd8 = "eq=brightness=0.1:contrast=1.0:gamma=0.1:saturation=1.0";
+            String filterCmd9 = "eq=brightness=0.1:contrast=1.0:gamma=1.0:saturation=1.0";
+            //光晕效果
+            String filterCmd10 = "vignette=angle=PI/4";
+            //淡入淡出特效
+            String filterCmd11 = "fade=type=in:start_time=0:duration=2";
+            String filterCmd12 = "fade=type=out:start_frame=TOTAL_FRAMES-25:nb_frames=25";
 
-            mFilterOperate.processVideoFilter(mVideoPath2, outputPath1, filterCmd5);
+            //翻转视频方向
+            String filterCmd13 = "hflip";
+            String filterCmd14 = "vflip";
+
+            //缩放视频
+            String filterCmd15 = "scale=width=iw/3:height=ih/3";
+            //旋转视频
+            String filterCmd16 = "rotate=angle=PI/2:out_w=ih:out_h=iw";
+            String filterCmd17 = "rotate=angle=PI/3:out_h=iw*2/3:out_h=iw";
+            String filterCmd18 = "rotate=angle=PI/6:out_h=iw*2/3:out_h=iw:fillcolor=white";
+
+            //裁剪视频
+            String filterCmd19 = "crop=out_w=iw*2/3:out_h=ih*2/3:x=(in_w-out_w)/2:y=(in_h-out_h)/2";
+
+            //填充视频
+            String filterCmd20 = "pad=width=iw+80:height=ih+60:x=40:y=30:color=blue";
+
+
+            mFilterOperate.processVideoFilter(mVideoPath2, outputPath1, filterCmd20);
         });
 
         mBtn3.setOnClickListener(view -> {
