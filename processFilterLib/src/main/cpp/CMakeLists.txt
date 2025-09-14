@@ -31,6 +31,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         ProcessFilterJniCall.cpp
         ProcessVideoFilter.cpp
         ProcessVideoToPNG.cpp
+        ProcessVideoToFilm.cpp
 
 
 )

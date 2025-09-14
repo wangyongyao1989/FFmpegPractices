@@ -432,6 +432,14 @@
     - "rotate=angle=PI/2:out_w=ih:out_h=iw" 旋转视频
     - "crop=out_w=iw*2/3:out_h=ih*2/3:x=(in_w-out_w)/2:y=(in_h-out_h)/2" 裁剪视频
     - "pad=width=iw+80:height=ih+60:x=40:y=30:color=blue" 填充视频
+  - *ProcessVideoFilter.cpp*
+
+- 29.练习二十九：滤镜老电影怀旧风
+  - 类似于练习二十八的过程
+  - 在代码中拼接出过滤字符串
+    - 使用pad滤镜“pad=w=iw:h=ih+%d:x=0:y=%d:color=black”
+    - 使用drawbox滤镜“%s,drawbox=x=%d:y=%d:w=%d:h=%d:color=white:t=fill”
+  - *ProcessVideoToFilm.cpp*
 
 
 

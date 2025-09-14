@@ -30,6 +30,10 @@ public class ProcessFilterOperate {
         native_process_video_to_png(srcPath, outputPath, filterCmd);
     }
 
+    public void processVideoToFilm(String srcPath, String outputPath, String filterCmd) {
+        native_process_video_to_film(srcPath, outputPath, filterCmd);
+    }
+
 
     private native String native_get_filter_ffmpeg_version();
 
@@ -37,6 +41,9 @@ public class ProcessFilterOperate {
             , String filterCmd);
 
     private native void native_process_video_to_png(String srcPath, String destPath
+            , String filterCmd);
+
+    private native void native_process_video_to_film(String srcPath, String destPath
             , String filterCmd);
 
 

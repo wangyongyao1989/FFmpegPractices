@@ -35,6 +35,7 @@ public class ProcessFilterFragment extends BaseFragment {
     private Button mBtn1;
     private Button mBtn2;
     private Button mBtn3;
+    private Button mBtn4;
 
 
     private String mVideoPath1;
@@ -65,6 +66,7 @@ public class ProcessFilterFragment extends BaseFragment {
         mBtn1 = mBinding.btnProcessFilter1;
         mBtn2 = mBinding.btnProcessFilter2;
         mBtn3 = mBinding.btnProcessFilter3;
+        mBtn4 = mBinding.btnProcessFilter4;
 
 
     }
@@ -175,6 +177,16 @@ public class ProcessFilterFragment extends BaseFragment {
             CommonFileUtils.createFile(outputPath1);
             String filterCmd1 = "format=pix_fmts=rgb24";
             mFilterOperate.processVideoToPNG(mVideoPath2, outputPath1, filterCmd1);
+        });
+
+        mBtn4.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = videoDir + "filmfilter" + randomInt + ".mp4";
+            CommonFileUtils.createFile(outputPath1);
+            String filterCmd1 = "";
+            mFilterOperate.processVideoToFilm(mVideoPath2, outputPath1, filterCmd1);
         });
 
     }
