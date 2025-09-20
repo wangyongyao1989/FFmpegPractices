@@ -14,6 +14,7 @@
 #include "BenchmarkCommon.h"
 #include "HwExtractor.h"
 #include "Stats.h"
+#include "AndroidThreadManager.h"
 //#define LOG_NDEBUG 0
 #define LOG_TAG "decoder"
 
@@ -35,10 +36,20 @@ public:
               mInputBuffer(nullptr),
               mOutFp(nullptr) {
         mExtractor = new HwExtractor();
+        g_threadManager = std::make_unique<AndroidThreadManager>();
+
+        // 初始化线程池
+        ThreadPoolConfig config;
+        config.minThreads = 2;
+        config.maxThreads = 4;
+        config.idleTimeoutMs = 30000;
+        config.queueSize = 50;
+        g_threadManager->initThreadPool(config);
     }
 
     virtual ~HwDeCodec() {
         if (mExtractor) delete mExtractor;
+        g_threadManager.reset();
     }
 
     HwExtractor *getExtractor() { return mExtractor; }
@@ -91,6 +102,8 @@ private:
     /* Asynchronous locks */
     mutex mMutex;
     condition_variable mDecoderDoneCondition;
+
+    std::unique_ptr<AndroidThreadManager> g_threadManager;
 };
 
 // Read input samples

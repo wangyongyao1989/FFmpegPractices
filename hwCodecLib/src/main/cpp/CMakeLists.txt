@@ -24,6 +24,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         utils/Stats.cpp
         utils/BenchmarkCommon.cpp
 
+        utils/AndroidThreadManager.cpp
+
         HwExtractor.cpp
         HwMuxer.cpp
         HwEnCodec.cpp
@@ -35,6 +37,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 target_link_libraries(${CMAKE_PROJECT_NAME}
         # List libraries link to the target library
         android
+        mediandk
         log
         ${third-party-libs}
 )

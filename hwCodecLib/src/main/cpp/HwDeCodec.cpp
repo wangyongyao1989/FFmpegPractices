@@ -154,7 +154,13 @@ int32_t HwDeCodec::decode(uint8_t *inputBuffer, vector<AMediaCodecBufferInfo> &f
                                                 OnFormatChangedCB, OnErrorCB};
         AMediaCodec_setAsyncNotifyCallback(mCodec, aCB, this);
 
-        mIOThread = thread(&CallBackHandle::ioThread, this);
+        ThreadTask task = []() {
+            CallBackHandle();
+        };
+
+        g_threadManager->submitTask("videoFilterThread", task, PRIORITY_NORMAL);
+
+//        mIOThread = thread(&CallBackHandle::ioThread, this);
     }
 
     AMediaCodec_start(mCodec);
