@@ -31,6 +31,7 @@ public class MainFragment extends BaseFragment {
     private Button mBtnProcessImage;
     private Button mBtnProcessAudio;
     private Button mBtnProcessFilter;
+    private Button mBtnProcessHwCodec;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -46,6 +47,7 @@ public class MainFragment extends BaseFragment {
         mBtnProcessImage = mBinding.btnProcessImage;
         mBtnProcessAudio = mBinding.btnProcessAudio;
         mBtnProcessFilter = mBinding.btnProcessFilter;
+        mBtnProcessHwCodec = mBinding.btnProcessHwCodec;
 
     }
 
@@ -82,5 +84,11 @@ public class MainFragment extends BaseFragment {
         mBtnProcessFilter.setOnClickListener(view -> {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PROCESS_FILTER);
         });
+
+        mBtnProcessHwCodec.setOnClickListener(view -> {
+            mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PROCESS_HW_CODEC);
+        });
+
+
     }
 }

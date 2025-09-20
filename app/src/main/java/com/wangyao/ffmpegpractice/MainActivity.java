@@ -14,12 +14,12 @@ import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
-import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.ViewModelProviders;
 
 import com.wangyao.ffmpegpractice.databinding.ActivityMainBinding;
 import com.wangyao.ffmpegpractice.fragment.BasicTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.CodecTraningFragment;
+import com.wangyao.ffmpegpractice.fragment.ProcessHwCodecFragment;
 import com.wangyao.ffmpegpractice.fragment.MainFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessAudioFragmnet;
 import com.wangyao.ffmpegpractice.fragment.ProcessFilterFragment;
@@ -37,12 +37,15 @@ public class MainActivity extends AppCompatActivity {
     private ProcessImageFragment mProcessImageFragment;
     private ProcessAudioFragmnet mProcessAudioFragmnet;
     private ProcessFilterFragment mProcessFilterFragment;
+    private ProcessHwCodecFragment mProcessHwCodecFragment;
+
 
     private FrameLayout mFlBasicTraning;
     private FrameLayout mFlCodecTraning;
     private FrameLayout mFlProcessImage;
     private FrameLayout mFlProcessAudio;
     private FrameLayout mFlProcessFilter;
+    private FrameLayout mFlProcessHwCodec;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
         mFlProcessImage = mBinding.flProcessImage;
         mFlProcessAudio = mBinding.flProcessAudio;
         mFlProcessFilter = mBinding.flProcessFilter;
+        mFlProcessHwCodec = mBinding.flProcessHwCodec;
 
     }
 
@@ -174,6 +178,17 @@ public class MainActivity extends AppCompatActivity {
                 fragmentTransaction.commit();
             }
             break;
+
+            case PROCESS_HW_CODEC: {
+                if (mProcessHwCodecFragment == null) {
+                    mProcessHwCodecFragment = new ProcessHwCodecFragment();
+                    fragmentTransaction
+                            .add(mFlProcessHwCodec.getId(), mProcessHwCodecFragment);
+                }
+                fragmentTransaction.show(mProcessHwCodecFragment);
+                fragmentTransaction.commit();
+            }
+            break;
         }
     }
 
@@ -200,6 +215,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (mProcessFilterFragment != null) {
             ftr.hide(mProcessFilterFragment);
+        }
+
+        if (mProcessHwCodecFragment != null) {
+            ftr.hide(mProcessHwCodecFragment);
         }
 
 

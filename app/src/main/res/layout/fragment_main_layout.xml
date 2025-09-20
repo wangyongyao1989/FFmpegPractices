@@ -56,5 +56,15 @@
         app:layout_constraintTop_toBottomOf="@+id/btn_basic_training"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_process_hw_codec"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Android硬件编解码"
+        android:layout_margin="20dp"
+        app:layout_constraintStart_toEndOf="@+id/btn_process_filter"
+        app:layout_constraintTop_toBottomOf="@+id/btn_basic_training"
+        tools:ignore="HardcodedText" />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

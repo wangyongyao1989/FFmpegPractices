@@ -51,6 +51,7 @@ dependencies {
     implementation project(':processImageLib')
     implementation project(':processAudioLib')
     implementation project(':processFilterLib')
+    implementation project(':hwCodecLib')
 
     implementation libs.appcompat
     implementation libs.material
