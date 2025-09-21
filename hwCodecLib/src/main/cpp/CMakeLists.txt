@@ -31,6 +31,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         HwEnCodec.cpp
         HwDeCodec.cpp
 
+        ProcessExtractor.cpp
+
 
 )
 

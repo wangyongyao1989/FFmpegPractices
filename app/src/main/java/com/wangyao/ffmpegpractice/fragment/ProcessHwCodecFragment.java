@@ -17,6 +17,9 @@ import com.wangyao.ffmpegpractice.FFViewModel;
 import com.wangyao.ffmpegpractice.databinding.FragmentHwCodecLayoutBinding;
 import com.wangyao.hwcodeclib.ProcessHwCodec;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
+import com.wangyongyao.commonlib.utils.DirectoryPath;
+
+import java.util.Random;
 
 /**
  * @author wangyongyao
@@ -45,6 +48,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
     private Button mBtCodecBack;
     private ProcessHwCodec mProcessHwCodec;
     private StringBuilder mStringBuilder;
+    private Button mBtnHwCodec2;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -58,6 +62,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
         mTv = mBinding.tvProcessImage;
         mBtCodecBack = mBinding.btnHwCodecBack;
         mBtn1 = mBinding.btnHwCodec1;
+        mBtnHwCodec2 = mBinding.btnHwCodec2;
 
 
     }
@@ -109,7 +114,15 @@ public class ProcessHwCodecFragment extends BaseFragment {
             mTv.setText(mProcessHwCodec.stringFromC());
         });
 
+        mBtnHwCodec2.setOnClickListener(view -> {
+            String dataDir = DirectoryPath.createSDCardDataDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = dataDir + "extractor" + randomInt + ".csv";
+            CommonFileUtils.createFile(outputPath1);
+            mProcessHwCodec.processHwExtractor(mVideoPath1, outputPath1);
 
+        });
 
     }
 

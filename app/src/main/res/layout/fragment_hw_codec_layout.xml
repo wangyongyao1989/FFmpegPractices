@@ -20,11 +20,20 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="10dp"
-        android:text="获取ffmpeg的参数"
+        android:text="调用C++返回"
         app:layout_constraintStart_toEndOf="@+id/btn_hw_codec_back"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_hw_codec_2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="处理Extractor"
+        app:layout_constraintStart_toEndOf="@+id/btn_hw_codec_1"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
 
 
     <ScrollView
@@ -33,8 +42,9 @@
         android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="50dp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_process_image_1">
+        app:layout_constraintTop_toBottomOf="@+id/btn_hw_codec_1">
 
         <TextView
             android:id="@+id/tv_process_image"

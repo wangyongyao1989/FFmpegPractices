@@ -21,9 +21,13 @@ public class ProcessHwCodec {
         return native_hw_codec_string_from_jni();
     }
 
+    public void processHwExtractor(String inputPath, String outputPath) {
+        native_process_hw_extractor(inputPath, outputPath);
+    }
+
     private native String native_hw_codec_string_from_jni();
 
-
+    private native void native_process_hw_extractor(String inputPath, String outputPath);
 
 
     private void CppStatusCallback(String status) {

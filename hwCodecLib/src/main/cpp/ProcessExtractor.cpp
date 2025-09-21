@@ -1,0 +1,167 @@
+//
+// Created by wangyao on 2025/9/21.
+//
+
+#include "includes/ProcessExtractor.h"
+
+
+ProcessExtractor::ProcessExtractor(JNIEnv *env, jobject thiz) {
+    mEnv = env;
+    env->GetJavaVM(&mJavaVm);
+    mJavaObj = env->NewGlobalRef(thiz);
+}
+
+ProcessExtractor::~ProcessExtractor() {
+    mEnv->DeleteGlobalRef(mJavaObj);
+    if (mEnv) {
+        mEnv = nullptr;
+    }
+
+    if (mJavaVm) {
+        mJavaVm = nullptr;
+    }
+
+    if (mJavaObj) {
+        mJavaObj = nullptr;
+    }
+
+    if (mHwExtractor) {
+        mHwExtractor->deInitExtractor();
+        mHwExtractor = nullptr;
+    }
+
+    if (inputFp) {
+        fclose(inputFp);
+    }
+
+}
+
+
+void ProcessExtractor::startProcessExtractor(const char *srcPath, const char *outPath) {
+    sSrcPath = srcPath;
+    sOutPath = outPath;
+    LOGI("sSrcPath :%s \n sOutPath: %s ", sSrcPath.c_str(), sOutPath.c_str());
+    callbackInfo =
+            "sSrcPath:" + sSrcPath + "\n";
+    PostStatusMessage(callbackInfo.c_str());
+    mHwExtractor = new HwExtractor();
+    if (mHwExtractor == nullptr) {
+        LOGE("Extractor creation failed ");
+        callbackInfo =
+                "Extractor creation failed \n";
+        PostStatusMessage(callbackInfo.c_str());
+        return;
+    }
+    LOGI("Extractor creation Success!");
+    processProcessExtractor();
+}
+
+void ProcessExtractor::processProcessExtractor() {
+    inputFp = fopen(sSrcPath.c_str(), "rb");
+    if (!inputFp) {
+        LOGE("Unable to open :%s", sSrcPath.c_str());
+        callbackInfo =
+                "Unable to open " + sSrcPath + "\n";
+        PostStatusMessage(callbackInfo.c_str());
+        return;
+    }
+
+    LOGI("Success open file :%s", sOutPath.c_str());
+    callbackInfo =
+            "Success open file:" + sOutPath + "\n";
+    PostStatusMessage(callbackInfo.c_str());
+
+    // Read file properties
+    struct stat buf;
+    stat(sSrcPath.c_str(), &buf);
+    size_t fileSize = buf.st_size;
+    int32_t fd = fileno(inputFp);
+    int32_t trackCount = mHwExtractor->initExtractor((long) fd, fileSize);
+
+    if (trackCount < 0) {
+        LOGE("initExtractor failed");
+        callbackInfo = "initExtractor failed \n";
+        PostStatusMessage(callbackInfo.c_str());
+        return;
+    }
+    LOGI("initExtractor Success");
+    callbackInfo = "initExtractor Success \n";
+    PostStatusMessage(callbackInfo.c_str());
+
+    int32_t trackID = 1;
+    int32_t status = mHwExtractor->extract(trackID);
+    if (status != AMEDIA_OK) {
+        LOGE("Extraction failed");
+        callbackInfo = "Extraction failed \n";
+        PostStatusMessage(callbackInfo.c_str());
+        return;
+    }
+    LOGI("Extraction Success");
+    callbackInfo = "Extraction Success \n";
+    PostStatusMessage(callbackInfo.c_str());
+    bool writeStat = writeStatsHeader();
+    mHwExtractor->deInitExtractor();
+    mHwExtractor->dumpStatistics(sSrcPath, "", sOutPath);
+
+    LOGI("dumpStatistics Success");
+    callbackInfo = "dumpStatistics Success file:" + sOutPath + "\n";
+    PostStatusMessage(callbackInfo.c_str());
+
+    fclose(inputFp);
+}
+
+
+bool ProcessExtractor::writeStatsHeader() {
+    char statsHeader[] =
+            "currentTime, fileName, operation, componentName, NDK/SDK, sync/async, setupTime, "
+            "destroyTime, minimumTime, maximumTime, averageTime, timeToProcess1SecContent, "
+            "totalBytesProcessedPerSec, timeToFirstFrame, totalSizeInBytes, totalTime\n";
+    FILE *fpStats = fopen(sOutPath.c_str(), "w");
+    if (!fpStats) {
+        return false;
+    }
+    int32_t numBytes = fwrite(statsHeader, sizeof(char), sizeof(statsHeader), fpStats);
+    fclose(fpStats);
+    if (numBytes != sizeof(statsHeader)) {
+        return false;
+    }
+    return true;
+}
+
+
+JNIEnv *ProcessExtractor::GetJNIEnv(bool *isAttach) {
+    JNIEnv *env;
+    int status;
+    if (nullptr == mJavaVm) {
+        LOGD("SaveYUVFromVideo::GetJNIEnv mJavaVm == nullptr");
+        return nullptr;
+    }
+    *isAttach = false;
+    status = mJavaVm->GetEnv((void **) &env, JNI_VERSION_1_6);
+    if (status != JNI_OK) {
+        status = mJavaVm->AttachCurrentThread(&env, nullptr);
+        if (status != JNI_OK) {
+            LOGD("SaveYUVFromVideo::GetJNIEnv failed to attach current thread");
+            return nullptr;
+        }
+        *isAttach = true;
+    }
+    return env;
+}
+
+void ProcessExtractor::PostStatusMessage(const char *msg) {
+    bool isAttach = false;
+    JNIEnv *pEnv = GetJNIEnv(&isAttach);
+    if (pEnv == nullptr) {
+        return;
+    }
+    jobject javaObj = mJavaObj;
+    jmethodID mid = pEnv->GetMethodID(pEnv->GetObjectClass(javaObj), "CppStatusCallback",
+                                      "(Ljava/lang/String;)V");
+    jstring pJstring = pEnv->NewStringUTF(msg);
+    pEnv->CallVoidMethod(javaObj, mid, pJstring);
+    if (isAttach) {
+        JavaVM *pJavaVm = mJavaVm;
+        pJavaVm->DetachCurrentThread();
+    }
+}
