@@ -8,6 +8,7 @@
 #include <string>
 #include "Stats.h"
 #include "BenchmarkCommon.h"
+#include "LogUtils.h"
 
 
 class HwExtractor {

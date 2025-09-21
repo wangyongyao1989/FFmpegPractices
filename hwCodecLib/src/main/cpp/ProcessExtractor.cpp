@@ -99,6 +99,75 @@ void ProcessExtractor::processProcessExtractor() {
     LOGI("Extraction Success");
     callbackInfo = "Extraction Success \n";
     PostStatusMessage(callbackInfo.c_str());
+
+    //选择视频轨打印出相关参数
+    mHwExtractor->setupTrackFormat(0);
+    AMediaFormat *videoFormat = mHwExtractor->getFormat();
+    if (videoFormat) {
+        const char *video_mime_type = nullptr;
+        AMediaFormat_getString(videoFormat, AMEDIAFORMAT_KEY_MIME, &video_mime_type);
+        LOGI("video mime_type: %s", video_mime_type);
+        callbackInfo = "video mime_type:" + string(video_mime_type) + "\n";
+        delete (video_mime_type);
+        video_mime_type = nullptr;
+
+        int32_t width;
+        AMediaFormat_getInt32(videoFormat, AMEDIAFORMAT_KEY_WIDTH, &width);
+        LOGI("video width: %d", width);
+        callbackInfo = callbackInfo + "video width:" + to_string(width) + "\n";
+
+        int32_t height;
+        AMediaFormat_getInt32(videoFormat, AMEDIAFORMAT_KEY_HEIGHT, &height);
+        LOGI("video height: %d", height);
+        callbackInfo = callbackInfo + "video height:" + to_string(height) + "\n";
+
+        int32_t color_format;
+        AMediaFormat_getInt32(videoFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, &color_format);
+        LOGI("video color_format: %d", color_format);
+        callbackInfo = callbackInfo + "video color_format:" + to_string(color_format) + "\n";
+
+        int32_t bit_rate;
+        AMediaFormat_getInt32(videoFormat, AMEDIAFORMAT_KEY_BIT_RATE, &bit_rate);
+        LOGI("video bit_rate: %d", bit_rate);
+        callbackInfo = callbackInfo + "video bit_rate:" + to_string(bit_rate) + "\n";
+
+        int32_t frame_rate;
+        AMediaFormat_getInt32(videoFormat, AMEDIAFORMAT_KEY_FRAME_RATE, &frame_rate);
+        LOGI("video frame_rate: %d", frame_rate);
+        callbackInfo = callbackInfo + "video frame_rate:" + to_string(frame_rate) + "\n";
+
+        int32_t i_frame_rate;
+        AMediaFormat_getInt32(videoFormat, AMEDIAFORMAT_KEY_I_FRAME_INTERVAL, &i_frame_rate);
+        LOGI("video i_frame_rate: %d", i_frame_rate);
+        callbackInfo = callbackInfo + "video i_frame_rate:" + to_string(i_frame_rate) + "\n";
+        PostStatusMessage(callbackInfo.c_str());
+    }
+
+    //选择音频轨打印出相关参数
+    mHwExtractor->setupTrackFormat(1);
+    AMediaFormat *audioFormat = mHwExtractor->getFormat();
+    if (audioFormat) {
+        const char *audio_mime_type = nullptr;
+        AMediaFormat_getString(audioFormat, AMEDIAFORMAT_KEY_MIME, &audio_mime_type);
+        LOGI("audio mime_type: %s", audio_mime_type);
+        callbackInfo = "audio mime_type:" + string(audio_mime_type) + "\n";
+        delete (audio_mime_type);
+        audio_mime_type = nullptr;
+
+        int32_t frame_rate;
+        AMediaFormat_getInt32(audioFormat, AMEDIAFORMAT_KEY_FRAME_RATE, &frame_rate);
+
+        LOGI("audio frame_rate: %d", frame_rate);
+        callbackInfo = callbackInfo + "audio frame_rate:" + to_string(frame_rate) + "\n";
+
+        int32_t bit_rate;
+        AMediaFormat_getInt32(audioFormat, AMEDIAFORMAT_KEY_BIT_RATE, &bit_rate);
+        LOGI("audio bit_rate: %d", bit_rate);
+        callbackInfo = callbackInfo + "audio bit_rate:" + to_string(bit_rate) + "\n";
+
+        PostStatusMessage(callbackInfo.c_str());
+    }
+
     bool writeStat = writeStatsHeader();
     mHwExtractor->deInitExtractor();
     mHwExtractor->dumpStatistics(sSrcPath, "", sOutPath);

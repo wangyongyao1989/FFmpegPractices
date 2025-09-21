@@ -8,7 +8,7 @@
 int32_t HwExtractor::initExtractor(int32_t fd, size_t fileSize) {
     mStats = new Stats();
 
-    mFrameBuf = (uint8_t *)calloc(kMaxBufferSize, sizeof(uint8_t));
+    mFrameBuf = (uint8_t *) calloc(kMaxBufferSize, sizeof(uint8_t));
     if (!mFrameBuf) return -1;
 
     int64_t sTime = mStats->getCurTime();
@@ -35,7 +35,7 @@ void *HwExtractor::getCSDSample(AMediaCodecBufferInfo &frameInfo, int32_t csdInd
     size_t size;
     bool csdFound = AMediaFormat_getBuffer(mFormat, csdName, &csdBuffer, &size);
     if (!csdFound) return nullptr;
-    frameInfo.size = (int32_t)size;
+    frameInfo.size = (int32_t) size;
     mStats->addFrameSize(frameInfo.size);
 
     return csdBuffer;
@@ -102,6 +102,7 @@ void HwExtractor::dumpStatistics(string inputReference, string componentName, st
 
 void HwExtractor::deInitExtractor() {
     if (mFrameBuf) {
+        AMediaFormat_delete(mFormat);
         free(mFrameBuf);
         mFrameBuf = nullptr;
     }
