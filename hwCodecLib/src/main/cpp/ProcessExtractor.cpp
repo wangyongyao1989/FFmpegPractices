@@ -66,9 +66,9 @@ void ProcessExtractor::processProcessExtractor() {
         return;
     }
 
-    LOGI("Success open file :%s", sOutPath.c_str());
+    LOGI("Success open file :%s", sSrcPath.c_str());
     callbackInfo =
-            "Success open file:" + sOutPath + "\n";
+            "Success open file:" + sSrcPath + "\n";
     PostStatusMessage(callbackInfo.c_str());
 
     // Read file properties

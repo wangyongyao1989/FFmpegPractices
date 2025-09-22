@@ -4,6 +4,7 @@
 #include "AndroidThreadManager.h"
 
 #include "ProcessExtractor.h"
+#include "ProcessMuxer.h"
 
 
 //包名+类名字符串定义：
@@ -14,6 +15,7 @@ JavaVM *g_jvm = nullptr;
 std::unique_ptr<AndroidThreadManager> g_threadManager;
 
 ProcessExtractor *mProcessExtractor;
+ProcessMuxer *mProcessMuxer;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -44,12 +46,41 @@ cpp_process_hw_extractor(JNIEnv *env, jobject thiz, jstring srcPath, jstring out
 
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_process_hw_muxer(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath1,
+                     jstring outPath2, jstring fmt) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath1 = env->GetStringUTFChars(outPath1, nullptr);
+    const char *cOutPath2 = env->GetStringUTFChars(outPath2, nullptr);
+    const char *cFmt = env->GetStringUTFChars(fmt, nullptr);
+
+    if (mProcessMuxer == nullptr) {
+        mProcessMuxer = new ProcessMuxer(env, thiz);
+    }
+    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2, cFmt]() {
+        mProcessMuxer->startProcessMuxer(cSrcPath, cOutPath1, cOutPath2, cFmt);
+    };
+
+    g_threadManager->submitTask("ProcessMuxerThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+    env->ReleaseStringUTFChars(outPath1, cOutPath1);
+    env->ReleaseStringUTFChars(outPath2, cOutPath2);
+    env->ReleaseStringUTFChars(fmt, cFmt);
+
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
         {"native_hw_codec_string_from_jni", "()Ljava/lang/String;", (void *) cpp_string_from_jni},
         {"native_process_hw_extractor",     "(Ljava/lang/String;"
                                             "Ljava/lang/String;)V", (void *) cpp_process_hw_extractor},
+        {"native_process_hw_muxer",         "(Ljava/lang/String;"
+                                            "Ljava/lang/String;"
+                                            "Ljava/lang/String;"
+                                            "Ljava/lang/String;)V", (void *) cpp_process_hw_muxer},
 };
 
 

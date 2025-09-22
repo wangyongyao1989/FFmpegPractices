@@ -102,7 +102,6 @@ void HwExtractor::dumpStatistics(string inputReference, string componentName, st
 
 void HwExtractor::deInitExtractor() {
     if (mFrameBuf) {
-        AMediaFormat_delete(mFormat);
         free(mFrameBuf);
         mFrameBuf = nullptr;
     }

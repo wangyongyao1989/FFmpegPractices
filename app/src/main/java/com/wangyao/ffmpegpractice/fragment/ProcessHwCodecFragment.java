@@ -49,6 +49,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
     private ProcessHwCodec mProcessHwCodec;
     private StringBuilder mStringBuilder;
     private Button mBtnHwCodec2;
+    private Button mBtnHwCodec3;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -63,6 +64,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
         mBtCodecBack = mBinding.btnHwCodecBack;
         mBtn1 = mBinding.btnHwCodec1;
         mBtnHwCodec2 = mBinding.btnHwCodec2;
+        mBtnHwCodec3 = mBinding.btnHwCodec3;
 
 
     }
@@ -122,6 +124,17 @@ public class ProcessHwCodecFragment extends BaseFragment {
             CommonFileUtils.createFile(outputPath1);
             mProcessHwCodec.processHwExtractor(mVideoPath1, outputPath1);
 
+        });
+
+        mBtnHwCodec3.setOnClickListener(view -> {
+            String dataDir = DirectoryPath.createSDCardDataDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = dataDir + "muxer" + randomInt + ".csv";
+            String outputPath2 = dataDir + "muxer" + randomInt + ".out";
+            CommonFileUtils.createFile(outputPath1);
+            String fmt = "mp4";
+            mProcessHwCodec.processHwMuxer(mVideoPath1, outputPath1,outputPath2,fmt);
         });
 
     }

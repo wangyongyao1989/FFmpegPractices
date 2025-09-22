@@ -25,10 +25,17 @@ public class ProcessHwCodec {
         native_process_hw_extractor(inputPath, outputPath);
     }
 
+    public void processHwMuxer(String inputPath, String outputPath1
+            , String outputPath2, String fmt) {
+        native_process_hw_muxer(inputPath, outputPath1, outputPath2, fmt);
+    }
+
     private native String native_hw_codec_string_from_jni();
 
     private native void native_process_hw_extractor(String inputPath, String outputPath);
 
+    private native void native_process_hw_muxer(String inputPath, String outputPath1
+            , String outputPath2, String fmt);
 
     private void CppStatusCallback(String status) {
         Log.i(TAG, "CppStatusCallback: " + status);
