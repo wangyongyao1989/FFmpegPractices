@@ -33,6 +33,8 @@ public:
 
     int32_t getFrameSample(AMediaCodecBufferInfo &frameInfo);
 
+    int32_t getCurFrameSample(AMediaCodecBufferInfo &frameInfo);
+
     int32_t extract(int32_t trackId);
 
     void dumpStatistics(string inputReference, string componentName = "", string statsFile = "");

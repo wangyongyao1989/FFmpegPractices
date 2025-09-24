@@ -49,6 +49,8 @@ public:
     /* Process the frames and give Muxed output */
     int32_t mux(uint8_t *inputBuffer, vector<AMediaCodecBufferInfo> &frameSizes);
 
+    int32_t muxFrame(uint8_t *inputBuffer, int trackIdx, AMediaCodecBufferInfo &frameInfo);
+
     void dumpStatistics(string inputReference, string codecName = "", string statsFile = "");
 
 private:

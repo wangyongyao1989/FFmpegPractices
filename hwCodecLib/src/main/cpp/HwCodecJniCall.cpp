@@ -7,6 +7,8 @@
 #include "ProcessMuxer.h"
 #include "ProcessDeCodec.h"
 
+#include "ExtactorMuxerMp4.h"
+
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/hwcodeclib/ProcessHwCodec";
@@ -18,6 +20,8 @@ std::unique_ptr<AndroidThreadManager> g_threadManager;
 ProcessExtractor *mProcessExtractor;
 ProcessMuxer *mProcessMuxer;
 ProcessDeCodec *mProcessDeCodec;
+
+ExtactorMuxerMp4 *mExtactorMuxerMp4;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -98,6 +102,31 @@ cpp_process_hw_decodec(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPa
 
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_extactor_muxer_mp4(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath1,
+                     jstring outPath2, jstring fmt) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath1 = env->GetStringUTFChars(outPath1, nullptr);
+    const char *cOutPath2 = env->GetStringUTFChars(outPath2, nullptr);
+    const char *cFmt = env->GetStringUTFChars(fmt, nullptr);
+
+    if (mExtactorMuxerMp4 == nullptr) {
+        mExtactorMuxerMp4 = new ExtactorMuxerMp4(env, thiz);
+    }
+    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2, cFmt]() {
+        mExtactorMuxerMp4->startExtactorMuxerMp4(cSrcPath, cOutPath1, cOutPath2, cFmt);
+    };
+
+    g_threadManager->submitTask("extactorMuxerMp4Thread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+    env->ReleaseStringUTFChars(outPath1, cOutPath1);
+    env->ReleaseStringUTFChars(outPath2, cOutPath2);
+    env->ReleaseStringUTFChars(fmt, cFmt);
+
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
@@ -112,6 +141,11 @@ static const JNINativeMethod methods[] = {
                                             "Ljava/lang/String;"
                                             "Ljava/lang/String;"
                                             "Ljava/lang/String;)V", (void *) cpp_process_hw_decodec},
+
+        {"native_extactor_muxer_mp4",       "(Ljava/lang/String;"
+                                            "Ljava/lang/String;"
+                                            "Ljava/lang/String;"
+                                            "Ljava/lang/String;)V", (void *) cpp_extactor_muxer_mp4},
 };
 
 
@@ -160,4 +194,14 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     if (mProcessExtractor) {
         mProcessExtractor = nullptr;
     }
+    if (mProcessMuxer) {
+        mProcessMuxer = nullptr;
+    }
+    if (mProcessDeCodec) {
+        mProcessDeCodec = nullptr;
+    }
+    if (mExtactorMuxerMp4) {
+        mExtactorMuxerMp4 = nullptr;
+    }
+
 }

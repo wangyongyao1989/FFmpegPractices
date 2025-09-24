@@ -54,6 +54,22 @@ int32_t HwExtractor::getFrameSample(AMediaCodecBufferInfo &frameInfo) {
     return 0;
 }
 
+int32_t HwExtractor::getCurFrameSample(AMediaCodecBufferInfo &frameInfo) {
+    ssize_t getSampleSize = AMediaExtractor_getSampleSize(mExtractor);
+    if (getSampleSize < 0) return -1;
+    int32_t size = AMediaExtractor_readSampleData(mExtractor, mFrameBuf, getSampleSize);
+    if (size < 0) return -1;
+
+    frameInfo.flags = AMediaExtractor_getSampleFlags(mExtractor);
+    frameInfo.size = size;
+    mStats->addFrameSize(frameInfo.size);
+    frameInfo.presentationTimeUs = AMediaExtractor_getSampleTime(mExtractor);
+    AMediaExtractor_advance(mExtractor);
+
+
+    return 0;
+}
+
 int32_t HwExtractor::setupTrackFormat(int32_t trackId) {
     AMediaExtractor_selectTrack(mExtractor, trackId);
     mFormat = AMediaExtractor_getTrackFormat(mExtractor, trackId);

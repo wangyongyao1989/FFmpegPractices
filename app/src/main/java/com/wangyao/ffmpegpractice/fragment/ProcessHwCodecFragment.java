@@ -51,6 +51,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
     private Button mBtnHwCodec2;
     private Button mBtnHwCodec3;
     private Button mBtnHwCodec4;
+    private Button mBtnHwCodec5;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -67,6 +68,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
         mBtnHwCodec2 = mBinding.btnHwCodec2;
         mBtnHwCodec3 = mBinding.btnHwCodec3;
         mBtnHwCodec4 = mBinding.btnHwCodec4;
+        mBtnHwCodec5 = mBinding.btnHwCodec5;
 
 
     }
@@ -133,7 +135,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
             Random rand = new Random();
             int randomInt = rand.nextInt(100) + 1;
             String outputPath1 = dataDir + "muxer" + randomInt + ".csv";
-            String outputPath2 = dataDir + "muxer" + randomInt + ".out";
+            String outputPath2 = dataDir + "muxer" + randomInt + ".mp4";
             CommonFileUtils.createFile(outputPath1);
             String fmt = "mp4";
             mProcessHwCodec.processHwMuxer(mVideoPath1, outputPath1, outputPath2, fmt);
@@ -150,6 +152,16 @@ public class ProcessHwCodecFragment extends BaseFragment {
             mProcessHwCodec.processHwDeCodec(mVideoPath1, outputPath1, outputPath2, codecName);
         });
 
+        mBtnHwCodec5.setOnClickListener(view -> {
+            String dataDir = DirectoryPath.createSDCardDataDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = dataDir + "extactor2muxer2mp4" + randomInt + ".csv";
+            String outputPath2 = dataDir + "extactor2muxer2mp4" + randomInt + ".mp4";
+            CommonFileUtils.createFile(outputPath1);
+            String fmt = "mp4";
+            mProcessHwCodec.extactor2Muxer2Mp4(mVideoPath1, outputPath1, outputPath2, fmt);
+        });
     }
 
 }

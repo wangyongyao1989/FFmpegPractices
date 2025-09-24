@@ -30,6 +30,11 @@ public class ProcessHwCodec {
         native_process_hw_muxer(inputPath, outputPath1, outputPath2, fmt);
     }
 
+    public void extactor2Muxer2Mp4(String inputPath, String outputPath1
+            , String outputPath2, String fmt) {
+        native_extactor_muxer_mp4(inputPath, outputPath1, outputPath2, fmt);
+    }
+
     public void processHwDeCodec(String inputPath, String outputPath1
             , String outputPath2, String codecName) {
         native_process_hw_decodec(inputPath, outputPath1, outputPath2, codecName);
@@ -40,6 +45,9 @@ public class ProcessHwCodec {
     private native void native_process_hw_extractor(String inputPath, String outputPath);
 
     private native void native_process_hw_muxer(String inputPath, String outputPath1
+            , String outputPath2, String fmt);
+
+    private native void native_extactor_muxer_mp4(String inputPath, String outputPath1
             , String outputPath2, String fmt);
 
     private native void native_process_hw_decodec(String inputPath, String outputPath1

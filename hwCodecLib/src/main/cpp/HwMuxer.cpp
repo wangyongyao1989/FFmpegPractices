@@ -10,7 +10,7 @@ int32_t HwMuxer::initMuxer(int32_t fd, MUXER_OUTPUT_T outputFormat) {
     if (!mStats) mStats = new Stats();
 
     int64_t sTime = mStats->getCurTime();
-    mMuxer = AMediaMuxer_new(fd, (OutputFormat)outputFormat);
+    mMuxer = AMediaMuxer_new(fd, (OutputFormat) outputFormat);
     if (!mMuxer) {
         ALOGV("Unable to create muxer");
         return AMEDIA_ERROR_INVALID_OBJECT;
@@ -69,6 +69,24 @@ int32_t HwMuxer::mux(uint8_t *inputBuffer, vector<AMediaCodecBufferInfo> &frameI
         mStats->addOutputTime();
         mStats->addFrameSize(info.size);
         frameIdx++;
+    }
+    return AMEDIA_OK;
+}
+
+
+//写一帧的数据
+int32_t HwMuxer::muxFrame(uint8_t *inputBuffer, int trackIdx, AMediaCodecBufferInfo &frameInfo) {
+    LOGE("muxFrame inputBuffer:%p", inputBuffer);
+    AMediaCodecBufferInfo Info ;
+    Info.size = frameInfo.size;
+    Info.flags = frameInfo.flags;
+    Info.offset = frameInfo.offset;
+    Info.presentationTimeUs = frameInfo.presentationTimeUs;
+    // Mux frame data
+    media_status_t status = AMediaMuxer_writeSampleData(mMuxer, trackIdx, inputBuffer, &Info);
+    if (status != 0) {
+        ALOGE("Error in AMediaMuxer_writeSampleData");
+        return status;
     }
     return AMEDIA_OK;
 }

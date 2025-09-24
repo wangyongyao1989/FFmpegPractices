@@ -35,6 +35,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         ProcessMuxer.cpp
         ProcessDeCodec.cpp
 
+        ExtactorMuxerMp4.cpp
+
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
