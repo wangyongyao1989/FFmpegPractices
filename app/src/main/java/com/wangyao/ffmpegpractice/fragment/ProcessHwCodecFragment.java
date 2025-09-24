@@ -50,6 +50,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
     private StringBuilder mStringBuilder;
     private Button mBtnHwCodec2;
     private Button mBtnHwCodec3;
+    private Button mBtnHwCodec4;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -65,6 +66,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
         mBtn1 = mBinding.btnHwCodec1;
         mBtnHwCodec2 = mBinding.btnHwCodec2;
         mBtnHwCodec3 = mBinding.btnHwCodec3;
+        mBtnHwCodec4 = mBinding.btnHwCodec4;
 
 
     }
@@ -134,7 +136,18 @@ public class ProcessHwCodecFragment extends BaseFragment {
             String outputPath2 = dataDir + "muxer" + randomInt + ".out";
             CommonFileUtils.createFile(outputPath1);
             String fmt = "mp4";
-            mProcessHwCodec.processHwMuxer(mVideoPath1, outputPath1,outputPath2,fmt);
+            mProcessHwCodec.processHwMuxer(mVideoPath1, outputPath1, outputPath2, fmt);
+        });
+
+        mBtnHwCodec4.setOnClickListener(view -> {
+            String dataDir = DirectoryPath.createSDCardDataDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = dataDir + "decodec" + randomInt + ".csv";
+            String outputPath2 = dataDir + "decodec" + randomInt + ".out";
+            CommonFileUtils.createFile(outputPath1);
+            String codecName = "";
+            mProcessHwCodec.processHwDeCodec(mVideoPath1, outputPath1, outputPath2, codecName);
         });
 
     }

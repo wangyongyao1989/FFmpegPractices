@@ -30,7 +30,7 @@ void CallBackHandle::ioThread() {
 
 void OnInputAvailableCB(AMediaCodec *codec, void *userdata, int32_t index) {
     ALOGV("OnInputAvailableCB: index(%d)", index);
-    CallBackHandle *self = (CallBackHandle *)userdata;
+    CallBackHandle *self = (CallBackHandle *) userdata;
     self->getStats()->addInputTime();
     self->mIOQueue.push([self, codec, index]() { self->onInputAvailable(codec, index); });
 }
@@ -38,8 +38,8 @@ void OnInputAvailableCB(AMediaCodec *codec, void *userdata, int32_t index) {
 void OnOutputAvailableCB(AMediaCodec *codec, void *userdata, int32_t index,
                          AMediaCodecBufferInfo *bufferInfo) {
     ALOGV("OnOutputAvailableCB: index(%d), (%d, %d, %lld, 0x%x)", index, bufferInfo->offset,
-          bufferInfo->size, (long long)bufferInfo->presentationTimeUs, bufferInfo->flags);
-    CallBackHandle *self = (CallBackHandle *)userdata;
+          bufferInfo->size, (long long) bufferInfo->presentationTimeUs, bufferInfo->flags);
+    CallBackHandle *self = (CallBackHandle *) userdata;
     self->getStats()->addOutputTime();
     AMediaCodecBufferInfo bufferInfoCopy = *bufferInfo;
     self->mIOQueue.push([self, codec, index, bufferInfoCopy]() {
@@ -50,15 +50,15 @@ void OnOutputAvailableCB(AMediaCodec *codec, void *userdata, int32_t index,
 
 void OnFormatChangedCB(AMediaCodec *codec, void *userdata, AMediaFormat *format) {
     ALOGV("OnFormatChangedCB: format(%s)", AMediaFormat_toString(format));
-    CallBackHandle *self = (CallBackHandle *)userdata;
+    CallBackHandle *self = (CallBackHandle *) userdata;
     self->mIOQueue.push([self, codec, format]() { self->onFormatChanged(codec, format); });
 }
 
 void OnErrorCB(AMediaCodec *codec, void *userdata, media_status_t err, int32_t actionCode,
                const char *detail) {
-    (void)codec;
+    (void) codec;
     ALOGE("OnErrorCB: err(%d), actionCode(%d), detail(%s)", err, actionCode, detail);
-    CallBackHandle *self = (CallBackHandle *)userdata;
+    CallBackHandle *self = (CallBackHandle *) userdata;
     self->mSawError = true;
     self->mIOQueue.push([self, codec, err]() { self->onError(codec, err); });
 }
@@ -78,6 +78,7 @@ AMediaCodec *createMediaCodec(AMediaFormat *format, const char *mime, string cod
             ALOGE("Unable to create codec by name: %s", codecName.c_str());
             return nullptr;
         }
+        ALOGV("create codec by name: %s", codecName.c_str());
     } else {
         if (isEncoder) {
             codec = AMediaCodec_createEncoderByType(mime);
@@ -88,6 +89,9 @@ AMediaCodec *createMediaCodec(AMediaFormat *format, const char *mime, string cod
             ALOGE("Unable to create codec by mime: %s", mime);
             return nullptr;
         }
+        char *out_name = nullptr;
+        AMediaCodec_getName(codec, &out_name);
+        ALOGV("create codec by mime: %s", out_name);
     }
 
     /* Configure codec with the given format*/

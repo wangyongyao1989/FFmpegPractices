@@ -158,7 +158,7 @@ int32_t HwDeCodec::decode(uint8_t *inputBuffer, vector<AMediaCodecBufferInfo> &f
             CallBackHandle();
         };
 
-        g_threadManager->submitTask("videoFilterThread", task, PRIORITY_NORMAL);
+        g_threadManager->submitTask("HwDeCodec::decode-Thread", task, PRIORITY_NORMAL);
 
 //        mIOThread = thread(&CallBackHandle::ioThread, this);
     }

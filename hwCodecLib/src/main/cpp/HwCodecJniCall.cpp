@@ -5,6 +5,7 @@
 
 #include "ProcessExtractor.h"
 #include "ProcessMuxer.h"
+#include "ProcessDeCodec.h"
 
 
 //包名+类名字符串定义：
@@ -16,6 +17,7 @@ std::unique_ptr<AndroidThreadManager> g_threadManager;
 
 ProcessExtractor *mProcessExtractor;
 ProcessMuxer *mProcessMuxer;
+ProcessDeCodec *mProcessDeCodec;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -71,6 +73,31 @@ cpp_process_hw_muxer(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath
 
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_process_hw_decodec(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath1,
+                       jstring outPath2, jstring codecName) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath1 = env->GetStringUTFChars(outPath1, nullptr);
+    const char *cOutPath2 = env->GetStringUTFChars(outPath2, nullptr);
+    const char *cCodecName = env->GetStringUTFChars(codecName, nullptr);
+
+    if (mProcessDeCodec == nullptr) {
+        mProcessDeCodec = new ProcessDeCodec(env, thiz);
+    }
+    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2, cCodecName]() {
+        mProcessDeCodec->startProcessDecodec(cSrcPath, cOutPath1, cOutPath2, cCodecName);
+    };
+
+    g_threadManager->submitTask("ProcessDecodecThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+    env->ReleaseStringUTFChars(outPath1, cOutPath1);
+    env->ReleaseStringUTFChars(outPath2, cOutPath2);
+    env->ReleaseStringUTFChars(codecName, cCodecName);
+
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
@@ -81,6 +108,10 @@ static const JNINativeMethod methods[] = {
                                             "Ljava/lang/String;"
                                             "Ljava/lang/String;"
                                             "Ljava/lang/String;)V", (void *) cpp_process_hw_muxer},
+        {"native_process_hw_decodec",       "(Ljava/lang/String;"
+                                            "Ljava/lang/String;"
+                                            "Ljava/lang/String;"
+                                            "Ljava/lang/String;)V", (void *) cpp_process_hw_decodec},
 };
 
 

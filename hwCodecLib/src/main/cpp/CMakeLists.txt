@@ -33,6 +33,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 
         ProcessExtractor.cpp
         ProcessMuxer.cpp
+        ProcessDeCodec.cpp
 
 )
 

@@ -45,6 +45,16 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_hw_codec_4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="处理DeCodec"
+        app:layout_constraintStart_toEndOf="@+id/btn_hw_codec_3"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
 
     <ScrollView
         android:id="@+id/scorll_view"
