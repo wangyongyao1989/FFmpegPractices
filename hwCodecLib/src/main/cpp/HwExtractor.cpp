@@ -44,7 +44,7 @@ void *HwExtractor::getCSDSample(AMediaCodecBufferInfo &frameInfo, int32_t csdInd
 int32_t HwExtractor::getFrameSample(AMediaCodecBufferInfo &frameInfo) {
     int32_t size = AMediaExtractor_readSampleData(mExtractor, mFrameBuf, kMaxBufferSize);
     if (size < 0) return -1;
-
+    frameInfo.offset = 0;
     frameInfo.flags = AMediaExtractor_getSampleFlags(mExtractor);
     frameInfo.size = size;
     mStats->addFrameSize(frameInfo.size);
@@ -57,16 +57,18 @@ int32_t HwExtractor::getFrameSample(AMediaCodecBufferInfo &frameInfo) {
 int32_t HwExtractor::getCurFrameSample(AMediaCodecBufferInfo &frameInfo) {
     ssize_t getSampleSize = AMediaExtractor_getSampleSize(mExtractor);
     if (getSampleSize < 0) return -1;
-    int32_t size = AMediaExtractor_readSampleData(mExtractor, mFrameBuf, getSampleSize);
+    if (mCurFrameBuf) {
+        free(mCurFrameBuf);
+        mCurFrameBuf = nullptr;
+    }
+    mCurFrameBuf = (uint8_t *) calloc(getSampleSize, sizeof(uint8_t));
+    int32_t size = AMediaExtractor_readSampleData(mExtractor, mCurFrameBuf, getSampleSize);
     if (size < 0) return -1;
-
+    frameInfo.offset = 0;
     frameInfo.flags = AMediaExtractor_getSampleFlags(mExtractor);
     frameInfo.size = size;
-    mStats->addFrameSize(frameInfo.size);
     frameInfo.presentationTimeUs = AMediaExtractor_getSampleTime(mExtractor);
     AMediaExtractor_advance(mExtractor);
-
-
     return 0;
 }
 
@@ -120,6 +122,11 @@ void HwExtractor::deInitExtractor() {
     if (mFrameBuf) {
         free(mFrameBuf);
         mFrameBuf = nullptr;
+    }
+
+    if (mCurFrameBuf) {
+        free(mCurFrameBuf);
+        mCurFrameBuf = nullptr;
     }
 
     int64_t sTime = mStats->getCurTime();

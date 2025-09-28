@@ -93,6 +93,24 @@ void ExtactorMuxerMp4::processExtactorMuxerMp4() {
     callbackInfo = "initExtractor Success trackCount:" + to_string(trackCount) + "\n";
     PostStatusMessage(callbackInfo.c_str());
 
+    string outputFileName = sOutPath2;
+    FILE *outputFp = fopen(outputFileName.c_str(), "w+b");
+    if (!outputFp) {
+        LOGE("Unable to open output file :%s", outputFileName.c_str());
+        callbackInfo =
+                "Unable to open output file:" + outputFileName + " for writing" + "\n";
+        PostStatusMessage(callbackInfo.c_str());
+        return;
+    }
+
+    LOGI("Success open file:%s", outputFileName.c_str());
+    callbackInfo =
+            "Success open file:" + outputFileName + "\n";
+    PostStatusMessage(callbackInfo.c_str());
+
+    int32_t output_fd = fileno(outputFp);
+
+
     for (int curTrack = 0; curTrack < trackCount; curTrack++) {
         int32_t status = mHwExtractor->setupTrackFormat(curTrack);
         if (status != AMEDIA_OK) {
@@ -105,23 +123,7 @@ void ExtactorMuxerMp4::processExtactorMuxerMp4() {
         callbackInfo = "curTrack:" + to_string(curTrack) + "\n";
         PostStatusMessage(callbackInfo.c_str());
 
-        string outputFileName = sOutPath2;
-        FILE *outputFp = fopen(outputFileName.c_str(), "w+b");
-        if (!outputFp) {
-            LOGE("Unable to open output file :%s", outputFileName.c_str());
-            callbackInfo =
-                    "Unable to open output file:" + outputFileName + " for writing" + "\n";
-            PostStatusMessage(callbackInfo.c_str());
-            return;
-        }
-
-        LOGI("Success open file :%s", outputFileName.c_str());
-        callbackInfo =
-                "Success open file:" + outputFileName + "\n";
-        PostStatusMessage(callbackInfo.c_str());
-
-        int32_t fd = fileno(outputFp);
-        status = mHwMuxer->initMuxer(fd, outputFormat);
+        status = mHwMuxer->initMuxer(output_fd, outputFormat);
         if (status != AMEDIA_OK) {
             LOGE("initMuxer failed");
             callbackInfo = "initMuxer failed \n";
@@ -138,15 +140,12 @@ void ExtactorMuxerMp4::processExtactorMuxerMp4() {
         // Get Frame Data
         while (1) {
             status = mHwExtractor->getCurFrameSample(info);
-            LOGE("status:%d", status);
-            LOGE("info.size :%d", info.size);
+//            LOGI("status:%d", status);
+//            LOGI("info.size :%d", info.size);
             if (status || !info.size) break;
             uint8_t *inputBuffer = (uint8_t *) malloc(info.size);
-            if (mHwExtractor->getFrameBuf()) {
-                LOGE("getFrameBuf:%p", mHwExtractor->getFrameBuf());
-            }
             // copy the meta data and buffer to be passed to muxer
-            memcpy(inputBuffer, mHwExtractor->getFrameBuf(), info.size);
+            memcpy(inputBuffer, mHwExtractor->getCurFrameBuf(), info.size);
 
             if (curTrack > 0) break;
             status = mHwMuxer->muxFrame(inputBuffer, curTrack, info);
@@ -156,20 +155,22 @@ void ExtactorMuxerMp4::processExtactorMuxerMp4() {
                 PostStatusMessage(callbackInfo.c_str());
                 return;
             }
-
-            free(inputBuffer);
-            inputBuffer = nullptr;
+            if (inputBuffer) {
+                free(inputBuffer);
+                inputBuffer = nullptr;
+            }
         }
 
         mHwMuxer->deInitMuxer();
         mHwMuxer->dumpStatistics(sSrcPath, sFmt, sOutPath1);
-        fclose(outputFp);
         mHwMuxer->resetMuxer();
     }
-    LOGI("processExtactorMuxerMp4 Success");
+    fclose(outputFp);
     fclose(inputFp);
     mHwExtractor->deInitExtractor();
-
+    LOGI("processExtactorMuxerMp4 Success");
+    callbackInfo = "processExtactorMuxerMp4 Success\n";
+    PostStatusMessage(callbackInfo.c_str());
 }
 
 MUXER_OUTPUT_T ExtactorMuxerMp4::getMuxerOutFormat(string fmt) {
@@ -244,5 +245,12 @@ void ExtactorMuxerMp4::PostStatusMessage(const char *msg) {
     if (isAttach) {
         JavaVM *pJavaVm = mJavaVm;
         pJavaVm->DetachCurrentThread();
+    }
+}
+
+void ExtactorMuxerMp4::print_hex(uint8_t *data, size_t length) {
+    for (size_t i = 0; i < length; ++i) {
+        LOGE("数字：%02x ", data[i]); // 十六进制
+//        std::cout << std::setw(2) << ) << " ";
     }
 }

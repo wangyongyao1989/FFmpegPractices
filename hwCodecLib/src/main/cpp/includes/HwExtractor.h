@@ -45,6 +45,8 @@ public:
 
     uint8_t *getFrameBuf() { return mFrameBuf; }
 
+    uint8_t *getCurFrameBuf() { return mCurFrameBuf; }
+
     int64_t getClipDuration() { return mDurationUs; }
 
 private:
@@ -52,6 +54,7 @@ private:
     AMediaExtractor *mExtractor;
     Stats *mStats;
     uint8_t *mFrameBuf;
+    uint8_t *mCurFrameBuf = nullptr;
     int64_t mDurationUs;
 
 };

@@ -47,6 +47,7 @@ private:
 
     bool writeStatsHeader();
 
+    void print_hex(uint8_t* data, size_t length);
 
 public:
     ExtactorMuxerMp4(JNIEnv *env, jobject thiz);
