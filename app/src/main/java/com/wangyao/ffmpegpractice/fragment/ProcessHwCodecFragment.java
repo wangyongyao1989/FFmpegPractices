@@ -156,11 +156,9 @@ public class ProcessHwCodecFragment extends BaseFragment {
             String dataDir = DirectoryPath.createSDCardDataDir(getContext());
             Random rand = new Random();
             int randomInt = rand.nextInt(100) + 1;
-            String outputPath1 = dataDir + "extactor2muxer2mp4" + randomInt + ".csv";
-            String outputPath2 = dataDir + "muxer2mp4" + randomInt + ".mp4";
-            CommonFileUtils.createFile(outputPath1);
-            String fmt = "mp4";
-            mProcessHwCodec.extactor2Muxer2Mp4(mVideoPath1, outputPath1, outputPath2, fmt);
+            String outputPath = dataDir + "muxer2mp4" + randomInt + ".mp4";
+            CommonFileUtils.createFile(outputPath);
+            mProcessHwCodec.mediaTransMuxer(mVideoPath1, outputPath);
         });
     }
 
