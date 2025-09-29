@@ -8,7 +8,7 @@
 #include "ProcessDeCodec.h"
 
 #include "MediaTransMuxer.h"
-
+#include "MediaExtratorDecodec.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/hwcodeclib/ProcessHwCodec";
@@ -22,6 +22,7 @@ ProcessMuxer *mProcessMuxer;
 ProcessDeCodec *mProcessDeCodec;
 
 MediaTransMuxer *mMediaTransmuxer;
+MediaExtratorDecodec *mMediaExtratorDecodec;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -122,6 +123,24 @@ cpp_media_trans_muxer(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPat
 }
 
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_media_extractor_decodec(JNIEnv *env, jobject thiz, jstring srcPath) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+
+    if (mMediaExtratorDecodec == nullptr) {
+        mMediaExtratorDecodec = new MediaExtratorDecodec(env, thiz);
+    }
+    ThreadTask task = [cSrcPath]() {
+        mMediaTransmuxer->startMediaTransMuxer(cSrcPath, cSrcPath);
+    };
+
+    g_threadManager->submitTask("MediaTransmuxerThread", task, PRIORITY_NORMAL);
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+
+}
+
+
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
         {"native_hw_codec_string_from_jni", "()Ljava/lang/String;", (void *) cpp_string_from_jni},
@@ -138,6 +157,8 @@ static const JNINativeMethod methods[] = {
 
         {"native_media_trans_muxer",        "(Ljava/lang/String;"
                                             "Ljava/lang/String;)V", (void *) cpp_media_trans_muxer},
+
+        {"native_media_extractor_decodec",  "(Ljava/lang/String;)V", (void *) cpp_media_extractor_decodec},
 };
 
 
@@ -194,6 +215,9 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     }
     if (mMediaTransmuxer) {
         mMediaTransmuxer = nullptr;
+    }
+    if (mMediaExtratorDecodec) {
+        mMediaExtratorDecodec = nullptr;
     }
 
 }

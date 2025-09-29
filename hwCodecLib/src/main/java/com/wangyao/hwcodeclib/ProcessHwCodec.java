@@ -34,6 +34,10 @@ public class ProcessHwCodec {
         native_media_trans_muxer(inputPath, outputPath);
     }
 
+    public void mediaExtractorDecodec(String inputPath) {
+        native_media_extractor_decodec(inputPath);
+    }
+
     public void processHwDeCodec(String inputPath, String outputPath1
             , String outputPath2, String codecName) {
         native_process_hw_decodec(inputPath, outputPath1, outputPath2, codecName);
@@ -46,10 +50,13 @@ public class ProcessHwCodec {
     private native void native_process_hw_muxer(String inputPath, String outputPath1
             , String outputPath2, String fmt);
 
-    private native void native_media_trans_muxer(String inputPath, String outputPath);
-
     private native void native_process_hw_decodec(String inputPath, String outputPath1
             , String outputPath2, String codecName);
+
+    private native void native_media_trans_muxer(String inputPath, String outputPath);
+
+    private native void native_media_extractor_decodec(String inputPath);
+
 
     private void CppStatusCallback(String status) {
         Log.i(TAG, "CppStatusCallback: " + status);

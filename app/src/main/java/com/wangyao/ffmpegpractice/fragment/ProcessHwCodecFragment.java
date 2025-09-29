@@ -52,6 +52,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
     private Button mBtnHwCodec3;
     private Button mBtnHwCodec4;
     private Button mBtnHwCodec5;
+    private Button mBtnHwCodec6;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -69,6 +70,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
         mBtnHwCodec3 = mBinding.btnHwCodec3;
         mBtnHwCodec4 = mBinding.btnHwCodec4;
         mBtnHwCodec5 = mBinding.btnHwCodec5;
+        mBtnHwCodec6 = mBinding.btnHwCodec6;
 
 
     }
@@ -160,6 +162,11 @@ public class ProcessHwCodecFragment extends BaseFragment {
             CommonFileUtils.createFile(outputPath);
             mProcessHwCodec.mediaTransMuxer(mVideoPath1, outputPath);
         });
+
+        mBtnHwCodec6.setOnClickListener(view -> {
+            mProcessHwCodec.mediaExtractorDecodec(mVideoPath1);
+        });
+
     }
 
 }
