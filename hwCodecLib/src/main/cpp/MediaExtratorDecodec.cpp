@@ -304,34 +304,9 @@ bool MediaExtratorDecodec::decodec() {
             break;
         }
 
-        // 获取样本信息
-        info.size = AMediaExtractor_getSampleSize(extractor);
-        info.offset = 0;
-        info.flags = AMediaExtractor_getSampleFlags(extractor);
-        info.presentationTimeUs = AMediaExtractor_getSampleTime(extractor);
-
-        // 读取样本数据
-        uint8_t *sampleData = new uint8_t[info.size];
-        ssize_t bytesRead = AMediaExtractor_readSampleData(extractor, sampleData, info.size);
-
-        if (bytesRead < 0) {
-            LOGE("Error reading sample data: %zd", bytesRead);
-            callbackInfo =
-                    "Error reading sample data:" + to_string(bytesRead) + "\n";
-            PostStatusMessage(callbackInfo.c_str());
-            delete[] sampleData;
-            break;
-        }
-
-        mInputBuffer = sampleData;
-        mFrameMetaData.size = info.size;
-        mFrameMetaData.flags = info.flags;
-        mFrameMetaData.offset = info.offset;
-        mFrameMetaData.presentationTimeUs = info.presentationTimeUs;
-
         if (trackIndex == videoTrackIndex && hasVideo) {
             // 检查时间戳是否有效（避免重复或倒退的时间戳）
-            if (info.presentationTimeUs > lastVideoPts) {
+            if (AMediaExtractor_getSampleTime(extractor) > lastVideoPts) {
                 if (!asyncMode) {
                     while (!mSawOutputEOS && !mSignalledError) {
                         /* Queue input data */
@@ -339,12 +314,11 @@ bool MediaExtratorDecodec::decodec() {
                             ssize_t inIdx = AMediaCodec_dequeueInputBuffer(mVideoCodec,
                                                                            kQueueDequeueTimeoutUs);
                             if (inIdx < 0 && inIdx != AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-                                ALOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
+                                LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
                                       inIdx);
                                 mErrorCode = (media_status_t) inIdx;
                                 return mErrorCode;
                             } else if (inIdx >= 0) {
-
                                 onInputAvailable(mVideoCodec, inIdx);
                             }
                         }
@@ -401,7 +375,6 @@ bool MediaExtratorDecodec::decodec() {
             }
         }
 
-        delete[] sampleData;
         delete[] mInputBuffer;
 
         // 前进到下一个样本
@@ -457,7 +430,12 @@ void MediaExtratorDecodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t buf
             return;
         }
 
-        size_t bufSize;
+        size_t bufSize = AMediaExtractor_getSampleSize(extractor);
+        if (bufSize <= 0) {
+            LOGE("AMediaExtractor_getSampleSize====");
+            return;
+        }
+        // 获取输入缓冲区
         uint8_t *buf = AMediaCodec_getInputBuffer(mVideoCodec, bufIdx, &bufSize);
         if (!buf) {
             mErrorCode = AMEDIA_ERROR_IO;
@@ -465,16 +443,22 @@ void MediaExtratorDecodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t buf
             mDecoderDoneCondition.notify_one();
             return;
         }
-        ssize_t bytesRead = mFrameMetaData.size;
-        uint32_t flag = mFrameMetaData.flags;
-        int64_t presentationTimeUs = mFrameMetaData.presentationTimeUs;
 
-//        ssize_t bytesRead = 0;
-//        uint32_t flag = 0;
-//        int64_t presentationTimeUs = 0;
-//        tie(bytesRead, flag, presentationTimeUs) =
-//                readSampleData(mInputBuffer, mOffset, mFrameMetaData, buf, mNumInputFrame,
-//                               bufSize);
+        // 从提取器读取数据
+        ssize_t bytesRead = AMediaExtractor_readSampleData(extractor, buf, bufSize);
+        if (bytesRead < 0) {
+            LOGE("Error reading sample data: %zd", bytesRead);
+            // 输入结束
+            AMediaCodec_queueInputBuffer(mVideoCodec, bufIdx, 0, 0, 0,
+                                         AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
+            LOGI("Video EOS queued");
+            callbackInfo =
+                    "Error reading sample data:" + to_string(bytesRead) + "\n";
+            PostStatusMessage(callbackInfo.c_str());
+        }
+        uint32_t flag = AMediaExtractor_getSampleFlags(extractor);
+        int64_t presentationTimeUs = AMediaExtractor_getSampleTime(extractor);
+
         if (flag == AMEDIA_ERROR_MALFORMED) {
             mErrorCode = (media_status_t) flag;
             mSignalledError = true;
@@ -486,6 +470,7 @@ void MediaExtratorDecodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t buf
         LOGD("%s bytesRead : %zd presentationTimeUs : %" PRId64 " mSawInputEOS : %s", __FUNCTION__,
              bytesRead, presentationTimeUs, mSawInputEOS ? "TRUE" : "FALSE");
 
+        // 将数据送入解码器
         media_status_t status = AMediaCodec_queueInputBuffer(mVideoCodec, bufIdx, 0 /* offset */,
                                                              bytesRead, presentationTimeUs, flag);
         if (AMEDIA_OK != status) {
@@ -494,6 +479,11 @@ void MediaExtratorDecodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t buf
             mDecoderDoneCondition.notify_one();
             return;
         }
+
+        if (!AMediaExtractor_advance(extractor)) {
+            return;
+        }
+
         mNumInputFrame++;
     }
 }
