@@ -132,10 +132,10 @@ cpp_media_extractor_decodec(JNIEnv *env, jobject thiz, jstring srcPath) {
         mMediaExtratorDecodec = new MediaExtratorDecodec(env, thiz);
     }
     ThreadTask task = [cSrcPath]() {
-        mMediaTransmuxer->startMediaTransMuxer(cSrcPath, cSrcPath);
+        mMediaExtratorDecodec->startMediaExtratorDecodec(cSrcPath);
     };
 
-    g_threadManager->submitTask("MediaTransmuxerThread", task, PRIORITY_NORMAL);
+    g_threadManager->submitTask("MediaExtractorDecodecThread", task, PRIORITY_NORMAL);
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
 
 }

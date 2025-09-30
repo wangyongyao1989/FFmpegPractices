@@ -12,11 +12,17 @@
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaMuxer.h>
 #include <media/NdkMediaFormat.h>
+#include <thread>
+
 #include "LogUtils.h"
+#include "BenchmarkCommon.h"
+#include "AndroidThreadManager.h"
+
+
 
 using namespace std;
 
-class MediaExtratorDecodec {
+class MediaExtratorDecodec : CallBackHandle {
 private:
 
     string callbackInfo;
@@ -27,10 +33,27 @@ private:
     JNIEnv *mEnv = nullptr;
 
     AMediaExtractor *extractor = nullptr;
-    AMediaMuxer *muxer = nullptr;
+    AMediaCodec *mVideoCodec = nullptr;
+    AMediaCodec *mAudioCodec = nullptr;
+
+    AMediaFormat *mVideoFormat = nullptr;
+    AMediaFormat *mAudioFormat = nullptr;
 
     int videoTrackIndex = -1;
     int audioTrackIndex = -1;
+    // 视频格式信息
+    int videoWidth;
+    int videoHeight;
+    int64_t videoDuration;
+
+    const char *video_mime = nullptr;
+
+    const char *audio_mime = nullptr;
+
+    // 音频格式信息
+    int audioSampleRate;
+    int audioChannelCount;
+
     int muxerVideoTrackIndex = -1;
     int muxerAudioTrackIndex = -1;
 
@@ -38,15 +61,34 @@ private:
     bool hasAudio = false;
 
     string sSrcPath;
-    string sOutPath;
+
+    int32_t mNumInputFrame;
+    int32_t mNumOutputFrame;
+
+    bool mSawInputEOS;
+    bool mSawOutputEOS;
+    bool mSignalledError;
+    media_status_t mErrorCode;
+
+    int32_t mOffset;
+    uint8_t *mInputBuffer;
+    AMediaCodecBufferInfo mFrameMetaData;
+    FILE *mOutFp;
+
+    /* Asynchronous locks */
+    mutex mMutex;
+    condition_variable mDecoderDoneCondition;
+
+    std::unique_ptr<AndroidThreadManager> g_threadManager;
+
 
     bool initExtractor();
 
-    bool selectTracks();
+    bool selectTracksAndGetFormat();
 
-    bool initMuxer();
+    bool initDecodec(bool asyncMode);
 
-    bool transmux();
+    bool decodec();
 
     void release();
 
@@ -54,13 +96,30 @@ private:
 
     void PostStatusMessage(const char *msg);
 
+    // Async callback APIs
+    void onInputAvailable(AMediaCodec *codec, int32_t index) override;
+
+    void onFormatChanged(AMediaCodec *codec, AMediaFormat *format) override;
+
+    void onError(AMediaCodec *mediaCodec, media_status_t err) override;
+
+    void onOutputAvailable(AMediaCodec *codec, int32_t index,
+                           AMediaCodecBufferInfo *bufferInfo) override;
+
+    // Read input samples
+    tuple<ssize_t, uint32_t, int64_t> readSampleData(uint8_t *inputBuffer, int32_t &offset,
+                                                     AMediaCodecBufferInfo &frameInfo,
+                                                     uint8_t *buf, int32_t frameID, size_t bufSize);
+
 public:
     MediaExtratorDecodec(JNIEnv *env, jobject thiz);
 
     ~MediaExtratorDecodec();
 
-    void startMediaExtratorDecodec(const char *inputPath, const char *outputPath);
+    void startMediaExtratorDecodec(const char *inputPath);
 };
+
+
 
 
 #endif //FFMPEGPRACTICE_MediaExtratorDecodec_H
