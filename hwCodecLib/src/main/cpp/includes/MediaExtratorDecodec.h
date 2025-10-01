@@ -18,8 +18,6 @@
 #include "BenchmarkCommon.h"
 #include "AndroidThreadManager.h"
 
-
-
 using namespace std;
 
 class MediaExtratorDecodec : CallBackHandle {
@@ -54,16 +52,14 @@ private:
     int audioSampleRate;
     int audioChannelCount;
 
-    int muxerVideoTrackIndex = -1;
-    int muxerAudioTrackIndex = -1;
 
     bool hasVideo = false;
     bool hasAudio = false;
 
     string sSrcPath;
 
-    int32_t mNumInputFrame;
-    int32_t mNumOutputFrame;
+    int32_t mNumOutputVideoFrame;
+    int32_t mNumOutputAudioFrame;
 
     bool mSawInputEOS;
     bool mSawOutputEOS;
@@ -71,7 +67,6 @@ private:
     media_status_t mErrorCode;
 
     int32_t mOffset;
-    uint8_t *mInputBuffer;
     AMediaCodecBufferInfo mFrameMetaData;
     FILE *mOutFp;
 
@@ -106,10 +101,6 @@ private:
     void onOutputAvailable(AMediaCodec *codec, int32_t index,
                            AMediaCodecBufferInfo *bufferInfo) override;
 
-    // Read input samples
-    tuple<ssize_t, uint32_t, int64_t> readSampleData(uint8_t *inputBuffer, int32_t &offset,
-                                                     AMediaCodecBufferInfo &frameInfo,
-                                                     uint8_t *buf, int32_t frameID, size_t bufSize);
 
 public:
     MediaExtratorDecodec(JNIEnv *env, jobject thiz);

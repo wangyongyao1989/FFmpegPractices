@@ -65,7 +65,7 @@ MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath) {
         return;
     }
 
-    // 3. 初始化复用器
+    // 3. 初始化解码器
     if (!initDecodec(false)) {
         LOGE("Failed to initialize Decodec");
         callbackInfo =
@@ -157,8 +157,11 @@ bool MediaExtratorDecodec::selectTracksAndGetFormat() {
                      videoWidth, videoHeight, videoDuration);
                 callbackInfo =
                         "Selected video track:" + to_string(videoTrackIndex) + "\n";
+                callbackInfo = callbackInfo + ",videoWidth:" + to_string(videoWidth)
+                               + ",videoHeight:" + to_string(videoHeight) + ",videoDuration:"
+                               + to_string(videoDuration) + "\n";
                 PostStatusMessage(callbackInfo.c_str());
-            } /*else if (strncmp(mime, "audio/", 6) == 0 && audioTrackIndex == -1) {
+            } else if (strncmp(mime, "audio/", 6) == 0 && audioTrackIndex == -1) {
                 audioTrackIndex = i;
                 hasAudio = true;
 
@@ -172,8 +175,10 @@ bool MediaExtratorDecodec::selectTracksAndGetFormat() {
                 LOGI("Selected audio track: %d", audioTrackIndex);
                 callbackInfo =
                         "Selected audio track:" + to_string(audioTrackIndex) + "\n";
+                callbackInfo = callbackInfo + ",audioSampleRate:" + to_string(audioSampleRate)
+                               + ",audioChannelCount:" + to_string(audioChannelCount) + "\n";
                 PostStatusMessage(callbackInfo.c_str());
-            }*/
+            }
         }
 
         AMediaFormat_delete(format);
@@ -196,8 +201,6 @@ bool MediaExtratorDecodec::initDecodec(bool asyncMode) {
         PostStatusMessage(callbackInfo.c_str());
 
         mVideoCodec = createMediaCodec(mVideoFormat, video_mime, "", false /*isEncoder*/);
-
-//        AMediaFormat_delete(videoFormat);
 
         if (!mVideoCodec) {
             LOGE("Failed to create video codec");
@@ -229,8 +232,7 @@ bool MediaExtratorDecodec::initDecodec(bool asyncMode) {
 
 
     // 添加音频轨道
-//    if (hasAudio) {
-    if (false) {
+    if (hasAudio) {
         AMediaExtractor_selectTrack(extractor, audioTrackIndex);
         mAudioFormat = AMediaExtractor_getTrackFormat(extractor, audioTrackIndex);
         AMediaFormat_getString(mAudioFormat, AMEDIAFORMAT_KEY_MIME, &audio_mime);
@@ -240,7 +242,6 @@ bool MediaExtratorDecodec::initDecodec(bool asyncMode) {
         PostStatusMessage(callbackInfo.c_str());
 
         mAudioCodec = createMediaCodec(mAudioFormat, audio_mime, "", false /*isEncoder*/);
-//        AMediaFormat_delete(audioFormat);
 
         if (!mAudioCodec) {
             LOGE("Failed to create audio codec");
@@ -259,7 +260,7 @@ bool MediaExtratorDecodec::initDecodec(bool asyncMode) {
                 CallBackHandle();
             };
 
-            g_threadManager->submitTask("video-decode-Thread", task, PRIORITY_NORMAL);
+            g_threadManager->submitTask("audio-decode-Thread", task, PRIORITY_NORMAL);
 
         }
 
@@ -279,7 +280,7 @@ bool MediaExtratorDecodec::initDecodec(bool asyncMode) {
 }
 
 
-// 执行转封装
+// 执行解码
 bool MediaExtratorDecodec::decodec() {
     LOGI("decodec===========");
     bool asyncMode = false;
@@ -315,7 +316,7 @@ bool MediaExtratorDecodec::decodec() {
                                                                            kQueueDequeueTimeoutUs);
                             if (inIdx < 0 && inIdx != AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
                                 LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
-                                      inIdx);
+                                     inIdx);
                                 mErrorCode = (media_status_t) inIdx;
                                 return mErrorCode;
                             } else if (inIdx >= 0) {
@@ -330,12 +331,63 @@ bool MediaExtratorDecodec::decodec() {
                         if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
                             mVideoFormat = AMediaCodec_getOutputFormat(mVideoCodec);
                             const char *s = AMediaFormat_toString(mVideoFormat);
-                            ALOGI("Output format: %s\n", s);
+                            LOGI("Output format: %s\n", s);
                         } else if (outIdx >= 0) {
                             onOutputAvailable(mVideoCodec, outIdx, &info);
                         } else if (!(outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER ||
                                      outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)) {
-                            ALOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
+                            LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
+                                  outIdx);
+                            mErrorCode = (media_status_t) outIdx;
+                            return mErrorCode;
+                        }
+                    }
+                } else {
+                    unique_lock<mutex> lock(mMutex);
+                    mDecoderDoneCondition.wait(lock, [this]() {
+                        return (mSawOutputEOS || mSignalledError);
+                    });
+                }
+                if (mSignalledError) {
+                    LOGE("Received Error while Decoding");
+                    return mErrorCode;
+                }
+
+                lastVideoPts = info.presentationTimeUs;
+            }
+        } else if (trackIndex == audioTrackIndex && hasAudio) {     //音频轨道的解码
+            // 检查时间戳是否有效
+            if (info.presentationTimeUs > lastAudioPts) {
+                // 检查时间戳是否有效（避免重复或倒退的时间戳）
+                if (!asyncMode) {
+                    while (!mSawOutputEOS && !mSignalledError) {
+                        /* Queue input data */
+                        if (!mSawInputEOS) {
+                            ssize_t inIdx = AMediaCodec_dequeueInputBuffer(mAudioCodec,
+                                                                           kQueueDequeueTimeoutUs);
+                            if (inIdx < 0 && inIdx != AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
+                                LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
+                                     inIdx);
+                                mErrorCode = (media_status_t) inIdx;
+                                return mErrorCode;
+                            } else if (inIdx >= 0) {
+                                onInputAvailable(mAudioCodec, inIdx);
+                            }
+                        }
+
+                        /* Dequeue output data */
+                        AMediaCodecBufferInfo info;
+                        ssize_t outIdx = AMediaCodec_dequeueOutputBuffer(mAudioCodec, &info,
+                                                                         kQueueDequeueTimeoutUs);
+                        if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+                            mAudioFormat = AMediaCodec_getOutputFormat(mAudioCodec);
+                            const char *s = AMediaFormat_toString(mAudioFormat);
+                            LOGI("Output format: %s\n", s);
+                        } else if (outIdx >= 0) {
+                            onOutputAvailable(mVideoCodec, outIdx, &info);
+                        } else if (!(outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER ||
+                                     outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)) {
+                            LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
                                   outIdx);
                             mErrorCode = (media_status_t) outIdx;
                             return mErrorCode;
@@ -351,36 +403,12 @@ bool MediaExtratorDecodec::decodec() {
                     ALOGE("Received Error while Decoding");
                     return mErrorCode;
                 }
-
-
-                lastVideoPts = info.presentationTimeUs;
-            }
-        } else if (trackIndex == audioTrackIndex && hasAudio) {
-            // 检查时间戳是否有效
-            if (info.presentationTimeUs > lastAudioPts) {
-//                media_status_t status = AMediaMuxer_writeSampleData(muxer,
-//                                                                    muxerAudioTrackIndex,
-//                                                                    sampleData,
-//                                                                    &info);
-//                if (status != AMEDIA_OK) {
-//                    LOGE("Failed to write audio sample : %d", status);
-//                    callbackInfo =
-//                            "Failed to write audio sample:" + to_string(status) + "\n";
-//                    PostStatusMessage(callbackInfo.c_str());
-//                }
-//                callbackInfo =
-//                        "AMediaMuxer_writeSampleData audio size:" + to_string(info.size) + "\n";
-//                PostStatusMessage(callbackInfo.c_str());
                 lastAudioPts = info.presentationTimeUs;
             }
         }
 
-        delete[] mInputBuffer;
-
-        // 前进到下一个样本
-        if (!AMediaExtractor_advance(extractor)) {
-            sawEOS = true;
-        }
+        // 短暂休眠以避免过度占用CPU
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     LOGI("Transmuxing completed");
@@ -447,14 +475,16 @@ void MediaExtratorDecodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t buf
         // 从提取器读取数据
         ssize_t bytesRead = AMediaExtractor_readSampleData(extractor, buf, bufSize);
         if (bytesRead < 0) {
-            LOGE("Error reading sample data: %zd", bytesRead);
+            LOGI("reading video sample data: %zd", bytesRead);
             // 输入结束
             AMediaCodec_queueInputBuffer(mVideoCodec, bufIdx, 0, 0, 0,
                                          AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
-            LOGI("Video EOS queued");
+            LOGI("从提取器读取数据到结束尾");
             callbackInfo =
-                    "Error reading sample data:" + to_string(bytesRead) + "\n";
+                    "视频轨道从提取器读取数据到结束尾 reading sample data:" + to_string(bytesRead) +
+                    "\n";
             PostStatusMessage(callbackInfo.c_str());
+            return;
         }
         uint32_t flag = AMediaExtractor_getSampleFlags(extractor);
         int64_t presentationTimeUs = AMediaExtractor_getSampleTime(extractor);
@@ -467,7 +497,8 @@ void MediaExtratorDecodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t buf
         }
 
         if (flag == AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) mSawInputEOS = true;
-        LOGD("%s bytesRead : %zd presentationTimeUs : %" PRId64 " mSawInputEOS : %s", __FUNCTION__,
+        LOGD("video - %s bytesRead : %zd presentationTimeUs : %" PRId64 " mSawInputEOS : %s",
+             __FUNCTION__,
              bytesRead, presentationTimeUs, mSawInputEOS ? "TRUE" : "FALSE");
 
         // 将数据送入解码器
@@ -484,8 +515,74 @@ void MediaExtratorDecodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t buf
             return;
         }
 
-        mNumInputFrame++;
+    } else if (mediaCodec == mAudioCodec && mediaCodec) {
+        if (mSawInputEOS || bufIdx < 0) return;
+        if (mSignalledError) {
+            CallBackHandle::mSawError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        size_t bufSize = AMediaExtractor_getSampleSize(extractor);
+        if (bufSize <= 0) {
+            LOGE("AMediaExtractor_getSampleSize====");
+            return;
+        }
+        // 获取输入缓冲区
+        uint8_t *buf = AMediaCodec_getInputBuffer(mAudioCodec, bufIdx, &bufSize);
+        if (!buf) {
+            mErrorCode = AMEDIA_ERROR_IO;
+            mSignalledError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        // 从提取器读取数据
+        ssize_t bytesRead = AMediaExtractor_readSampleData(extractor, buf, bufSize);
+        if (bytesRead < 0) {
+            LOGI("reading audio sample data: %zd", bytesRead);
+            // 输入结束
+            AMediaCodec_queueInputBuffer(mAudioCodec, bufIdx, 0, 0, 0,
+                                         AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
+            LOGI("从提取器读取音频轨道数据到结束尾");
+            callbackInfo =
+                    "音频轨道从提取器读取数据到结束尾 reading sample data:" + to_string(bytesRead) +
+                    "\n";
+            PostStatusMessage(callbackInfo.c_str());
+            return;
+        }
+        uint32_t flag = AMediaExtractor_getSampleFlags(extractor);
+        int64_t presentationTimeUs = AMediaExtractor_getSampleTime(extractor);
+
+        if (flag == AMEDIA_ERROR_MALFORMED) {
+            mErrorCode = (media_status_t) flag;
+            mSignalledError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        if (flag == AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) mSawInputEOS = true;
+        LOGD("audio - %s bytesRead : %zd presentationTimeUs : %" PRId64 " mSawInputEOS : %s",
+             __FUNCTION__,
+             bytesRead, presentationTimeUs, mSawInputEOS ? "TRUE" : "FALSE");
+
+        // 将数据送入解码器
+        media_status_t status = AMediaCodec_queueInputBuffer(mAudioCodec, bufIdx, 0 /* offset */,
+                                                             bytesRead, presentationTimeUs, flag);
+        if (AMEDIA_OK != status) {
+            mErrorCode = status;
+            mSignalledError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        if (!AMediaExtractor_advance(extractor)) {
+            return;
+        }
+
     }
+
+
 }
 
 
@@ -511,9 +608,36 @@ void MediaExtratorDecodec::onOutputAvailable(AMediaCodec *mediaCodec, int32_t bu
 
         AMediaCodec_releaseOutputBuffer(mVideoCodec, bufIdx, false);
         mSawOutputEOS = (0 != (bufferInfo->flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM));
-        mNumOutputFrame++;
-        LOGD("%s index : %d  mSawOutputEOS : %s count : %u", __FUNCTION__, bufIdx,
-             mSawOutputEOS ? "TRUE" : "FALSE", mNumOutputFrame);
+        mNumOutputVideoFrame++;
+        LOGD("video - %s index : %d  mSawOutputEOS : %s count : %u", __FUNCTION__, bufIdx,
+             mSawOutputEOS ? "TRUE" : "FALSE", mNumOutputVideoFrame);
+
+        if (mSawOutputEOS) {
+            CallBackHandle::mIsDone = true;
+            mDecoderDoneCondition.notify_one();
+        }
+    } else if (mediaCodec == mAudioCodec && mediaCodec) {
+        if (mSawOutputEOS || bufIdx < 0) return;
+        if (mSignalledError) {
+            CallBackHandle::mSawError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        if (mOutFp != nullptr) {
+            size_t bufSize;
+            uint8_t *buf = AMediaCodec_getOutputBuffer(mAudioCodec, bufIdx, &bufSize);
+            if (buf) {
+                fwrite(buf, sizeof(char), bufferInfo->size, mOutFp);
+                LOGD("bytes written into file  %d\n", bufferInfo->size);
+            }
+        }
+
+        AMediaCodec_releaseOutputBuffer(mAudioCodec, bufIdx, false);
+        mSawOutputEOS = (0 != (bufferInfo->flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM));
+        mNumOutputAudioFrame++;
+        LOGD("video - %s index : %d  mSawOutputEOS : %s count : %u", __FUNCTION__, bufIdx,
+             mSawOutputEOS ? "TRUE" : "FALSE", mNumOutputAudioFrame);
 
         if (mSawOutputEOS) {
             CallBackHandle::mIsDone = true;
@@ -542,29 +666,6 @@ void MediaExtratorDecodec::onError(AMediaCodec *mediaCodec, media_status_t err) 
         mSignalledError = true;
         mDecoderDoneCondition.notify_one();
     }
-}
-
-tuple<ssize_t, uint32_t, int64_t>
-MediaExtratorDecodec::readSampleData(uint8_t *inputBuffer, int32_t &offset,
-                                     AMediaCodecBufferInfo &frameInfo,
-                                     uint8_t *buf, int32_t frameID, size_t bufSize) {
-    LOGD("In %s", __func__);
-//    if (frameID == (int32_t) frameInfo.size()) {
-//        return make_tuple(0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM, 0);
-//    }
-    LOGD("frameInfo: %d", frameInfo.size);
-
-    uint32_t flags = frameInfo.flags;
-    int64_t timestamp = frameInfo.presentationTimeUs;
-    ssize_t bytesCount = frameInfo.size;
-    if (bufSize < bytesCount) {
-        LOGE("Error : Buffer size is insufficient to read sample");
-        return make_tuple(0, AMEDIA_ERROR_MALFORMED, 0);
-    }
-
-    memcpy(buf, inputBuffer + offset, bytesCount);
-    offset += bytesCount;
-    return make_tuple(bytesCount, flags, timestamp);
 }
 
 
