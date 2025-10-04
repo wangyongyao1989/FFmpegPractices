@@ -13,6 +13,7 @@
 
 #include "BenchmarkCommon.h"
 #include "Stats.h"
+#include "LogUtils.h"
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "encoder"
@@ -32,9 +33,9 @@ struct encParameter {
     int32_t width = 0;
     int32_t height = 0;
     int32_t frameRate = -1;
-    int32_t iFrameInterval = 0;
+    int32_t iFrameInterval = 5;
     int32_t profile = -1;
-    int32_t level = -1;
+    int32_t level = 0x100;
     int32_t colorFormat = COLOR_FormatYUV420Flexible;
 };
 

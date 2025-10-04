@@ -43,6 +43,11 @@ public class ProcessHwCodec {
         native_process_hw_decodec(inputPath, outputPath1, outputPath2, codecName);
     }
 
+    public void processHwEnCodec(String inputPath, String outputPath1
+            , String outputPath2, String codecName) {
+        native_process_hw_encodec(inputPath, outputPath1, outputPath2, codecName);
+    }
+
     private native String native_hw_codec_string_from_jni();
 
     private native void native_process_hw_extractor(String inputPath, String outputPath);
@@ -51,6 +56,9 @@ public class ProcessHwCodec {
             , String outputPath2, String fmt);
 
     private native void native_process_hw_decodec(String inputPath, String outputPath1
+            , String outputPath2, String codecName);
+
+    private native void native_process_hw_encodec(String inputPath, String outputPath1
             , String outputPath2, String codecName);
 
     private native void native_media_trans_muxer(String inputPath, String outputPath);

@@ -2,15 +2,15 @@
 // Created by wangyao on 2025/9/24.
 //
 
-#include "includes/ProcessDeCodec.h"
+#include "includes/ProcessEnCodec.h"
 
-ProcessDeCodec::ProcessDeCodec(JNIEnv *env, jobject thiz) {
+ProcessEnCodec::ProcessEnCodec(JNIEnv *env, jobject thiz) {
     mEnv = env;
     env->GetJavaVM(&mJavaVm);
     mJavaObj = env->NewGlobalRef(thiz);
 }
 
-ProcessDeCodec::~ProcessDeCodec() {
+ProcessEnCodec::~ProcessEnCodec() {
     mEnv->DeleteGlobalRef(mJavaObj);
     if (mEnv) {
         mEnv = nullptr;
@@ -34,7 +34,7 @@ ProcessDeCodec::~ProcessDeCodec() {
 
 }
 
-void ProcessDeCodec::startProcessDecodec(const char *srcPath, const char *outPath1,
+void ProcessEnCodec::startProcessEnCodec(const char *srcPath, const char *outPath1,
                                          const char *outPath2, const char *codecName) {
     sSrcPath = srcPath;
     sOutPath1 = outPath1;
@@ -48,9 +48,18 @@ void ProcessDeCodec::startProcessDecodec(const char *srcPath, const char *outPat
 
     pHwDeCodec = new HwDeCodec();
     if (pHwDeCodec == nullptr) {
-        LOGE("HwDeCodec creation failed ");
+        LOGE("HwEnCodec creation failed ");
         callbackInfo =
-                "HwDeCodec creation failed \n";
+                "HwEnCodec creation failed \n";
+        PostStatusMessage(callbackInfo.c_str());
+        return;
+    }
+
+    pHwEnCodec = new HwEnCodec();
+    if (pHwEnCodec == nullptr) {
+        LOGE("HwEnCodec creation failed ");
+        callbackInfo =
+                "HwEnCodec creation failed \n";
         PostStatusMessage(callbackInfo.c_str());
         return;
     }
@@ -66,10 +75,10 @@ void ProcessDeCodec::startProcessDecodec(const char *srcPath, const char *outPat
     }
 
     writeStatsHeader();
-    processProcessDecodec();
+    processProcessEnCodec();
 }
 
-void ProcessDeCodec::processProcessDecodec() {
+void ProcessEnCodec::processProcessEnCodec() {
     inputFp = fopen(sSrcPath.c_str(), "rb");
     if (!inputFp) {
         LOGE("Unable to open :%s", sSrcPath.c_str());
@@ -98,6 +107,7 @@ void ProcessDeCodec::processProcessDecodec() {
     }
 
     for (int curTrack = 0; curTrack < trackCount; curTrack++) {
+        if (curTrack == 1) break;
         int32_t status = mHwExtractor->setupTrackFormat(curTrack);
         if (status != AMEDIA_OK) {
             LOGE("Track Format invalid");
@@ -160,6 +170,78 @@ void ProcessDeCodec::processProcessDecodec() {
             return;
         }
 
+        AMediaFormat *decoderFormat = pHwDeCodec->getFormat();
+
+        ifstream eleStream;
+        eleStream.open(sOutPath2.c_str(), ifstream::binary | ifstream::ate);
+        if (!eleStream.is_open()) {
+            LOGE("%s file not found", sOutPath2.c_str());
+            callbackInfo = "not found file:" + sOutPath2 + " \n";
+            PostStatusMessage(callbackInfo.c_str());
+            return;
+        }
+        size_t eleSize = eleStream.tellg();
+        eleStream.seekg(0, ifstream::beg);
+
+        AMediaFormat *format = mHwExtractor->getFormat();
+        const char *mime = nullptr;
+        AMediaFormat_getString(format, AMEDIAFORMAT_KEY_MIME, &mime);
+        if (mime == nullptr) {
+            LOGE("Invalid mime type");
+            callbackInfo = "Invalid mime type  \n";
+            PostStatusMessage(callbackInfo.c_str());
+            return;
+        }
+
+        // Get encoder params
+        encParameter encParams;
+        if (!strncmp(mime, "video/", 6)) {
+            AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_WIDTH, &encParams.width);
+            AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_HEIGHT, &encParams.height);
+            AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_FRAME_RATE, &encParams.frameRate);
+            AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_BIT_RATE, &encParams.bitrate);
+            if (encParams.bitrate <= 0 || encParams.frameRate <= 0) {
+                encParams.frameRate = 25;
+                if (!strcmp(mime, "video/3gpp") || !strcmp(mime, "video/mp4v-es")) {
+                    encParams.bitrate = kEncodeMinVideoBitRate;
+                } else {
+                    encParams.bitrate = kEncodeDefaultVideoBitRate;
+                }
+            }
+            AMediaFormat_getInt32(decoderFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT,
+                                  &encParams.colorFormat);
+            AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_PROFILE, &encParams.profile);
+//            AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_LEVEL, &encParams.level);
+            LOGI("Get encoder params: %dx%d, frameRate: %lld us,profile :%d,level:%d",
+                 encParams.width, encParams.height, encParams.frameRate,
+                 encParams.profile, encParams.level);
+        } else {
+            AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_SAMPLE_RATE,
+                                  &encParams.sampleRate);
+            AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CHANNEL_COUNT,
+                                  &encParams.numChannels);
+            encParams.bitrate = kEncodeDefaultAudioBitRate;
+        }
+
+        pHwEnCodec->setupEncoder();
+        LOGE("pHwEnCodec->setupEncoder()");
+
+        string enCodecName = "";
+        bool enCodecAsyncMode = false;
+        status = pHwEnCodec->encode(enCodecName, eleStream, eleSize, enCodecAsyncMode, encParams,
+                                    (char *) mime);
+        if (status != AMEDIA_OK) {
+            LOGE("Encoder failed for %s", enCodecName.c_str());
+            callbackInfo = "Encoder failed for" + enCodecName + " \n";
+            PostStatusMessage(callbackInfo.c_str());
+            return;
+        }
+        pHwEnCodec->deInitCodec();
+        LOGI("codec : %s", codecName.c_str());
+        pHwEnCodec->dumpStatistics(sSrcPath, mHwExtractor->getClipDuration(), codecName,
+                                   (asyncMode ? "async" : "sync"), sOutPath1);
+        eleStream.close();
+
         pHwDeCodec->deInitCodec();
         LOGI("codec : %s", codecName.c_str());
         pHwDeCodec->dumpStatistics(sSrcPath, codecName, (asyncMode ? "async" : "sync"),
@@ -172,14 +254,14 @@ void ProcessDeCodec::processProcessDecodec() {
     mHwExtractor->deInitExtractor();
     delete pHwDeCodec;
 
-    LOGI("ProcessDeCodec Success");
-    callbackInfo = "ProcessDeCodec Success outfile:" + sOutPath2 + " \n";
+    LOGI("ProcessEnCodec Success");
+    callbackInfo = "ProcessEnCodec Success outfile:" + sOutPath2 + " \n";
     PostStatusMessage(callbackInfo.c_str());
 
 }
 
 
-bool ProcessDeCodec::writeStatsHeader() {
+bool ProcessEnCodec::writeStatsHeader() {
     char statsHeader[] =
             "currentTime, fileName, operation, componentName, NDK/SDK, sync/async, setupTime, "
             "destroyTime, minimumTime, maximumTime, averageTime, timeToProcess1SecContent, "
@@ -197,11 +279,11 @@ bool ProcessDeCodec::writeStatsHeader() {
 }
 
 
-JNIEnv *ProcessDeCodec::GetJNIEnv(bool *isAttach) {
+JNIEnv *ProcessEnCodec::GetJNIEnv(bool *isAttach) {
     JNIEnv *env;
     int status;
     if (nullptr == mJavaVm) {
-        LOGD("GetJNIEnv mJavaVm == nullptr");
+        LOGD("SaveYUVFromVideo::GetJNIEnv mJavaVm == nullptr");
         return nullptr;
     }
     *isAttach = false;
@@ -209,7 +291,7 @@ JNIEnv *ProcessDeCodec::GetJNIEnv(bool *isAttach) {
     if (status != JNI_OK) {
         status = mJavaVm->AttachCurrentThread(&env, nullptr);
         if (status != JNI_OK) {
-            LOGD("GetJNIEnv failed to attach current thread");
+            LOGD("SaveYUVFromVideo::GetJNIEnv failed to attach current thread");
             return nullptr;
         }
         *isAttach = true;
@@ -217,7 +299,7 @@ JNIEnv *ProcessDeCodec::GetJNIEnv(bool *isAttach) {
     return env;
 }
 
-void ProcessDeCodec::PostStatusMessage(const char *msg) {
+void ProcessEnCodec::PostStatusMessage(const char *msg) {
     bool isAttach = false;
     JNIEnv *pEnv = GetJNIEnv(&isAttach);
     if (pEnv == nullptr) {

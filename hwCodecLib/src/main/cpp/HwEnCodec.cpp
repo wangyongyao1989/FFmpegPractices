@@ -5,7 +5,7 @@
 #include "includes/HwEnCodec.h"
 
 void HwEnCodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx) {
-    ALOGV("In %s", __func__);
+    LOGI("In %s", __func__);
     if (mediaCodec == mCodec && mediaCodec) {
         if (mSawInputEOS || bufIdx < 0) return;
         if (mSignalledError) {
@@ -24,7 +24,7 @@ void HwEnCodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx) {
         }
 
         if (mInputBufferSize < mOffset) {
-            ALOGE("Out of bound access of input buffer\n");
+            LOGE("Out of bound access of input buffer\n");
             mErrorCode = AMEDIA_ERROR_MALFORMED;
             mSignalledError = true;
             mEncoderDoneCondition.notify_one();
@@ -41,7 +41,7 @@ void HwEnCodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx) {
                 bytesToRead = bufSize;
                 mParams.numFrames = (mInputBufferSize + mParams.frameSize - 1) / mParams.frameSize;
             } else {
-                ALOGE("bytes to read %zu bufSize %zu \n", bytesToRead, bufSize);
+                LOGE("bytes to read %zu bufSize %zu \n", bytesToRead, bufSize);
                 mErrorCode = AMEDIA_ERROR_MALFORMED;
                 mSignalledError = true;
                 mEncoderDoneCondition.notify_one();
@@ -49,7 +49,7 @@ void HwEnCodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx) {
             }
         }
         if (bytesToRead < mParams.frameSize && mNumInputFrame < mParams.numFrames - 1) {
-            ALOGE("Partial frame at frameID %d bytesToRead %zu frameSize %d total numFrames %d\n",
+            LOGE("Partial frame at frameID %d bytesToRead %zu frameSize %d total numFrames %d\n",
                   mNumInputFrame, bytesToRead, mParams.frameSize, mParams.numFrames);
             mErrorCode = AMEDIA_ERROR_MALFORMED;
             mSignalledError = true;
@@ -59,7 +59,7 @@ void HwEnCodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx) {
         mEleStream->read(buf, bytesToRead);
         size_t bytesgcount = mEleStream->gcount();
         if (bytesgcount != bytesToRead) {
-            ALOGE("bytes to read %zu actual bytes read %zu \n", bytesToRead, bytesgcount);
+            LOGE("bytes to read %zu actual bytes read %zu \n", bytesToRead, bytesgcount);
             mErrorCode = AMEDIA_ERROR_MALFORMED;
             mSignalledError = true;
             mEncoderDoneCondition.notify_one();
@@ -81,7 +81,7 @@ void HwEnCodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx) {
         }
 
         if (flag == AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) mSawInputEOS = true;
-        ALOGV("%s bytesRead : %zd presentationTimeUs : %" PRIu64 " mSawInputEOS : %s", __FUNCTION__,
+        LOGI("%s bytesRead : %zd presentationTimeUs : %" PRIu64 " mSawInputEOS : %s", __FUNCTION__,
               bytesToRead, presentationTimeUs, mSawInputEOS ? "TRUE" : "FALSE");
 
         media_status_t status = AMediaCodec_queueInputBuffer(mCodec, bufIdx, 0 /* offset */,
@@ -99,7 +99,7 @@ void HwEnCodec::onInputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx) {
 
 void HwEnCodec::onOutputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx,
                                 AMediaCodecBufferInfo *bufferInfo) {
-    ALOGV("In %s", __func__);
+    LOGI("In %s", __func__);
     if (mediaCodec == mCodec && mediaCodec) {
         if (mSawOutputEOS || bufIdx < 0) return;
         if (mSignalledError) {
@@ -112,27 +112,28 @@ void HwEnCodec::onOutputAvailable(AMediaCodec *mediaCodec, int32_t bufIdx,
         AMediaCodec_releaseOutputBuffer(mCodec, bufIdx, false);
         mSawOutputEOS = (0 != (bufferInfo->flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM));
         mNumOutputFrame++;
-        ALOGV("%s index : %d  mSawOutputEOS : %s count : %u", __FUNCTION__, bufIdx,
+        LOGI("%s index : %d  mSawOutputEOS : %s count : %u", __FUNCTION__, bufIdx,
               mSawOutputEOS ? "TRUE" : "FALSE", mNumOutputFrame);
         if (mSawOutputEOS) {
             CallBackHandle::mIsDone = true;
+            LOGI("CallBackHandle::mIsDone = true");
             mEncoderDoneCondition.notify_one();
         }
     }
 }
 
 void HwEnCodec::onFormatChanged(AMediaCodec *mediaCodec, AMediaFormat *format) {
-    ALOGV("In %s", __func__);
+    LOGI("In %s", __func__);
     if (mediaCodec == mCodec && mediaCodec) {
-        ALOGV("%s { %s }", __FUNCTION__, AMediaFormat_toString(format));
+        LOGI("%s { %s }", __FUNCTION__, AMediaFormat_toString(format));
         mFormat = format;
     }
 }
 
 void HwEnCodec::onError(AMediaCodec *mediaCodec, media_status_t err) {
-    ALOGV("In %s", __func__);
+    LOGI("In %s", __func__);
     if (mediaCodec == mCodec && mediaCodec) {
-        ALOGE("Received Error %d", err);
+        LOGE("Received Error %d", err);
         mErrorCode = err;
         mSignalledError = true;
         mEncoderDoneCondition.notify_one();
@@ -173,7 +174,7 @@ void HwEnCodec::dumpStatistics(string inputReference, int64_t durationUs, string
 
 int32_t HwEnCodec::encode(string &codecName, ifstream &eleStream, size_t eleSize, bool asyncMode,
                         encParameter encParams, char *mime) {
-    ALOGV("In %s", __func__);
+    LOGI("In %s", __func__);
     mEleStream = &eleStream;
     mInputBufferSize = eleSize;
     mParams = encParams;
@@ -199,7 +200,7 @@ int32_t HwEnCodec::encode(string &codecName, ifstream &eleStream, size_t eleSize
         AMediaFormat_setInt32(mFormat, AMEDIAFORMAT_KEY_BIT_RATE, mParams.bitrate);
     }
     const char *s = AMediaFormat_toString(mFormat);
-    ALOGI("Input format: %s\n", s);
+    LOGI("Input format: %s\n", s);
 
     int64_t sTime = mStats->getCurTime();
     mCodec = createMediaCodec(mFormat, mMime, codecName, true /*isEncoder*/);
@@ -242,7 +243,7 @@ int32_t HwEnCodec::encode(string &codecName, ifstream &eleStream, size_t eleSize
             if (!mSawInputEOS) {
                 ssize_t inIdx = AMediaCodec_dequeueInputBuffer(mCodec, kQueueDequeueTimeoutUs);
                 if (inIdx < 0 && inIdx != AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
-                    ALOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n", inIdx);
+                    LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n", inIdx);
                     mErrorCode = (media_status_t)inIdx;
                     return mErrorCode;
                 } else if (inIdx >= 0) {
@@ -257,13 +258,15 @@ int32_t HwEnCodec::encode(string &codecName, ifstream &eleStream, size_t eleSize
             if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
                 mFormat = AMediaCodec_getOutputFormat(mCodec);
                 const char *s = AMediaFormat_toString(mFormat);
-                ALOGI("Output format: %s\n", s);
+                LOGI("Output format: %s\n", s);
             } else if (outIdx >= 0) {
                 mStats->addOutputTime();
                 onOutputAvailable(mCodec, outIdx, &info);
+                LOGI("onOutputAvailable(mCodec, outIdx, &info)");
+
             } else if (!(outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER ||
                          outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)) {
-                ALOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n", outIdx);
+                LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n", outIdx);
                 mErrorCode = (media_status_t)outIdx;
                 return mErrorCode;
             }
@@ -273,7 +276,7 @@ int32_t HwEnCodec::encode(string &codecName, ifstream &eleStream, size_t eleSize
         mEncoderDoneCondition.wait(lock, [this]() { return (mSawOutputEOS || mSignalledError); });
     }
     if (mSignalledError) {
-        ALOGE("Received Error while Encoding");
+        LOGE("Received Error while Encoding");
         return mErrorCode;
     }
 
@@ -283,5 +286,6 @@ int32_t HwEnCodec::encode(string &codecName, ifstream &eleStream, size_t eleSize
         codecName.assign(encName);
         AMediaCodec_releaseName(mCodec, encName);
     }
+
     return AMEDIA_OK;
 }

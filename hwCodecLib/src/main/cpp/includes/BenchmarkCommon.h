@@ -26,6 +26,7 @@
 
 #include <media/NdkMediaCodec.h>
 #include <media/NdkMediaError.h>
+#include "LogUtils.h"
 
 #include "Stats.h"
 #define UNUSED(x) (void)(x)

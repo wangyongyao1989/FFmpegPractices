@@ -1,6 +1,7 @@
 package com.wangyao.ffmpegpractice.fragment;
 
 import android.annotation.SuppressLint;
+import android.media.MediaCodecInfo;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -53,6 +54,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
     private Button mBtnHwCodec4;
     private Button mBtnHwCodec5;
     private Button mBtnHwCodec6;
+    private Button mBtnHwCodec7;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -71,6 +73,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
         mBtnHwCodec4 = mBinding.btnHwCodec4;
         mBtnHwCodec5 = mBinding.btnHwCodec5;
         mBtnHwCodec6 = mBinding.btnHwCodec6;
+        mBtnHwCodec7 = mBinding.btnHwCodec7;
 
 
     }
@@ -165,6 +168,17 @@ public class ProcessHwCodecFragment extends BaseFragment {
 
         mBtnHwCodec6.setOnClickListener(view -> {
             mProcessHwCodec.mediaExtractorDecodec(mVideoPath1);
+        });
+
+        mBtnHwCodec7.setOnClickListener(view -> {
+            String dataDir = DirectoryPath.createSDCardDataDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = dataDir + "encodec" + randomInt + ".csv";
+            String outputPath2 = dataDir + "encodec" + randomInt + ".out";
+            CommonFileUtils.createFile(outputPath1);
+            String codecName = "";
+            mProcessHwCodec.processHwEnCodec(mVideoPath1, outputPath1, outputPath2, codecName);
         });
 
     }

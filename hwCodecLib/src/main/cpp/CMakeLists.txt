@@ -38,6 +38,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         MediaTransMuxer.cpp
         MediaExtratorDecodec.cpp
 
+        ProcessEnCodec.cpp
+
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}

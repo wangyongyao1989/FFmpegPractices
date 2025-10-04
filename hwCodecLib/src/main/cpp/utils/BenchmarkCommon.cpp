@@ -21,7 +21,7 @@
 #include <iostream>
 
 void CallBackHandle::ioThread() {
-    ALOGV("In %s mIsDone : %d, mSawError : %d ", __func__, mIsDone, mSawError);
+    LOGI("In %s mIsDone : %d, mSawError : %d ", __func__, mIsDone, mSawError);
     while (!mIsDone && !mSawError) {
         auto task = mIOQueue.pop();
         task();
@@ -29,7 +29,7 @@ void CallBackHandle::ioThread() {
 }
 
 void OnInputAvailableCB(AMediaCodec *codec, void *userdata, int32_t index) {
-    ALOGV("OnInputAvailableCB: index(%d)", index);
+    LOGI("OnInputAvailableCB: index(%d)", index);
     CallBackHandle *self = (CallBackHandle *) userdata;
     self->getStats()->addInputTime();
     self->mIOQueue.push([self, codec, index]() { self->onInputAvailable(codec, index); });
@@ -37,7 +37,7 @@ void OnInputAvailableCB(AMediaCodec *codec, void *userdata, int32_t index) {
 
 void OnOutputAvailableCB(AMediaCodec *codec, void *userdata, int32_t index,
                          AMediaCodecBufferInfo *bufferInfo) {
-    ALOGV("OnOutputAvailableCB: index(%d), (%d, %d, %lld, 0x%x)", index, bufferInfo->offset,
+    LOGI("OnOutputAvailableCB: index(%d), (%d, %d, %lld, 0x%x)", index, bufferInfo->offset,
           bufferInfo->size, (long long) bufferInfo->presentationTimeUs, bufferInfo->flags);
     CallBackHandle *self = (CallBackHandle *) userdata;
     self->getStats()->addOutputTime();
@@ -49,7 +49,7 @@ void OnOutputAvailableCB(AMediaCodec *codec, void *userdata, int32_t index,
 }
 
 void OnFormatChangedCB(AMediaCodec *codec, void *userdata, AMediaFormat *format) {
-    ALOGV("OnFormatChangedCB: format(%s)", AMediaFormat_toString(format));
+    LOGI("OnFormatChangedCB: format(%s)", AMediaFormat_toString(format));
     CallBackHandle *self = (CallBackHandle *) userdata;
     self->mIOQueue.push([self, codec, format]() { self->onFormatChanged(codec, format); });
 }
@@ -57,7 +57,7 @@ void OnFormatChangedCB(AMediaCodec *codec, void *userdata, AMediaFormat *format)
 void OnErrorCB(AMediaCodec *codec, void *userdata, media_status_t err, int32_t actionCode,
                const char *detail) {
     (void) codec;
-    ALOGE("OnErrorCB: err(%d), actionCode(%d), detail(%s)", err, actionCode, detail);
+    LOGE("OnErrorCB: err(%d), actionCode(%d), detail(%s)", err, actionCode, detail);
     CallBackHandle *self = (CallBackHandle *) userdata;
     self->mSawError = true;
     self->mIOQueue.push([self, codec, err]() { self->onError(codec, err); });
@@ -65,9 +65,9 @@ void OnErrorCB(AMediaCodec *codec, void *userdata, media_status_t err, int32_t a
 
 AMediaCodec *createMediaCodec(AMediaFormat *format, const char *mime, string codecName,
                               bool isEncoder) {
-    ALOGV("In %s", __func__);
+    LOGI("In %s", __func__);
     if (!mime) {
-        ALOGE("Please specify a mime type to create codec");
+        LOGE("Please specify a mime type to create codec");
         return nullptr;
     }
 
@@ -75,10 +75,10 @@ AMediaCodec *createMediaCodec(AMediaFormat *format, const char *mime, string cod
     if (!codecName.empty()) {
         codec = AMediaCodec_createCodecByName(codecName.c_str());
         if (!codec) {
-            ALOGE("Unable to create codec by name: %s", codecName.c_str());
+            LOGE("Unable to create codec by name: %s", codecName.c_str());
             return nullptr;
         }
-        ALOGV("create codec by name: %s", codecName.c_str());
+        LOGI("create codec by name: %s", codecName.c_str());
     } else {
         if (isEncoder) {
             codec = AMediaCodec_createEncoderByType(mime);
@@ -86,21 +86,21 @@ AMediaCodec *createMediaCodec(AMediaFormat *format, const char *mime, string cod
             codec = AMediaCodec_createDecoderByType(mime);
         }
         if (!codec) {
-            ALOGE("Unable to create codec by mime: %s", mime);
+            LOGE("Unable to create codec by mime: %s", mime);
             return nullptr;
         }
         char *out_name = nullptr;
         AMediaCodec_getName(codec, &out_name);
-        ALOGV("create codec by mime: %s", out_name);
+        LOGI("create codec by mime: %s", out_name);
     }
 
     /* Configure codec with the given format*/
     const char *s = AMediaFormat_toString(format);
-    ALOGI("Input format: %s\n", s);
+    LOGI("Input format: %s\n", s);
 
     media_status_t status = AMediaCodec_configure(codec, format, nullptr, nullptr, isEncoder);
     if (status != AMEDIA_OK) {
-        ALOGE("AMediaCodec_configure failed %d", status);
+        LOGE("AMediaCodec_configure failed %d", status);
         return nullptr;
     }
     return codec;

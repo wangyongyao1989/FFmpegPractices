@@ -9,6 +9,7 @@
 
 #include "MediaTransMuxer.h"
 #include "MediaExtratorDecodec.h"
+#include "ProcessEnCodec.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/hwcodeclib/ProcessHwCodec";
@@ -23,6 +24,8 @@ ProcessDeCodec *mProcessDeCodec;
 
 MediaTransMuxer *mMediaTransmuxer;
 MediaExtratorDecodec *mMediaExtratorDecodec;
+
+ProcessEnCodec *mProcessEnCodec;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -140,6 +143,32 @@ cpp_media_extractor_decodec(JNIEnv *env, jobject thiz, jstring srcPath) {
 
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_process_hw_encodec(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath1,
+                       jstring outPath2, jstring codecName) {
+    const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath1 = env->GetStringUTFChars(outPath1, nullptr);
+    const char *cOutPath2 = env->GetStringUTFChars(outPath2, nullptr);
+    const char *cCodecName = env->GetStringUTFChars(codecName, nullptr);
+
+    if (mProcessEnCodec == nullptr) {
+        mProcessEnCodec = new ProcessEnCodec(env, thiz);
+    }
+    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2, cCodecName]() {
+        mProcessEnCodec->startProcessEnCodec(cSrcPath, cOutPath1, cOutPath2, cCodecName);
+    };
+
+    g_threadManager->submitTask("ProcessEncodecThread", task, PRIORITY_NORMAL);
+
+    env->ReleaseStringUTFChars(srcPath, cSrcPath);
+    env->ReleaseStringUTFChars(outPath1, cOutPath1);
+    env->ReleaseStringUTFChars(outPath2, cOutPath2);
+    env->ReleaseStringUTFChars(codecName, cCodecName);
+
+}
+
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
@@ -159,6 +188,12 @@ static const JNINativeMethod methods[] = {
                                             "Ljava/lang/String;)V", (void *) cpp_media_trans_muxer},
 
         {"native_media_extractor_decodec",  "(Ljava/lang/String;)V", (void *) cpp_media_extractor_decodec},
+
+        {"native_process_hw_encodec",       "(Ljava/lang/String;"
+                                            "Ljava/lang/String;"
+                                            "Ljava/lang/String;"
+                                            "Ljava/lang/String;)V", (void *) cpp_process_hw_encodec},
+
 };
 
 

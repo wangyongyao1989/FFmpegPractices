@@ -74,7 +74,7 @@ MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath) {
         return;
     }
 
-    // 4. 执行转封装
+    // 4. 执行解码
     if (!decodec()) {
         LOGE("Decodec failed");
         callbackInfo =
@@ -126,7 +126,7 @@ bool MediaExtratorDecodec::initExtractor() {
     return true;
 }
 
-// 选择轨道
+// 选择轨道获取AMediaFormat
 bool MediaExtratorDecodec::selectTracksAndGetFormat() {
     LOGI("selectTracksAndGetFormat===========");
 
@@ -411,9 +411,9 @@ bool MediaExtratorDecodec::decodec() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    LOGI("Transmuxing completed");
+    LOGI("media decodec completed");
     callbackInfo =
-            "Transmuxing completed \n";
+            "media decodec completed \n";
     PostStatusMessage(callbackInfo.c_str());
     return true;
 }
