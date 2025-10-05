@@ -167,7 +167,12 @@ public class ProcessHwCodecFragment extends BaseFragment {
         });
 
         mBtnHwCodec6.setOnClickListener(view -> {
-            mProcessHwCodec.mediaExtractorDecodec(mVideoPath1);
+            String dataDir = DirectoryPath.createSDCardDataDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath = dataDir + "extratordecodec" + randomInt + ".out";
+            CommonFileUtils.createFile(outputPath);
+            mProcessHwCodec.mediaExtractorDecodec(mVideoPath1,outputPath);
         });
 
         mBtnHwCodec7.setOnClickListener(view -> {

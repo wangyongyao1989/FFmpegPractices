@@ -34,8 +34,8 @@ public class ProcessHwCodec {
         native_media_trans_muxer(inputPath, outputPath);
     }
 
-    public void mediaExtractorDecodec(String inputPath) {
-        native_media_extractor_decodec(inputPath);
+    public void mediaExtractorDecodec(String inputPath,String outputPath) {
+        native_media_extractor_decodec(inputPath,outputPath);
     }
 
     public void processHwDeCodec(String inputPath, String outputPath1
@@ -63,7 +63,7 @@ public class ProcessHwCodec {
 
     private native void native_media_trans_muxer(String inputPath, String outputPath);
 
-    private native void native_media_extractor_decodec(String inputPath);
+    private native void native_media_extractor_decodec(String inputPath,String outputPath);
 
 
     private void CppStatusCallback(String status) {

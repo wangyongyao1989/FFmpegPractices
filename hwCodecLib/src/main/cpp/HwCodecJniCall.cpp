@@ -128,18 +128,20 @@ cpp_media_trans_muxer(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPat
 
 extern "C"
 JNIEXPORT void JNICALL
-cpp_media_extractor_decodec(JNIEnv *env, jobject thiz, jstring srcPath) {
+cpp_media_extractor_decodec(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath) {
     const char *cSrcPath = env->GetStringUTFChars(srcPath, nullptr);
+    const char *cOutPath = env->GetStringUTFChars(outPath, nullptr);
 
     if (mMediaExtratorDecodec == nullptr) {
         mMediaExtratorDecodec = new MediaExtratorDecodec(env, thiz);
     }
-    ThreadTask task = [cSrcPath]() {
-        mMediaExtratorDecodec->startMediaExtratorDecodec(cSrcPath);
+    ThreadTask task = [cSrcPath, cOutPath]() {
+        mMediaExtratorDecodec->startMediaExtratorDecodec(cSrcPath, cOutPath);
     };
 
     g_threadManager->submitTask("MediaExtractorDecodecThread", task, PRIORITY_NORMAL);
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
+    env->ReleaseStringUTFChars(outPath, cOutPath);
 
 }
 
@@ -169,7 +171,6 @@ cpp_process_hw_encodec(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPa
 }
 
 
-
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
         {"native_hw_codec_string_from_jni", "()Ljava/lang/String;", (void *) cpp_string_from_jni},
@@ -187,7 +188,8 @@ static const JNINativeMethod methods[] = {
         {"native_media_trans_muxer",        "(Ljava/lang/String;"
                                             "Ljava/lang/String;)V", (void *) cpp_media_trans_muxer},
 
-        {"native_media_extractor_decodec",  "(Ljava/lang/String;)V", (void *) cpp_media_extractor_decodec},
+        {"native_media_extractor_decodec",  "(Ljava/lang/String;"
+                                            "Ljava/lang/String;)V", (void *) cpp_media_extractor_decodec},
 
         {"native_process_hw_encodec",       "(Ljava/lang/String;"
                                             "Ljava/lang/String;"

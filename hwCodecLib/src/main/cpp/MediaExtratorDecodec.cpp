@@ -40,8 +40,9 @@ MediaExtratorDecodec::~MediaExtratorDecodec() {
 }
 
 void
-MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath) {
+MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath, const char *outpath) {
     sSrcPath = inputPath;
+    sOutPath = outpath;
 
     LOGI("sSrcPath :%s \n ", sSrcPath.c_str());
     callbackInfo =
@@ -187,7 +188,7 @@ bool MediaExtratorDecodec::selectTracksAndGetFormat() {
     return hasVideo || hasAudio;
 }
 
-// 初始化复用器
+// 初始化解码器
 bool MediaExtratorDecodec::initDecodec(bool asyncMode) {
 
     // 添加视频轨道
@@ -296,6 +297,14 @@ bool MediaExtratorDecodec::decodec() {
 
     // 设置读取位置到开始
     AMediaExtractor_seekTo(extractor, 0, AMEDIAEXTRACTOR_SEEK_CLOSEST_SYNC);
+    mOutFp = fopen(sOutPath.c_str(), "wb");
+    if (!mOutFp) {
+        LOGE("Unable to open :%s", sOutPath.c_str());
+        callbackInfo =
+                "Unable to open " + sOutPath + "\n";
+        PostStatusMessage(callbackInfo.c_str());
+        return false;
+    }
 
     while (!sawEOS) {
         ssize_t trackIndex = AMediaExtractor_getSampleTrackIndex(extractor);
@@ -337,7 +346,7 @@ bool MediaExtratorDecodec::decodec() {
                         } else if (!(outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER ||
                                      outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)) {
                             LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
-                                  outIdx);
+                                 outIdx);
                             mErrorCode = (media_status_t) outIdx;
                             return mErrorCode;
                         }
@@ -388,7 +397,7 @@ bool MediaExtratorDecodec::decodec() {
                         } else if (!(outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER ||
                                      outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)) {
                             LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
-                                  outIdx);
+                                 outIdx);
                             mErrorCode = (media_status_t) outIdx;
                             return mErrorCode;
                         }
@@ -411,9 +420,9 @@ bool MediaExtratorDecodec::decodec() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    LOGI("media decodec completed");
+    LOGI("media decodec completed out file:%c", sOutPath.c_str());
     callbackInfo =
-            "media decodec completed \n";
+            "media decodec completed file:" + sOutPath + "\n";
     PostStatusMessage(callbackInfo.c_str());
     return true;
 }

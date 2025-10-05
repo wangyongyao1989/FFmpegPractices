@@ -57,6 +57,9 @@ private:
     bool hasAudio = false;
 
     string sSrcPath;
+    string sOutPath;
+
+
 
     int32_t mNumOutputVideoFrame;
     int32_t mNumOutputAudioFrame;
@@ -107,7 +110,7 @@ public:
 
     ~MediaExtratorDecodec();
 
-    void startMediaExtratorDecodec(const char *inputPath);
+    void startMediaExtratorDecodec(const char *inputPath,const char *outpath);
 };
 
 
