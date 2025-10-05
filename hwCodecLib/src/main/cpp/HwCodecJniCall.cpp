@@ -10,6 +10,7 @@
 #include "MediaTransMuxer.h"
 #include "MediaExtratorDecodec.h"
 #include "ProcessEnCodec.h"
+#include "MediaExtratorDecodecEncodec.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/hwcodeclib/ProcessHwCodec";
@@ -26,6 +27,7 @@ MediaTransMuxer *mMediaTransmuxer;
 MediaExtratorDecodec *mMediaExtratorDecodec;
 
 ProcessEnCodec *mProcessEnCodec;
+MediaExtratorDecodecEncodec *mMediaExtratorDecodecEncodec;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -178,14 +180,15 @@ cpp_media_extractor_decodec_encodec(JNIEnv *env, jobject thiz, jstring srcPath,
     const char *cOutPath1 = env->GetStringUTFChars(outPath1, nullptr);
     const char *cOutPath2 = env->GetStringUTFChars(outPath2, nullptr);
 
-    if (mMediaExtratorDecodec == nullptr) {
-        mMediaExtratorDecodec = new MediaExtratorDecodec(env, thiz);
+    if (mMediaExtratorDecodecEncodec == nullptr) {
+        mMediaExtratorDecodecEncodec = new MediaExtratorDecodecEncodec(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath1]() {
-        mMediaExtratorDecodec->startMediaExtratorDecodec(cSrcPath, cOutPath1);
+    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2]() {
+        mMediaExtratorDecodecEncodec->startMediaExtratorDecodecEncodec(cSrcPath, cOutPath1,
+                                                                       cOutPath2);
     };
 
-    g_threadManager->submitTask("MediaExtractorDecodecThread", task, PRIORITY_NORMAL);
+    g_threadManager->submitTask("MediaExtractorDecodecEncodecThread", task, PRIORITY_NORMAL);
     env->ReleaseStringUTFChars(srcPath, cSrcPath);
     env->ReleaseStringUTFChars(outPath1, cOutPath1);
     env->ReleaseStringUTFChars(outPath2, cOutPath2);

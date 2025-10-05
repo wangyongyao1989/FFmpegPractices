@@ -21,10 +21,7 @@
 
 using namespace std;
 
-// constant not defined in NDK api
-constexpr int32_t COLOR_FormatYUV420Flexible = 0x7F420888;
-
-struct encParameter {
+struct encodecParameter {
     int32_t bitrate = -1;
     int32_t numFrames = -1;
     int32_t frameSize = -1;
@@ -37,7 +34,7 @@ struct encParameter {
     int32_t iFrameInterval = 5;
     int32_t profile = -1;
     int32_t level = 0x100;
-    int32_t colorFormat = COLOR_FormatYUV420Flexible;
+    int32_t colorFormat = 0x7F420888;
 };
 
 class MediaExtratorDecodecEncodec : CallBackHandle {
@@ -80,7 +77,8 @@ private:
     bool hasAudio = false;
 
     string sSrcPath;
-    string sOutPath;
+    string sOutPath1;
+    string sOutPath2;
 
 
     int32_t mNumOutputDecodecVideoFrame;
@@ -93,14 +91,20 @@ private:
 
     int32_t mOffset;
     AMediaCodecBufferInfo mFrameMetaData;
-    FILE *mOutFp;
+    FILE *mDecodecOutFp;
+    FILE *mEncodecOutFp;
 
-    encParameter mEncParams;
+
+    encodecParameter mEncParams;
     size_t mEncodecInputBufferSize;
 
     bool mSawInputEncodecEOS;
     bool mSawOutputEncodecEOS;
     bool mSignalledEncodecError;
+
+    int mNumInputFrame;
+    int mNumOutputVideoFrame;
+    ifstream *mEleStream;
 
 
     /* Asynchronous locks */
@@ -137,6 +141,8 @@ private:
 
     void onDecodecInputAvailable(AMediaCodec *mediaDeCodec, int32_t index);
 
+    void onEncodecInputAvailable(AMediaCodec *mediaEnCodec, int32_t index);
+
     void onFormatChanged(AMediaCodec *codec, AMediaFormat *format) override;
 
     void onError(AMediaCodec *mediaCodec, media_status_t err) override;
@@ -147,13 +153,17 @@ private:
     void onDecodecOutputAvailable(AMediaCodec *codec, int32_t index,
                                   AMediaCodecBufferInfo *bufferInfo);
 
+    void onEncodecOutputAvailable(AMediaCodec *codec, int32_t index,
+                                  AMediaCodecBufferInfo *bufferInfo);
+
 
 public:
     MediaExtratorDecodecEncodec(JNIEnv *env, jobject thiz);
 
     ~MediaExtratorDecodecEncodec();
 
-    void startMediaExtratorDecodecEncodec(const char *inputPath, const char *outpath);
+    void startMediaExtratorDecodecEncodec(const char *inputPath, const char *outpath1,
+                                          const char *outpath2);
 };
 
 #endif //FFMPEGPRACTICE_MEDIAEXTRATORDECODECENCODEC_H

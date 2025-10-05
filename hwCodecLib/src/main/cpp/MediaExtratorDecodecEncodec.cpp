@@ -41,9 +41,11 @@ MediaExtratorDecodecEncodec::~MediaExtratorDecodecEncodec() {
 
 void
 MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputPath,
-                                                              const char *outpath) {
+                                                              const char *outpath1,
+                                                              const char *outPath2) {
     sSrcPath = inputPath;
-    sOutPath = outpath;
+    sOutPath1 = outpath1;
+    sOutPath2 = outPath2;
 
     LOGI("sSrcPath :%s \n ", sSrcPath.c_str());
     callbackInfo =
@@ -333,11 +335,11 @@ bool MediaExtratorDecodecEncodec::decodec() {
 
     // 设置读取位置到开始
     AMediaExtractor_seekTo(extractor, 0, AMEDIAEXTRACTOR_SEEK_CLOSEST_SYNC);
-    mOutFp = fopen(sOutPath.c_str(), "wb");
-    if (!mOutFp) {
-        LOGE("Unable to open :%s", sOutPath.c_str());
+    mDecodecOutFp = fopen(sOutPath1.c_str(), "wb");
+    if (!mDecodecOutFp) {
+        LOGE("Unable to open :%s", sOutPath1.c_str());
         callbackInfo =
-                "Unable to open " + sOutPath + "\n";
+                "Unable to open " + sOutPath1 + "\n";
         PostStatusMessage(callbackInfo.c_str());
         return false;
     }
@@ -352,7 +354,7 @@ bool MediaExtratorDecodecEncodec::decodec() {
 
         if (trackIndex == videoTrackIndex && hasVideo) {
             // 检查时间戳是否有效（避免重复或倒退的时间戳）
-            if (AMediaExtractor_getSampleTime(extractor) > lastVideoPts) {
+            if (info.presentationTimeUs > lastVideoPts) {
                 if (!asyncMode) {
                     while (!mSawOutputDecodecEOS && !mSignalledDecodecError) {
                         /* Queue input data */
@@ -370,7 +372,6 @@ bool MediaExtratorDecodecEncodec::decodec() {
                         }
 
                         /* Dequeue output data */
-                        AMediaCodecBufferInfo info;
                         ssize_t outIdx = AMediaCodec_dequeueOutputBuffer(mVideoDeCodec, &info,
                                                                          kQueueDequeueTimeoutUs);
                         if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
@@ -421,7 +422,6 @@ bool MediaExtratorDecodecEncodec::decodec() {
                         }
 
                         /* Dequeue output data */
-                        AMediaCodecBufferInfo info;
                         ssize_t outIdx = AMediaCodec_dequeueOutputBuffer(mAudioDeCodec, &info,
                                                                          kQueueDequeueTimeoutUs);
                         if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
@@ -456,24 +456,24 @@ bool MediaExtratorDecodecEncodec::decodec() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    LOGI("media decodec completed out file:%c", sOutPath.c_str());
+    LOGI("media decodec completed out file:%c", sOutPath1.c_str());
     callbackInfo =
-            "media decodec completed file:" + sOutPath + "\n";
+            "media decodec completed file:" + sOutPath1 + "\n";
     PostStatusMessage(callbackInfo.c_str());
     return true;
 }
 
 bool MediaExtratorDecodecEncodec::initEncodec(bool asyncMode) {
-    LOGI("initDecodec===========");
+    LOGI("initEncodec===========");
 
     // 添加视频轨道
     if (hasVideo) {
         AMediaExtractor_selectTrack(extractor, videoTrackIndex);
         mVideoFormat = AMediaExtractor_getTrackFormat(extractor, videoTrackIndex);
         AMediaFormat_getString(mVideoFormat, AMEDIAFORMAT_KEY_MIME, &video_mime);
-        LOGI("video_mime: %s", video_mime);
+        LOGI("encodec video_mime: %s", video_mime);
         callbackInfo =
-                "video_mime:" + string(video_mime) + "\n";
+                "encodec video_mime:" + string(video_mime) + "\n";
         PostStatusMessage(callbackInfo.c_str());
 
         mVideoEnCodec = createMediaCodec(mVideoFormat, video_mime, "", true /*isEncoder*/);
@@ -566,12 +566,22 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
     if (hasVideo) AMediaExtractor_selectTrack(extractor, videoTrackIndex);
     if (hasAudio) AMediaExtractor_selectTrack(extractor, audioTrackIndex);
 
+    mEncodecOutFp = fopen(sOutPath2.c_str(), "wb");
+    if (!mEncodecOutFp) {
+        LOGE("Unable to open :%s", sOutPath2.c_str());
+        callbackInfo =
+                "Unable to open " + sOutPath2 + "\n";
+        PostStatusMessage(callbackInfo.c_str());
+        return false;
+    }
+
     // 设置读取位置到开始
     AMediaExtractor_seekTo(extractor, 0, AMEDIAEXTRACTOR_SEEK_CLOSEST_SYNC);
-    ifstream eleStream(sOutPath.c_str(), ifstream::binary | ifstream::ate);
+    ifstream eleStream(sOutPath1.c_str(), ifstream::binary | ifstream::ate);
+    mEleStream = &eleStream;
     if (!eleStream.is_open()) {
-        LOGE("%s file not found", sOutPath.c_str());
-        callbackInfo = "not found file:" + sOutPath + " \n";
+        LOGE("%s file not found", sOutPath1.c_str());
+        callbackInfo = "not found file:" + sOutPath1 + " \n";
         PostStatusMessage(callbackInfo.c_str());
         return false;
     }
@@ -589,7 +599,7 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
         if (trackIndex == videoTrackIndex && hasVideo) {
             mEncParams.frameSize = mEncParams.width * mEncParams.height * 3 / 2;
             // 检查时间戳是否有效（避免重复或倒退的时间戳）
-            if (AMediaExtractor_getSampleTime(extractor) > lastVideoPts) {
+            if (info.presentationTimeUs > lastVideoPts) {
                 if (!asyncMode) {
                     while (!mSawOutputEncodecEOS && !mSignalledEncodecError) {
                         /* Queue input data */
@@ -607,7 +617,6 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
                         }
 
                         /* Dequeue output data */
-                        AMediaCodecBufferInfo info;
                         ssize_t outIdx = AMediaCodec_dequeueOutputBuffer(mVideoEnCodec, &info,
                                                                          kQueueDequeueTimeoutUs);
                         if (outIdx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
@@ -646,9 +655,9 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    LOGI("media decodec completed out file:%c", sOutPath.c_str());
+    LOGI("media encodec completed out file:%c", sOutPath2.c_str());
     callbackInfo =
-            "media decodec completed file:" + sOutPath + "\n";
+            "media encodec completed file:" + sOutPath2 + "\n";
     PostStatusMessage(callbackInfo.c_str());
     return true;
 
@@ -699,9 +708,105 @@ void MediaExtratorDecodecEncodec::onInputAvailable(AMediaCodec *mediaCodec, int3
     if (isDeCodec) {
         onDecodecInputAvailable(mediaCodec, bufIdx);
     } else {
-
+        onEncodecInputAvailable(mediaCodec, bufIdx);
     }
 
+}
+
+void
+MediaExtratorDecodecEncodec::onEncodecInputAvailable(AMediaCodec *mediaEnCodec, int32_t bufIdx) {
+    LOGI("In %s", __func__);
+    if (mediaEnCodec == mVideoEnCodec && mediaEnCodec) {
+        if (mSawInputEncodecEOS || bufIdx < 0) return;
+        if (mSignalledEncodecError) {
+            CallBackHandle::mSawError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        size_t bufSize = 0;
+        char *buf = (char *) AMediaCodec_getInputBuffer(mVideoEnCodec, bufIdx, &bufSize);
+        if (!buf) {
+            mErrorCode = AMEDIA_ERROR_IO;
+            mSignalledEncodecError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        if (mEncodecInputBufferSize < mOffset) {
+            LOGE("Out of bound access of input buffer\n");
+            mErrorCode = AMEDIA_ERROR_MALFORMED;
+            mSignalledEncodecError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+        size_t bytesToRead = mEncParams.frameSize;
+        if (mEncodecInputBufferSize - mOffset < mEncParams.frameSize) {
+            bytesToRead = mEncodecInputBufferSize - mOffset;
+        }
+        //b/148655275 - Update Frame size, as Format value may not be valid
+        if (bufSize < bytesToRead) {
+            if (mNumInputFrame == 0) {
+                mEncParams.frameSize = bufSize;
+                bytesToRead = bufSize;
+                mEncParams.numFrames = (mEncodecInputBufferSize + mEncParams.frameSize - 1)
+                                       / mEncParams.frameSize;
+            } else {
+                LOGE("bytes to read %zu bufSize %zu \n", bytesToRead, bufSize);
+                mErrorCode = AMEDIA_ERROR_MALFORMED;
+                mSignalledEncodecError = true;
+                mDecoderDoneCondition.notify_one();
+                return;
+            }
+        }
+        if (bytesToRead < mEncParams.frameSize && mNumInputFrame < mEncParams.numFrames - 1) {
+            LOGE("Partial frame at frameID %d bytesToRead %zu frameSize %d total numFrames %d\n",
+                 mNumInputFrame, bytesToRead, mEncParams.frameSize, mEncParams.numFrames);
+            mErrorCode = AMEDIA_ERROR_MALFORMED;
+            mSignalledDecodecError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+        mEleStream->read(buf, bytesToRead);
+        size_t bytesgcount = mEleStream->gcount();
+        if (bytesgcount != bytesToRead) {
+            LOGE("bytes to read %zu actual bytes read %zu \n", bytesToRead, bytesgcount);
+            mErrorCode = AMEDIA_ERROR_MALFORMED;
+            mSignalledDecodecError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        uint32_t flag = 0;
+        if (mNumInputFrame == mEncParams.numFrames - 1 || bytesToRead == 0) {
+            ALOGD("Sending EOS on input Last frame\n");
+            flag |= AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM;
+        }
+
+        uint64_t presentationTimeUs;
+        presentationTimeUs = mNumInputFrame * (1000000 / mEncParams.frameRate);
+//        if (!strncmp(mMime, "video/", 6)) {
+//            presentationTimeUs = mNumInputFrame * (1000000 / mEncParams.frameRate);
+//        } else {
+//            presentationTimeUs =
+//                    (uint64_t)mNumInputFrame * mEncParams.frameSize * 1000000 / mEncParams.sampleRate;
+//        }
+
+        if (flag == AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) mSawInputDecodecEOS = true;
+        LOGI("%s bytesRead : %zd presentationTimeUs : %" PRIu64 " mSawInputEOS : %s", __FUNCTION__,
+             bytesToRead, presentationTimeUs, mSawInputDecodecEOS ? "TRUE" : "FALSE");
+
+        media_status_t status = AMediaCodec_queueInputBuffer(mVideoEnCodec, bufIdx, 0 /* offset */,
+                                                             bytesToRead, presentationTimeUs, flag);
+        if (AMEDIA_OK != status) {
+            mErrorCode = status;
+            mSignalledDecodecError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+        mNumInputFrame++;
+        mOffset += bytesToRead;
+    }
 }
 
 void
@@ -847,6 +952,43 @@ void MediaExtratorDecodecEncodec::onOutputAvailable(AMediaCodec *mediaCodec, int
     if (isDeCodec) {
         onDecodecOutputAvailable(mediaCodec, bufIdx, bufferInfo);
     } else {
+        onEncodecOutputAvailable(mediaCodec, bufIdx, bufferInfo);
+    }
+
+}
+
+void
+MediaExtratorDecodecEncodec::onEncodecOutputAvailable(AMediaCodec *mediaEnCodec, int32_t bufIdx,
+                                                      AMediaCodecBufferInfo *bufferInfo) {
+    LOGD("In %s", __func__);
+    if (mediaEnCodec == mVideoEnCodec && mediaEnCodec) {
+        if (mSawOutputEncodecEOS || bufIdx < 0) return;
+        if (mSignalledEncodecError) {
+            CallBackHandle::mSawError = true;
+            mDecoderDoneCondition.notify_one();
+            return;
+        }
+
+        if (mEncodecOutFp != nullptr) {
+            size_t bufSize;
+            uint8_t *buf = AMediaCodec_getOutputBuffer(mVideoEnCodec, bufIdx, &bufSize);
+            if (buf) {
+                fwrite(buf, sizeof(char), bufferInfo->size, mEncodecOutFp);
+                LOGD("encodec bytes written into file  %d\n", bufferInfo->size);
+            }
+        }
+
+        AMediaCodec_releaseOutputBuffer(mVideoEnCodec, bufIdx, false);
+        mSawOutputEncodecEOS = (0 != (bufferInfo->flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM));
+        mNumOutputVideoFrame++;
+        LOGD("video - %s index : %d  mSawOutputEOS : %s count : %u", __FUNCTION__, bufIdx,
+             mSawOutputEncodecEOS ? "TRUE" : "FALSE", mNumOutputVideoFrame);
+
+        if (mSawOutputEncodecEOS) {
+            CallBackHandle::mIsDone = true;
+            mDecoderDoneCondition.notify_one();
+        }
+    } else if (mediaEnCodec == mAudioEnCodec && mediaEnCodec) {
 
     }
 
@@ -864,11 +1006,11 @@ MediaExtratorDecodecEncodec::onDecodecOutputAvailable(AMediaCodec *mediaDeCodec,
             return;
         }
 
-        if (mOutFp != nullptr) {
+        if (mDecodecOutFp != nullptr) {
             size_t bufSize;
             uint8_t *buf = AMediaCodec_getOutputBuffer(mVideoDeCodec, bufIdx, &bufSize);
             if (buf) {
-                fwrite(buf, sizeof(char), bufferInfo->size, mOutFp);
+                fwrite(buf, sizeof(char), bufferInfo->size, mDecodecOutFp);
                 LOGD("bytes written into file  %d\n", bufferInfo->size);
             }
         }
@@ -891,12 +1033,12 @@ MediaExtratorDecodecEncodec::onDecodecOutputAvailable(AMediaCodec *mediaDeCodec,
             return;
         }
 
-        if (mOutFp != nullptr) {
+        if (mDecodecOutFp != nullptr) {
             size_t bufSize;
             uint8_t *buf = AMediaCodec_getOutputBuffer(mAudioDeCodec, bufIdx, &bufSize);
             if (buf) {
-                fwrite(buf, sizeof(char), bufferInfo->size, mOutFp);
-                LOGD("bytes written into file  %d\n", bufferInfo->size);
+                fwrite(buf, sizeof(char), bufferInfo->size, mDecodecOutFp);
+                LOGD("decodec bytes written into file  %d\n", bufferInfo->size);
             }
         }
 
