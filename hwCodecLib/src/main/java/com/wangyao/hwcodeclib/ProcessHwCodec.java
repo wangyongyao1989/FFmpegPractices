@@ -34,8 +34,8 @@ public class ProcessHwCodec {
         native_media_trans_muxer(inputPath, outputPath);
     }
 
-    public void mediaExtractorDecodec(String inputPath,String outputPath) {
-        native_media_extractor_decodec(inputPath,outputPath);
+    public void mediaExtractorDecodec(String inputPath, String outputPath) {
+        native_media_extractor_decodec(inputPath, outputPath);
     }
 
     public void processHwDeCodec(String inputPath, String outputPath1
@@ -46,6 +46,10 @@ public class ProcessHwCodec {
     public void processHwEnCodec(String inputPath, String outputPath1
             , String outputPath2, String codecName) {
         native_process_hw_encodec(inputPath, outputPath1, outputPath2, codecName);
+    }
+
+    public void mediaExtractorDecodecEncodec(String inputPath, String outputPath1, String outputPath2) {
+        native_media_extractor_decodec_encodec(inputPath, outputPath1, outputPath2);
     }
 
     private native String native_hw_codec_string_from_jni();
@@ -63,7 +67,10 @@ public class ProcessHwCodec {
 
     private native void native_media_trans_muxer(String inputPath, String outputPath);
 
-    private native void native_media_extractor_decodec(String inputPath,String outputPath);
+    private native void native_media_extractor_decodec(String inputPath, String outputPath);
+
+    private native void native_media_extractor_decodec_encodec(String inputPath, String outputPath1
+            , String outputPath2);
 
 
     private void CppStatusCallback(String status) {

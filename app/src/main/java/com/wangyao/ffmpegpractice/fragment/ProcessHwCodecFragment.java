@@ -55,6 +55,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
     private Button mBtnHwCodec5;
     private Button mBtnHwCodec6;
     private Button mBtnHwCodec7;
+    private Button mBtnHwCodec8;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -74,6 +75,7 @@ public class ProcessHwCodecFragment extends BaseFragment {
         mBtnHwCodec5 = mBinding.btnHwCodec5;
         mBtnHwCodec6 = mBinding.btnHwCodec6;
         mBtnHwCodec7 = mBinding.btnHwCodec7;
+        mBtnHwCodec8 = mBinding.btnHwCodec8;
 
 
     }
@@ -184,6 +186,17 @@ public class ProcessHwCodecFragment extends BaseFragment {
             CommonFileUtils.createFile(outputPath1);
             String codecName = "";
             mProcessHwCodec.processHwEnCodec(mVideoPath1, outputPath1, outputPath2, codecName);
+        });
+
+        mBtnHwCodec8.setOnClickListener(view -> {
+            String dataDir = DirectoryPath.createSDCardDataDir(getContext());
+            Random rand = new Random();
+            int randomInt = rand.nextInt(100) + 1;
+            String outputPath1 = dataDir + "extratordecodec" + randomInt + ".out";
+            String outputPath2 = dataDir + "encodec" + randomInt + ".out";
+            CommonFileUtils.createFile(outputPath1);
+            CommonFileUtils.createFile(outputPath2);
+            mProcessHwCodec.mediaExtractorDecodecEncodec(mVideoPath1,outputPath1,outputPath2);
         });
 
     }
