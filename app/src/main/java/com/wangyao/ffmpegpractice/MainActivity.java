@@ -19,6 +19,7 @@ import androidx.lifecycle.ViewModelProviders;
 import com.wangyao.ffmpegpractice.databinding.ActivityMainBinding;
 import com.wangyao.ffmpegpractice.fragment.BasicTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.CodecTraningFragment;
+import com.wangyao.ffmpegpractice.fragment.PlayAudioFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessHwCodecFragment;
 import com.wangyao.ffmpegpractice.fragment.MainFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessAudioFragmnet;
@@ -38,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
     private ProcessAudioFragmnet mProcessAudioFragmnet;
     private ProcessFilterFragment mProcessFilterFragment;
     private ProcessHwCodecFragment mProcessHwCodecFragment;
+    private PlayAudioFragment mPlayAudioFragment;
 
 
     private FrameLayout mFlBasicTraning;
@@ -46,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private FrameLayout mFlProcessAudio;
     private FrameLayout mFlProcessFilter;
     private FrameLayout mFlProcessHwCodec;
+    private FrameLayout mFlPlayAudio;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -108,6 +111,7 @@ public class MainActivity extends AppCompatActivity {
         mFlProcessAudio = mBinding.flProcessAudio;
         mFlProcessFilter = mBinding.flProcessFilter;
         mFlProcessHwCodec = mBinding.flProcessHwCodec;
+        mFlPlayAudio = mBinding.flPlayAudio;
 
     }
 
@@ -189,6 +193,16 @@ public class MainActivity extends AppCompatActivity {
                 fragmentTransaction.commit();
             }
             break;
+            case PLAY_AUDIO: {
+                if (mPlayAudioFragment == null) {
+                    mPlayAudioFragment = new PlayAudioFragment();
+                    fragmentTransaction
+                            .add(mFlPlayAudio.getId(), mPlayAudioFragment);
+                }
+                fragmentTransaction.show(mPlayAudioFragment);
+                fragmentTransaction.commit();
+            }
+            break;
         }
     }
 
@@ -221,6 +235,9 @@ public class MainActivity extends AppCompatActivity {
             ftr.hide(mProcessHwCodecFragment);
         }
 
+        if (mPlayAudioFragment != null) {
+            ftr.hide(mPlayAudioFragment);
+        }
 
     }
 

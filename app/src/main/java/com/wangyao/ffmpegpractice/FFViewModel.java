@@ -17,7 +17,7 @@ public class FFViewModel extends ViewModel {
         PROCESS_AUDIO,
         PROCESS_FILTER,
         PROCESS_HW_CODEC,
-
+        PLAY_AUDIO,
 
     }
 
