@@ -4,14 +4,15 @@
 #include <jni.h>
 #include <string>
 #include "BasicCommon.h"
+#include "AndroidThreadManager.h"
 #include "PlayAudioTrack.h"
-
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/playaudiolib/PlayAudioOperate";
 using namespace std;
 
 JavaVM *g_jvm = nullptr;
+std::unique_ptr<AndroidThreadManager> g_threadManager;
 
 PlayAudioTrack *playAudioTrack = nullptr;
 
@@ -45,16 +46,14 @@ extern "C"
 JNIEXPORT void JNICALL
 cpp_play_audio_by_track(JNIEnv *env, jobject thiz, jstring audioPath) {
     const char *cAudioPath = env->GetStringUTFChars(audioPath, nullptr);
-    LOGE("cpp_play_audio_by_track");
     if (playAudioTrack == nullptr) {
-        LOGE("cpp_play_audio_by_track");
-
         playAudioTrack = new PlayAudioTrack(env, thiz);
     }
-    LOGE("cpp_play_audio_by_track11111");
 
-    playAudioTrack->startPlayAudioTrack(cAudioPath);
-
+    ThreadTask task = [cAudioPath]() {
+        playAudioTrack->startPlayAudioTrack(cAudioPath);
+    };
+    g_threadManager->submitTask("play_audio_by_track", task, PRIORITY_NORMAL);
     env->ReleaseStringUTFChars(audioPath, cAudioPath);
 }
 
@@ -92,7 +91,15 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         return JNI_ERR;
     }
     g_jvm = vm;
+    g_threadManager = std::make_unique<AndroidThreadManager>(vm);
 
+    // 初始化线程池
+    ThreadPoolConfig config;
+    config.minThreads = 2;
+    config.maxThreads = 4;
+    config.idleTimeoutMs = 30000;
+    config.queueSize = 50;
+    g_threadManager->initThreadPool(config);
 
     // 获取类引用
     jclass clazz = env->FindClass(java_class_name);
@@ -109,5 +116,6 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 }
 
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
+    g_threadManager.reset();
 
 }
