@@ -14,6 +14,7 @@
             <option value="$PROJECT_DIR$/codecTraningLib" />
             <option value="$PROJECT_DIR$/commonLib" />
             <option value="$PROJECT_DIR$/hwCodecLib" />
+            <option value="$PROJECT_DIR$/playAudioLib" />
             <option value="$PROJECT_DIR$/processAudioLib" />
             <option value="$PROJECT_DIR$/processFilterLib" />
             <option value="$PROJECT_DIR$/processImageLib" />

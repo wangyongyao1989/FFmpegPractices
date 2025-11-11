@@ -4,6 +4,7 @@
 #include <jni.h>
 #include <string>
 #include "BasicCommon.h"
+#include "PlayAudioTrack.h"
 
 
 //包名+类名字符串定义：
@@ -11,6 +12,8 @@ const char *java_class_name = "com/wangyao/playaudiolib/PlayAudioOperate";
 using namespace std;
 
 JavaVM *g_jvm = nullptr;
+
+PlayAudioTrack *playAudioTrack = nullptr;
 
 
 extern "C"
@@ -38,10 +41,37 @@ cpp_string_from_jni(JNIEnv *env, jobject thiz) {
 }
 
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_play_audio_by_track(JNIEnv *env, jobject thiz, jstring audioPath) {
+    const char *cAudioPath = env->GetStringUTFChars(audioPath, nullptr);
+    LOGE("cpp_play_audio_by_track");
+    if (playAudioTrack == nullptr) {
+        LOGE("cpp_play_audio_by_track");
+
+        playAudioTrack = new PlayAudioTrack(env, thiz);
+    }
+    LOGE("cpp_play_audio_by_track11111");
+
+    playAudioTrack->startPlayAudioTrack(cAudioPath);
+
+    env->ReleaseStringUTFChars(audioPath, cAudioPath);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_stop_audio_by_track(JNIEnv *env, jobject thiz) {
+    if (playAudioTrack) {
+        playAudioTrack->stopPlayAudioTrack();
+    }
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni", "()Ljava/lang/String;", (void *) cpp_string_from_jni},
+        {"native_string_from_jni",     "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
+        {"native_play_audio_by_track", "(Ljava/lang/String;)V", (void *) cpp_play_audio_by_track},
+        {"native_stop_audio_by_track", "()V",                   (void *) cpp_stop_audio_by_track},
 
 };
 

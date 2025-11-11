@@ -35,6 +35,7 @@ public class PlayAudioFragment extends BaseFragment {
     private FragmentPlayAudioLayoutBinding mBinding;
     private TextView mTv;
     private Button mBtn1;
+    private Button mBtn2;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -50,6 +51,8 @@ public class PlayAudioFragment extends BaseFragment {
     private PlayAudioOperate mPlayAudioOperate;
     private StringBuilder mStringBuilder;
 
+    private boolean isAudioTrackPlaying = false;
+
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
             , @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -62,6 +65,7 @@ public class PlayAudioFragment extends BaseFragment {
         mTv = mBinding.tvPlayAudioMsg;
         mBtCodecBack = mBinding.btnPlayAudioBack;
         mBtn1 = mBinding.btnPlayAudio1;
+        mBtn2 = mBinding.btnPlayAudio2;
 
 
     }
@@ -113,6 +117,16 @@ public class PlayAudioFragment extends BaseFragment {
             mTv.setText(mPlayAudioOperate.stringFromC());
         });
 
+        mBtn2.setOnClickListener(view -> {
+            isAudioTrackPlaying = !isAudioTrackPlaying;
+            if (isAudioTrackPlaying) {
+                mPlayAudioOperate.playAudioByTrack(mVideoPath2);
+                mBtn2.setText("AudioTrack停止");
+            } else {
+                mPlayAudioOperate.stopAudioByTrack();
+                mBtn2.setText("AudioTrack播放");
+            }
+        });
 
 
     }

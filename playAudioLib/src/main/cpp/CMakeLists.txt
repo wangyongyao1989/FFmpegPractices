@@ -28,7 +28,8 @@ add_library(
         SHARED
         # List C/C++ source files with relative paths to this CMakeLists.txt.
         PlayAudioJniCall.cpp
-
+#        AndroidThreadManager.cpp
+        PlayAudioTrack.cpp
 
 )
 
