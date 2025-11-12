@@ -31,11 +31,23 @@ public class PlayAudioOperate {
         native_stop_audio_by_track();
     }
 
+    public void playAudioByOpenSL(String audioPath) {
+        native_play_audio_by_opensl(audioPath);
+    }
+
+    public void stopAudioByOpenSL() {
+        native_stop_audio_by_opensl();
+    }
+
     private native String native_string_from_jni();
 
     private native void native_play_audio_by_track(String audioPath);
 
     private native void native_stop_audio_by_track();
+
+    private native void native_play_audio_by_opensl(String audioPath);
+
+    private native void native_stop_audio_by_opensl();
 
 
     private void CppStatusCallback(String status) {

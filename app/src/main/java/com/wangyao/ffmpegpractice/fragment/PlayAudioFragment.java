@@ -36,6 +36,7 @@ public class PlayAudioFragment extends BaseFragment {
     private TextView mTv;
     private Button mBtn1;
     private Button mBtn2;
+    private Button mBtn3;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -53,6 +54,8 @@ public class PlayAudioFragment extends BaseFragment {
 
     private boolean isAudioTrackPlaying = false;
 
+    private boolean isOpenSLPlaying = false;
+
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
             , @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -66,6 +69,7 @@ public class PlayAudioFragment extends BaseFragment {
         mBtCodecBack = mBinding.btnPlayAudioBack;
         mBtn1 = mBinding.btnPlayAudio1;
         mBtn2 = mBinding.btnPlayAudio2;
+        mBtn3 = mBinding.btnPlayAudio3;
 
 
     }
@@ -125,6 +129,17 @@ public class PlayAudioFragment extends BaseFragment {
             } else {
                 mPlayAudioOperate.stopAudioByTrack();
                 mBtn2.setText("AudioTrack播放");
+            }
+        });
+
+        mBtn3.setOnClickListener(view -> {
+            isOpenSLPlaying = !isOpenSLPlaying;
+            if (isOpenSLPlaying) {
+                mPlayAudioOperate.playAudioByOpenSL(mVideoPath2);
+                mBtn3.setText("OpenSL停止");
+            } else {
+                mPlayAudioOperate.stopAudioByOpenSL();
+                mBtn3.setText("OpenSL播放");
             }
         });
 

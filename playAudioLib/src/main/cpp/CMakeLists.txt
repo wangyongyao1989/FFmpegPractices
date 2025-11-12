@@ -30,6 +30,8 @@ add_library(
         PlayAudioJniCall.cpp
         AndroidThreadManager.cpp
         PlayAudioTrack.cpp
+        OpenslHelper.cpp
+        PlayOpenSL.cpp
 
 )
 
@@ -39,5 +41,8 @@ target_link_libraries(
         android
         mediandk
         log
+        #EGL为OpenGL ES与系统底层之间的接口层，OpenSLES用于播放音频；
+        OpenSLES
         ${third-party-libs}
+
 )

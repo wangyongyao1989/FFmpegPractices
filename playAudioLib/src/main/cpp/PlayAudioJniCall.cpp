@@ -6,6 +6,7 @@
 #include "BasicCommon.h"
 #include "AndroidThreadManager.h"
 #include "PlayAudioTrack.h"
+#include "PlayOpenSL.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/playaudiolib/PlayAudioOperate";
@@ -15,6 +16,7 @@ JavaVM *g_jvm = nullptr;
 std::unique_ptr<AndroidThreadManager> g_threadManager;
 
 PlayAudioTrack *playAudioTrack = nullptr;
+PlayOpenSL *playOpenSL = nullptr;
 
 
 extern "C"
@@ -65,12 +67,35 @@ cpp_stop_audio_by_track(JNIEnv *env, jobject thiz) {
     }
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_play_audio_by_opensl(JNIEnv *env, jobject thiz, jstring audioPath) {
+    const char *cAudioPath = env->GetStringUTFChars(audioPath, nullptr);
+    if (playOpenSL == nullptr) {
+        playOpenSL = new PlayOpenSL(env, thiz);
+    }
+
+    playOpenSL->startPlayOpenSL(cAudioPath);
+
+    env->ReleaseStringUTFChars(audioPath, cAudioPath);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_stop_audio_by_opensl(JNIEnv *env, jobject thiz) {
+    if (playOpenSL) {
+        playOpenSL->stopPlayOpenSL();
+    }
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni",     "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
-        {"native_play_audio_by_track", "(Ljava/lang/String;)V", (void *) cpp_play_audio_by_track},
-        {"native_stop_audio_by_track", "()V",                   (void *) cpp_stop_audio_by_track},
+        {"native_string_from_jni",      "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
+        {"native_play_audio_by_track",  "(Ljava/lang/String;)V", (void *) cpp_play_audio_by_track},
+        {"native_stop_audio_by_track",  "()V",                   (void *) cpp_stop_audio_by_track},
+        {"native_play_audio_by_opensl", "(Ljava/lang/String;)V", (void *) cpp_play_audio_by_opensl},
+        {"native_stop_audio_by_opensl", "()V",                   (void *) cpp_stop_audio_by_opensl},
 
 };
 
@@ -117,5 +142,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     g_threadManager.reset();
+    if (playAudioTrack) {
+        playAudioTrack = nullptr;
+    }
+    if (playOpenSL) {
+        playOpenSL = nullptr;
+    }
 
 }

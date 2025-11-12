@@ -22,6 +22,12 @@ private:
 
     string sAudioPath;
 
+    AVFormatContext *mFmtCtx = nullptr;
+    AVCodecContext *mDecodeCtx = nullptr;
+    SwrContext *mSwrCtx = nullptr; // 音频采样器的实例
+    AVPacket *mPacket = nullptr;
+    AVFrame *mFrame = nullptr;
+
     char errbuf[1024];
 
     int is_stop = 0; // 是否停止播放。0 不停止；1 停止
@@ -36,6 +42,7 @@ private:
 
     void playAudioProcedure();
 
+    void release();
 
 
 public:

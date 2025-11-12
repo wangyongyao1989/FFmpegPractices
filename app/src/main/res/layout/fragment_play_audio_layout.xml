@@ -35,6 +35,16 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_play_audio_3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="OpenSL播放"
+        app:layout_constraintStart_toEndOf="@+id/btn_play_audio_2"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
 
     <ScrollView
         android:id="@+id/scorll_view"
