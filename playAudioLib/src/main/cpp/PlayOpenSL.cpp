@@ -136,7 +136,7 @@ void PlayOpenSL::playAudioProcedure() {
 
     // 分配缓冲区
     out_buffer_size = 44100 * 2 * 2; // 44100Hz * 2 channels * 2 bytes per sample
-    outBuffer = (uint8_t *)av_malloc(out_buffer_size);
+    outBuffer = (uint8_t *) av_malloc(out_buffer_size);
     if (!outBuffer) {
         LOGE("Cannot allocate output buffer");
         PostStatusMessage("Cannot allocate output buffer\n");
@@ -261,6 +261,8 @@ void PlayOpenSL::release() {
 }
 
 bool PlayOpenSL::decodeAudioFrame() {
+    SLresult result;
+    SLuint32 buff_size;
     while (!is_stop) {
         int ret = av_read_frame(mFmtCtx, mPacket);
         if (ret < 0) {
@@ -277,11 +279,16 @@ bool PlayOpenSL::decodeAudioFrame() {
                 if (ret == 0) {
                     // 重采样
                     int samples = swr_convert(mSwrCtx, &outBuffer, out_buffer_size / 4,
-                                              (const uint8_t **)mFrame->data, mFrame->nb_samples);
+                                              (const uint8_t **) mFrame->data, mFrame->nb_samples);
                     if (samples > 0) {
-                        current_buffer_size = samples * 2 * 2; // samples * channels * bytes per sample
+                        current_buffer_size =
+                                samples * 2 * 2; // samples * channels * bytes per sample
                         return true;
                     }
+                    // 获取采样缓冲区的真实大小
+                    buff_size = av_samples_get_buffer_size(NULL, channel_count,
+                                                            mFrame->nb_samples,
+                                                            AV_SAMPLE_FMT_S16, 1);
                 } else if (ret == AVERROR(EAGAIN)) {
                     continue;
                 } else {
@@ -293,12 +300,15 @@ bool PlayOpenSL::decodeAudioFrame() {
             av_packet_unref(mPacket);
         }
     }
+
+    result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf, outBuffer, buff_size);
+    if (!helper.isSuccess(result)) {
+        LOGE("first enqueue error: %d", result);
+    }
     return false;
 }
 
 void PlayOpenSL::playerCallback(SLAndroidSimpleBufferQueueItf bq, void *pContext) {
-    // 这个回调需要在具体的实例中处理，这里保持空实现
-    // 实际使用时需要通过静态方法调用实例方法
     LOGE("playerCallback==============");
     PlayOpenSL *player = static_cast<PlayOpenSL *>(pContext);
     if (player != nullptr) {
@@ -315,7 +325,7 @@ JNIEnv *PlayOpenSL::GetJNIEnv(bool *isAttach) {
         return nullptr;
     }
     *isAttach = false;
-    status = mJavaVm->GetEnv((void **)&env, JNI_VERSION_1_6);
+    status = mJavaVm->GetEnv((void **) &env, JNI_VERSION_1_6);
     if (status != JNI_OK) {
         status = mJavaVm->AttachCurrentThread(&env, nullptr);
         if (status != JNI_OK) {
@@ -334,7 +344,8 @@ void PlayOpenSL::PostStatusMessage(const char *msg) {
         return;
     }
 
-    jmethodID mid = pEnv->GetMethodID(pEnv->GetObjectClass(mJavaObj), "CppStatusCallback", "(Ljava/lang/String;)V");
+    jmethodID mid = pEnv->GetMethodID(pEnv->GetObjectClass(mJavaObj), "CppStatusCallback",
+                                      "(Ljava/lang/String;)V");
     if (mid) {
         jstring jMsg = pEnv->NewStringUTF(msg);
         pEnv->CallVoidMethod(mJavaObj, mid, jMsg);

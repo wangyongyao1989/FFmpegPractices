@@ -32,6 +32,7 @@ add_library(
         PlayAudioTrack.cpp
         OpenslHelper.cpp
         PlayOpenSL.cpp
+        FFmpegOpenSLPlayer.cpp
 
 )
 
