@@ -45,6 +45,8 @@ public:
 
     int64_t getCurrentPosition() const { return mCurrentPosition; }
 
+    std::atomic<int> mQueuedBufferCount; // 跟踪已入队的缓冲区数量
+
 private:
     // OpenSL ES 对象
     SLObjectItf mEngineObj;
@@ -106,6 +108,8 @@ private:
     void cleanupFFmpeg();
 
     void cleanupOpenSL();
+
+    const char *getSLErrorString(SLresult result);
 };
 
 
