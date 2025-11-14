@@ -30,6 +30,9 @@ public class MainFragment extends BaseFragment {
     private Button mBtnCodecTraining;
     private Button mBtnProcessImage;
     private Button mBtnProcessAudio;
+    private Button mBtnProcessFilter;
+    private Button mBtnProcessHwCodec;
+    private Button mBtnPlayAudio;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -44,6 +47,9 @@ public class MainFragment extends BaseFragment {
         mBtnCodecTraining = mBinding.btnCodecTraining;
         mBtnProcessImage = mBinding.btnProcessImage;
         mBtnProcessAudio = mBinding.btnProcessAudio;
+        mBtnProcessFilter = mBinding.btnProcessFilter;
+        mBtnProcessHwCodec = mBinding.btnProcessHwCodec;
+        mBtnPlayAudio = mBinding.btnPlayAudio;
 
     }
 
@@ -76,5 +82,18 @@ public class MainFragment extends BaseFragment {
         mBtnProcessAudio.setOnClickListener(view -> {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PROCESS_AUDIO);
         });
+
+        mBtnProcessFilter.setOnClickListener(view -> {
+            mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PROCESS_FILTER);
+        });
+
+        mBtnProcessHwCodec.setOnClickListener(view -> {
+            mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PROCESS_HW_CODEC);
+        });
+
+        mBtnPlayAudio.setOnClickListener(view -> {
+            mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PLAY_AUDIO);
+        });
+
     }
 }

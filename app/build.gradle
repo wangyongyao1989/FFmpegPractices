@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId "com.wangyao.ffmpegpractice"
-        minSdk 26
+        minSdk 28
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -50,6 +50,9 @@ dependencies {
     implementation project(':codecTraningLib')
     implementation project(':processImageLib')
     implementation project(':processAudioLib')
+    implementation project(':processFilterLib')
+    implementation project(':hwCodecLib')
+    implementation project(':playAudioLib')
 
     implementation libs.appcompat
     implementation libs.material

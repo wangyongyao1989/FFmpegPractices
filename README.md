@@ -384,4 +384,63 @@
 
 
 
+## processFilterLib —— ffmpeg的滤镜处理
+
+- 28.练习二十八：通过滤镜处理来调节视频的帧率及播放速度。
+  - **open_input_file()** 打开输入文件
+  - 调整过滤字符串如“fps=fps=15,stept=expr=0.5*PTS,trim=start=1.2:end=5.2”
+    - 该过滤字串表示：fps滤镜的fps值为15，stept滤镜参数为0.5*PTS，trim滤镜start参数为1.2及end参数为5.2
+  - **init_filter()** 初始化滤镜
+    - **avfilter_get_by_name("buffer")** 获取输入滤镜
+    - **avfilter_get_by_name("buffersink")** 获取输出滤镜
+    - **avfilter_inout_alloc()** 分配滤镜的输入输出参数
+    - **avfilter_graph_alloc()** 分配一个滤镜图
+    - **avfilter_graph_create_filter(&buffersrc_ctx, buffersrc, "in",
+      args, nullptr, filter_graph)** 创建输入滤镜的实例，并将其添加到现有的滤镜图
+    - **avfilter_graph_create_filter(&buffersink_ctx, buffersink, "out",
+      nullptr, nullptr, filter_graph)** 创建输出滤镜的实例，并将其添加到现有的滤镜图
+    - **av_opt_set_int_list()** 将二进制选项设置为整数列表，此处给输出滤镜的实例设置像素格式
+    - 设置滤镜的输入输出参数
+    - **avfilter_graph_parse_ptr()** 把采用过滤字符串描述的图形添加到滤镜图
+    - **avfilter_graph_config()** 检查过滤字符串的有效性，并配置滤镜图中的所有前后连接和图像格式
+    - **avfilter_inout_free()** 释放滤镜的输入/输出参数
+  - **av_packet_alloc()** 分配一个数据包
+  - **av_frame_alloc()** 分配一个数据帧
+  - **while (av_read_frame(in_fmt_ctx, packet) >= 0)** 轮询数据包
+    - **recode_video(packet, frame, filt_frame)** 对视频帧重新编码
+    - **avcodec_send_packet(video_decode_ctx, packet)** 把未解压的数据包发给解码器实例
+    - **avcodec_receive_frame()** 从解码器实例获取还原后的数据帧
+    - **av_buffersrc_add_frame_flags()** 把原始的数据帧添加到输入滤镜的缓冲区
+    - **av_buffersink_get_frame(buffersink_ctx, filt_frame)** 从输出滤镜的接收器获取一个已加工的过滤帧
+    - **output_video()** 给视频帧编码，并写入压缩后的视频包
+  - *ProcessVideoFilter.cpp*
+  - 滤镜字符串：
+    - "fps=5" 调节帧率
+    - "setpts=0.5*PTS" setpts滤镜实现视频快进
+    - "trim=start=2:end=5" trim滤镜实现视频的切割
+    - "negate=negate_alpha=false" negate滤镜实现底片特效
+    - "drawbox=x=50:y=20:width=150:height=100:color=white:thickness=fill" drawbox滤镜给视频添加方格
+    - "format=pix_fmts=rgba,colorchannelmixer=rr=0.3:rg=0.4" +
+      ":rb=0.3:br=0.3:bg=0.4:bb=0.3"  把彩色画面转成黑白画面
+    - "format=pix_fmts=rgba,colorchannelmixer=rr=0.393:rg=0.769" +
+      ":rb=0.189:gr=0.349:gg=0.686:gb=0.168:br=0.272:bg=0.534:bb=0.131" 把彩色画面转成怀旧特效
+    - "eq=brightness=0.1:contrast=1.0:gamma=0.1:saturation=1.0" 调整明暗对比度
+    - "vignette=angle=PI/4" 光晕效果
+    - "fade=type=in:start_time=0:duration=2" 淡入淡出特效
+    - "hflip" ，"vflip"翻转视频方向
+    - "scale=width=iw/3:height=ih/3" 缩放视频
+    - "rotate=angle=PI/2:out_w=ih:out_h=iw" 旋转视频
+    - "crop=out_w=iw*2/3:out_h=ih*2/3:x=(in_w-out_w)/2:y=(in_h-out_h)/2" 裁剪视频
+    - "pad=width=iw+80:height=ih+60:x=40:y=30:color=blue" 填充视频
+  - *ProcessVideoFilter.cpp*
+
+- 29.练习二十九：滤镜老电影怀旧风
+  - 类似于练习二十八的过程
+  - 在代码中拼接出过滤字符串
+    - 使用pad滤镜“pad=w=iw:h=ih+%d:x=0:y=%d:color=black”
+    - 使用drawbox滤镜“%s,drawbox=x=%d:y=%d:w=%d:h=%d:color=white:t=fill”
+  - *ProcessVideoToFilm.cpp*
+
+
+
   
