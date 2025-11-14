@@ -31,7 +31,6 @@ add_library(
         AndroidThreadManager.cpp
         PlayAudioTrack.cpp
         OpenslHelper.cpp
-        PlayOpenSL.cpp
         FFmpegOpenSLPlayer.cpp
 
 )

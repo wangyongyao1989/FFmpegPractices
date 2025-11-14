@@ -5,27 +5,17 @@
 #include "includes/FFmpegOpenSLPlayer.h"
 #include <unistd.h>
 
-FFmpegOpenSLPlayer::FFmpegOpenSLPlayer()
-        : mEngineObj(nullptr)
-        , mEngine(nullptr)
-        , mOutputMixObj(nullptr)
-        , mPlayerObj(nullptr)
-        , mPlayer(nullptr)
-        , mBufferQueue(nullptr)
-        , mFormatContext(nullptr)
-        , mCodecContext(nullptr)
-        , mSwrContext(nullptr)
-        , mAudioStreamIndex(-1)
-        , mSampleRate(44100)
-        , mChannels(2)
-        , mDuration(0)
-        , mSampleFormat(AV_SAMPLE_FMT_NONE)
-        , mIsPlaying(false)
-        , mInitialized(false)
-        , mStopRequested(false)
-        , mCurrentBuffer(0)
-        , mCurrentPosition(0)
-        , mQueuedBufferCount(0) {  // 初始化为0
+FFmpegOpenSLPlayer::FFmpegOpenSLPlayer(JNIEnv *env, jobject thiz)
+        : mEnv(nullptr), mJavaObj(nullptr), mFormatContext(nullptr), mCodecContext(nullptr),
+          mSwrContext(nullptr),
+          mAudioStreamIndex(-1), mSampleRate(44100), mChannels(2), mDuration(0),
+          mSampleFormat(AV_SAMPLE_FMT_NONE), mIsPlaying(false), mInitialized(false),
+          mStopRequested(false), mCurrentBuffer(0), mCurrentPosition(0),
+          mQueuedBufferCount(0) {  // 初始化为0
+
+    mEnv = env;
+    env->GetJavaVM(&mJavaVm);
+    mJavaObj = env->NewGlobalRef(thiz);
 
     pthread_mutex_init(&mMutex, nullptr);
     pthread_cond_init(&mBufferReadyCond, nullptr);
@@ -36,6 +26,7 @@ FFmpegOpenSLPlayer::FFmpegOpenSLPlayer()
         memset(mBuffers[i], 0, BUFFER_SIZE); // 初始化为静音
     }
 }
+
 FFmpegOpenSLPlayer::~FFmpegOpenSLPlayer() {
     stop();
     cleanup();
@@ -47,6 +38,7 @@ FFmpegOpenSLPlayer::~FFmpegOpenSLPlayer() {
     for (int i = 0; i < NUM_BUFFERS; i++) {
         delete[] mBuffers[i];
     }
+    mEnv->DeleteGlobalRef(mJavaObj);
 }
 
 bool FFmpegOpenSLPlayer::init(const std::string &filePath) {
@@ -58,18 +50,21 @@ bool FFmpegOpenSLPlayer::init(const std::string &filePath) {
     // 初始化 FFmpeg
     if (!initFFmpeg(filePath)) {
         LOGE("Failed to initialize FFmpeg");
+        PostStatusMessage("Failed to initialize FFmpeg");
         return false;
     }
 
     // 初始化 OpenSL ES
     if (!initOpenSL()) {
         LOGE("Failed to initialize OpenSL ES");
+        PostStatusMessage("Failed to initialize OpenSL ES");
         cleanupFFmpeg();
         return false;
     }
 
     mInitialized = true;
     LOGI("FFmpegOpenSLPlayer initialized successfully");
+    PostStatusMessage("FFmpegOpenSLPlayer initialized successfully");
     return true;
 }
 
@@ -135,147 +130,86 @@ bool FFmpegOpenSLPlayer::initFFmpeg(const std::string &filePath) {
     mSampleFormat = mCodecContext->sample_fmt;
     mDuration = mFormatContext->duration;
 
-    // 初始化重采样器（如果需要）
-    mSwrContext = swr_alloc();
-    av_opt_set_int(mSwrContext, "in_channel_count", mCodecContext->channels, 0);
-    av_opt_set_int(mSwrContext, "out_channel_count", mChannels, 0);
-    av_opt_set_int(mSwrContext, "in_sample_rate", mCodecContext->sample_rate, 0);
-    av_opt_set_int(mSwrContext, "out_sample_rate", mSampleRate, 0);
-    av_opt_set_sample_fmt(mSwrContext, "in_sample_fmt", mSampleFormat, 0);
-    av_opt_set_sample_fmt(mSwrContext, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+    // 配置音频重采样
+    AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
+    swr_alloc_set_opts2(&mSwrContext,
+                        &out_ch_layout, AV_SAMPLE_FMT_S16, mCodecContext->sample_rate,
+                        &mCodecContext->ch_layout, mCodecContext->sample_fmt, mCodecContext->sample_rate,
+                        0, NULL);
 
     if (swr_init(mSwrContext) < 0) {
         LOGE("Could not initialize resampler");
+        PostStatusMessage("Could not initialize resampler \n");
         return false;
     }
 
     LOGI("FFmpeg initialized: %d Hz, %d channels, duration: %lld",
          mSampleRate, mChannels, mDuration);
+    playAudioInfo = "FFmpeg initialized ,Hz:" + to_string(mSampleRate) + ",channels:" +
+                    to_string(mChannels) + " ,duration:" + to_string(mDuration) + "\n";
+    PostStatusMessage(playAudioInfo.c_str());
+
     return true;
 }
 
 bool FFmpegOpenSLPlayer::initOpenSL() {
-    SLresult result;
-
-    // 创建引擎
-    result = slCreateEngine(&mEngineObj, 0, nullptr, 0, nullptr, nullptr);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to create engine: %d, error: %s", result, getSLErrorString(result));
+    // 创建 OpenSL 引擎与引擎接口
+    SLresult result = helper.createEngine();
+    if (!helper.isSuccess(result)) {
+        LOGE("create engine error: %d", result);
+        PostStatusMessage("Create engine error\n");
         return false;
     }
+    PostStatusMessage("OpenSL createEngine Success \n");
 
-    // 实现引擎对象
-    result = (*mEngineObj)->Realize(mEngineObj, SL_BOOLEAN_FALSE);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to realize engine: %d, error: %s", result, getSLErrorString(result));
+    // 创建混音器与混音接口
+    result = helper.createMix();
+    if (!helper.isSuccess(result)) {
+        LOGE("create mix error: %d", result);
+        PostStatusMessage("Create mix error \n");
         return false;
     }
+    PostStatusMessage("OpenSL createMix Success \n");
 
-    // 获取引擎接口
-    result = (*mEngineObj)->GetInterface(mEngineObj, SL_IID_ENGINE, &mEngine);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to get engine interface: %d, error: %s", result, getSLErrorString(result));
+    result = helper.createPlayer(mChannels, mSampleRate * 1000, SL_PCMSAMPLEFORMAT_FIXED_16,
+                                 mChannels == 2 ? (SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT)
+                                                : SL_SPEAKER_FRONT_CENTER);
+    if (!helper.isSuccess(result)) {
+        LOGE("create player error: %d", result);
+        PostStatusMessage("Create player error\n");
         return false;
     }
+    PostStatusMessage("OpenSL createPlayer Success \n");
 
-    // 创建输出混合器
-    result = (*mEngine)->CreateOutputMix(mEngine, &mOutputMixObj, 0, nullptr, nullptr);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to create output mix: %d, error: %s", result, getSLErrorString(result));
+    // 注册回调并开始播放
+    result = helper.registerCallback(bufferQueueCallback, this);
+    if (!helper.isSuccess(result)) {
+        LOGE("register callback error: %d", result);
+        PostStatusMessage("Register callback error \n");
         return false;
     }
-
-    // 实现输出混合器
-    result = (*mOutputMixObj)->Realize(mOutputMixObj, SL_BOOLEAN_FALSE);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to realize output mix: %d, error: %s", result, getSLErrorString(result));
-        return false;
-    }
-
-    // 配置音频源
-    SLDataLocator_AndroidSimpleBufferQueue loc_bufq = {
-            SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE,
-            NUM_BUFFERS
-    };
-
-    SLDataFormat_PCM format_pcm = {
-            SL_DATAFORMAT_PCM,
-            static_cast<SLuint32>(mChannels),
-            static_cast<SLuint32>(mSampleRate * 1000), // 转换为毫赫兹
-            SL_PCMSAMPLEFORMAT_FIXED_16,
-            SL_PCMSAMPLEFORMAT_FIXED_16,
-            mChannels == 2 ? (SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT) : SL_SPEAKER_FRONT_CENTER,
-            SL_BYTEORDER_LITTLEENDIAN
-    };
-
-    // 验证音频格式
-    if (mSampleRate <= 0) {
-        LOGE("Invalid sample rate: %d", mSampleRate);
-        return false;
-    }
-
-    SLDataSource audioSrc = {&loc_bufq, &format_pcm};
-
-    // 配置音频接收器
-    SLDataLocator_OutputMix loc_outmix = {
-            SL_DATALOCATOR_OUTPUTMIX,
-            mOutputMixObj
-    };
-    SLDataSink audioSnk = {&loc_outmix, nullptr};
-
-    // 创建音频播放器
-    const SLInterfaceID ids[] = {SL_IID_BUFFERQUEUE};
-    const SLboolean req[] = {SL_BOOLEAN_TRUE};
-
-    result = (*mEngine)->CreateAudioPlayer(mEngine, &mPlayerObj, &audioSrc, &audioSnk,
-                                           sizeof(ids) / sizeof(ids[0]), ids, req);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to create audio player: %d, error: %s", result, getSLErrorString(result));
-        return false;
-    }
-
-    // 实现播放器对象
-    result = (*mPlayerObj)->Realize(mPlayerObj, SL_BOOLEAN_FALSE);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to realize player: %d, error: %s", result, getSLErrorString(result));
-        return false;
-    }
-
-    // 获取播放接口
-    result = (*mPlayerObj)->GetInterface(mPlayerObj, SL_IID_PLAY, &mPlayer);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to get play interface: %d, error: %s", result, getSLErrorString(result));
-        return false;
-    }
-
-    // 获取缓冲区队列接口
-    result = (*mPlayerObj)->GetInterface(mPlayerObj, SL_IID_BUFFERQUEUE, &mBufferQueue);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to get buffer queue interface: %d, error: %s", result, getSLErrorString(result));
-        return false;
-    }
-
-    // 注册回调
-    result = (*mBufferQueue)->RegisterCallback(mBufferQueue, bufferQueueCallback, this);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to register callback: %d, error: %s", result, getSLErrorString(result));
-        return false;
-    }
+    PostStatusMessage("OpenSL registerCallback Success \n");
 
     // 清空缓冲区队列
-    result = (*mBufferQueue)->Clear(mBufferQueue);
+    result = (*helper.bufferQueueItf)->Clear(helper.bufferQueueItf);
     if (result != SL_RESULT_SUCCESS) {
         LOGE("Failed to clear buffer queue: %d, error: %s", result, getSLErrorString(result));
+        playAudioInfo = "Failed to clear buffer queue:" + string(getSLErrorString(result));
+        PostStatusMessage(playAudioInfo.c_str());
         return false;
     }
 
     LOGI("OpenSL ES initialized successfully: %d Hz, %d channels", mSampleRate, mChannels);
+    playAudioInfo = "OpenSL ES  initialized ,Hz:" + to_string(mSampleRate) + ",channels:" +
+                    to_string(mChannels) + " ,duration:" + to_string(mDuration) + "\n";
+    PostStatusMessage(playAudioInfo.c_str());
     return true;
 }
 
 bool FFmpegOpenSLPlayer::start() {
     if (!mInitialized) {
         LOGE("Player not initialized");
+        PostStatusMessage("Player not initialized \n");
         return false;
     }
 
@@ -292,14 +226,16 @@ bool FFmpegOpenSLPlayer::start() {
     mStopRequested = false;
 
     // 清空缓冲区队列
-    if (mBufferQueue) {
-        (*mBufferQueue)->Clear(mBufferQueue);
+    if (helper.bufferQueueItf) {
+        (*helper.bufferQueueItf)->Clear(helper.bufferQueueItf);
     }
 
     // 设置播放状态
-    SLresult result = (*mPlayer)->SetPlayState(mPlayer, SL_PLAYSTATE_PLAYING);
+    SLresult result = helper.play();
     if (result != SL_RESULT_SUCCESS) {
         LOGE("Failed to set play state: %d, error: %s", result, getSLErrorString(result));
+        playAudioInfo = "Failed to set play state: " + string(getSLErrorString(result));
+        PostStatusMessage(playAudioInfo.c_str());
         pthread_mutex_unlock(&mMutex);
         return false;
     }
@@ -309,6 +245,7 @@ bool FFmpegOpenSLPlayer::start() {
     // 启动解码线程
     if (pthread_create(&mDecodeThread, nullptr, decodeThreadWrapper, this) != 0) {
         LOGE("Failed to create decode thread");
+        PostStatusMessage("Failed to create decode thread \n");
         mIsPlaying = false;
         pthread_mutex_unlock(&mMutex);
         return false;
@@ -317,6 +254,7 @@ bool FFmpegOpenSLPlayer::start() {
     pthread_mutex_unlock(&mMutex);
 
     LOGI("Playback started");
+    PostStatusMessage("Playback started \n");
     return true;
 }
 
@@ -327,10 +265,11 @@ bool FFmpegOpenSLPlayer::pause() {
 
     pthread_mutex_lock(&mMutex);
 
-    SLresult result = (*mPlayer)->SetPlayState(mPlayer, SL_PLAYSTATE_PAUSED);
+    SLresult result = helper.pause();
     if (result == SL_RESULT_SUCCESS) {
         mIsPlaying = false;
         LOGI("Playback paused");
+        PostStatusMessage("Playback paused \n");
     } else {
         LOGE("Failed to pause playback: %d", result);
     }
@@ -356,16 +295,17 @@ void FFmpegOpenSLPlayer::stop() {
         mDecodeThread = 0;
     }
 
-    if (mPlayer) {
-        (*mPlayer)->SetPlayState(mPlayer, SL_PLAYSTATE_STOPPED);
+    if (helper.player) {
+        helper.stop();
     }
 
     // 清空缓冲区队列
-    if (mBufferQueue) {
-        (*mBufferQueue)->Clear(mBufferQueue);
+    if (helper.bufferQueueItf) {
+        (*helper.bufferQueueItf)->Clear(helper.bufferQueueItf);
     }
 
     LOGI("Playback stopped");
+    PostStatusMessage("Playback stopped \n");
 }
 
 void *FFmpegOpenSLPlayer::decodeThreadWrapper(void *context) {
@@ -376,10 +316,11 @@ void *FFmpegOpenSLPlayer::decodeThreadWrapper(void *context) {
 
 void FFmpegOpenSLPlayer::decodeThread() {
     AVPacket packet;
-    AVFrame* frame = av_frame_alloc();
+    AVFrame *frame = av_frame_alloc();
     int ret;
 
     LOGI("Decode thread started");
+    PostStatusMessage("Decode thread started \n");
 
     while (!mStopRequested && mIsPlaying) {
         pthread_mutex_lock(&mMutex);
@@ -387,6 +328,9 @@ void FFmpegOpenSLPlayer::decodeThread() {
         // 等待直到有可用的缓冲区槽位
         while (mQueuedBufferCount >= NUM_BUFFERS && !mStopRequested && mIsPlaying) {
             LOGI("Waiting for buffer slot, queued: %d", mQueuedBufferCount.load());
+            playAudioInfo =
+                    "Waiting for buffer slot, queued:" + to_string(mQueuedBufferCount) + " \n";
+            PostStatusMessage(playAudioInfo.c_str());
             pthread_cond_wait(&mBufferReadyCond, &mMutex);
         }
 
@@ -430,20 +374,21 @@ void FFmpegOpenSLPlayer::decodeThread() {
                 }
 
                 // 重采样音频数据
-                uint8_t* buffer = mBuffers[mCurrentBuffer];
-                uint8_t* outBuffer = buffer;
+                uint8_t *buffer = mBuffers[mCurrentBuffer];
+                uint8_t *outBuffer = buffer;
 
                 // 计算最大输出样本数
                 int maxSamples = BUFFER_SIZE / (mChannels * 2);
                 int outSamples = swr_convert(mSwrContext, &outBuffer, maxSamples,
-                                             (const uint8_t**)frame->data, frame->nb_samples);
+                                             (const uint8_t **) frame->data, frame->nb_samples);
 
                 if (outSamples > 0) {
                     int bytesDecoded = outSamples * mChannels * 2;
 
                     // 确保不超过缓冲区大小
                     if (bytesDecoded > BUFFER_SIZE) {
-                        LOGW("Decoded data exceeds buffer size: %d > %d", bytesDecoded, BUFFER_SIZE);
+                        LOGW("Decoded data exceeds buffer size: %d > %d", bytesDecoded,
+                             BUFFER_SIZE);
                         bytesDecoded = BUFFER_SIZE;
                     }
 
@@ -454,7 +399,9 @@ void FFmpegOpenSLPlayer::decodeThread() {
                     }
 
                     // 将缓冲区加入播放队列
-                    SLresult result = (*mBufferQueue)->Enqueue(mBufferQueue, buffer, bytesDecoded);
+                    SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf,
+                                                                        buffer, bytesDecoded);
+
                     if (result != SL_RESULT_SUCCESS) {
                         LOGE("Failed to enqueue buffer: %d, error: %s",
                              result, getSLErrorString(result));
@@ -537,47 +484,87 @@ void FFmpegOpenSLPlayer::cleanupFFmpeg() {
 }
 
 void FFmpegOpenSLPlayer::cleanupOpenSL() {
-    if (mPlayerObj) {
-        (*mPlayerObj)->Destroy(mPlayerObj);
-        mPlayerObj = nullptr;
-        mPlayer = nullptr;
-        mBufferQueue = nullptr;
-    }
-
-    if (mOutputMixObj) {
-        (*mOutputMixObj)->Destroy(mOutputMixObj);
-        mOutputMixObj = nullptr;
-    }
-
-    if (mEngineObj) {
-        (*mEngineObj)->Destroy(mEngineObj);
-        mEngineObj = nullptr;
-        mEngine = nullptr;
-    }
-
     mIsPlaying = false;
 }
 
 // 添加这个辅助函数来获取错误描述
-const char* FFmpegOpenSLPlayer::getSLErrorString(SLresult result) {
+const char *FFmpegOpenSLPlayer::getSLErrorString(SLresult result) {
     switch (result) {
-        case SL_RESULT_SUCCESS: return "SL_RESULT_SUCCESS";
-        case SL_RESULT_PRECONDITIONS_VIOLATED: return "SL_RESULT_PRECONDITIONS_VIOLATED";
-        case SL_RESULT_PARAMETER_INVALID: return "SL_RESULT_PARAMETER_INVALID";
-        case SL_RESULT_MEMORY_FAILURE: return "SL_RESULT_MEMORY_FAILURE";
-        case SL_RESULT_RESOURCE_ERROR: return "SL_RESULT_RESOURCE_ERROR";
-        case SL_RESULT_RESOURCE_LOST: return "SL_RESULT_RESOURCE_LOST";
-        case SL_RESULT_IO_ERROR: return "SL_RESULT_IO_ERROR";
-        case SL_RESULT_BUFFER_INSUFFICIENT: return "SL_RESULT_BUFFER_INSUFFICIENT";
-        case SL_RESULT_CONTENT_CORRUPTED: return "SL_RESULT_CONTENT_CORRUPTED";
-        case SL_RESULT_CONTENT_UNSUPPORTED: return "SL_RESULT_CONTENT_UNSUPPORTED";
-        case SL_RESULT_CONTENT_NOT_FOUND: return "SL_RESULT_CONTENT_NOT_FOUND";
-        case SL_RESULT_PERMISSION_DENIED: return "SL_RESULT_PERMISSION_DENIED";
-        case SL_RESULT_FEATURE_UNSUPPORTED: return "SL_RESULT_FEATURE_UNSUPPORTED";
-        case SL_RESULT_INTERNAL_ERROR: return "SL_RESULT_INTERNAL_ERROR";
-        case SL_RESULT_UNKNOWN_ERROR: return "SL_RESULT_UNKNOWN_ERROR";
-        case SL_RESULT_OPERATION_ABORTED: return "SL_RESULT_OPERATION_ABORTED";
-        case SL_RESULT_CONTROL_LOST: return "SL_RESULT_CONTROL_LOST";
-        default: return "Unknown error";
+        case SL_RESULT_SUCCESS:
+            return "SL_RESULT_SUCCESS";
+        case SL_RESULT_PRECONDITIONS_VIOLATED:
+            return "SL_RESULT_PRECONDITIONS_VIOLATED";
+        case SL_RESULT_PARAMETER_INVALID:
+            return "SL_RESULT_PARAMETER_INVALID";
+        case SL_RESULT_MEMORY_FAILURE:
+            return "SL_RESULT_MEMORY_FAILURE";
+        case SL_RESULT_RESOURCE_ERROR:
+            return "SL_RESULT_RESOURCE_ERROR";
+        case SL_RESULT_RESOURCE_LOST:
+            return "SL_RESULT_RESOURCE_LOST";
+        case SL_RESULT_IO_ERROR:
+            return "SL_RESULT_IO_ERROR";
+        case SL_RESULT_BUFFER_INSUFFICIENT:
+            return "SL_RESULT_BUFFER_INSUFFICIENT";
+        case SL_RESULT_CONTENT_CORRUPTED:
+            return "SL_RESULT_CONTENT_CORRUPTED";
+        case SL_RESULT_CONTENT_UNSUPPORTED:
+            return "SL_RESULT_CONTENT_UNSUPPORTED";
+        case SL_RESULT_CONTENT_NOT_FOUND:
+            return "SL_RESULT_CONTENT_NOT_FOUND";
+        case SL_RESULT_PERMISSION_DENIED:
+            return "SL_RESULT_PERMISSION_DENIED";
+        case SL_RESULT_FEATURE_UNSUPPORTED:
+            return "SL_RESULT_FEATURE_UNSUPPORTED";
+        case SL_RESULT_INTERNAL_ERROR:
+            return "SL_RESULT_INTERNAL_ERROR";
+        case SL_RESULT_UNKNOWN_ERROR:
+            return "SL_RESULT_UNKNOWN_ERROR";
+        case SL_RESULT_OPERATION_ABORTED:
+            return "SL_RESULT_OPERATION_ABORTED";
+        case SL_RESULT_CONTROL_LOST:
+            return "SL_RESULT_CONTROL_LOST";
+        default:
+            return "Unknown error";
+    }
+}
+
+JNIEnv *FFmpegOpenSLPlayer::GetJNIEnv(bool *isAttach) {
+    JNIEnv *env;
+    int status;
+    if (nullptr == mJavaVm) {
+        LOGE("GetJNIEnv mJavaVm == nullptr");
+        return nullptr;
+    }
+    *isAttach = false;
+    status = mJavaVm->GetEnv((void **) &env, JNI_VERSION_1_6);
+    if (status != JNI_OK) {
+        status = mJavaVm->AttachCurrentThread(&env, nullptr);
+        if (status != JNI_OK) {
+            LOGE("GetJNIEnv failed to attach current thread");
+            return nullptr;
+        }
+        *isAttach = true;
+    }
+    return env;
+}
+
+void FFmpegOpenSLPlayer::PostStatusMessage(const char *msg) {
+    bool isAttach = false;
+    JNIEnv *pEnv = GetJNIEnv(&isAttach);
+    if (pEnv == nullptr) {
+        return;
+    }
+
+    jmethodID mid = pEnv->GetMethodID(pEnv->GetObjectClass(mJavaObj), "CppStatusCallback",
+                                      "(Ljava/lang/String;)V");
+    if (mid) {
+        jstring jMsg = pEnv->NewStringUTF(msg);
+        pEnv->CallVoidMethod(mJavaObj, mid, jMsg);
+        pEnv->DeleteLocalRef(jMsg);
+    }
+
+    if (isAttach) {
+        mJavaVm->DetachCurrentThread();
     }
 }

@@ -57,10 +57,11 @@ SLresult OpenslHelper::createMix() {
 }
 
 // 创建播放器与播放接口
-SLresult OpenslHelper::createPlayer(int numChannels, long samplesRate, int bitsPerSample, int channelMask) {
+SLresult
+OpenslHelper::createPlayer(int numChannels, long samplesRate, int bitsPerSample, int channelMask) {
     // 关联音频流缓冲区。设为2是防止延迟，可以在播放另一个缓冲区时填充新数据
     SLDataLocator_AndroidSimpleBufferQueue buffQueque = {
-            SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2
+            SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 4
     };
 
     // 缓冲区格式
@@ -87,7 +88,7 @@ SLresult OpenslHelper::createPlayer(int numChannels, long samplesRate, int bitsP
 
     // 创建音频播放器
     result = (*engineItf)->CreateAudioPlayer(
-            engineItf, &player, &audioSrc, &audioSink, 3, ids, required);
+            engineItf, &player, &audioSrc, &audioSink, sizeof(ids) / sizeof(ids[0]), ids, required);
     if (!isSuccess(result)) {
         return result;
     }
@@ -120,8 +121,9 @@ SLresult OpenslHelper::createPlayer(int numChannels, long samplesRate, int bitsP
 }
 
 // 注册回调入口
-SLresult OpenslHelper::registerCallback(slAndroidSimpleBufferQueueCallback callback) {
-    result = (*bufferQueueItf)->RegisterCallback(bufferQueueItf, callback, nullptr);
+SLresult
+OpenslHelper::registerCallback(slAndroidSimpleBufferQueueCallback callback, void *pContext) {
+    result = (*bufferQueueItf)->RegisterCallback(bufferQueueItf, callback, pContext);
     return result;
 }
 

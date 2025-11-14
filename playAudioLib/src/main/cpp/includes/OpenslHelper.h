@@ -54,7 +54,7 @@ public:
     SLresult stop();
 
     // 注册回调入口。播放器会不断调用该函数，需要在此回调中持续向缓冲区填充数据
-    SLresult registerCallback(slAndroidSimpleBufferQueueCallback callback);
+    SLresult registerCallback(slAndroidSimpleBufferQueueCallback callback, void *pContext);
 
     // 清理资源
     void release();

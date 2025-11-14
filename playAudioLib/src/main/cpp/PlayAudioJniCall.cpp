@@ -6,7 +6,6 @@
 #include "BasicCommon.h"
 #include "AndroidThreadManager.h"
 #include "PlayAudioTrack.h"
-#include "PlayOpenSL.h"
 #include "FFmpegOpenSLPlayer.h"
 
 //包名+类名字符串定义：
@@ -17,7 +16,6 @@ JavaVM *g_jvm = nullptr;
 std::unique_ptr<AndroidThreadManager> g_threadManager;
 
 PlayAudioTrack *playAudioTrack = nullptr;
-PlayOpenSL *playOpenSL = nullptr;
 FFmpegOpenSLPlayer *fFmpegOpenSLPlayer = nullptr;
 
 extern "C"
@@ -72,13 +70,9 @@ extern "C"
 JNIEXPORT void JNICALL
 cpp_play_audio_by_opensl(JNIEnv *env, jobject thiz, jstring audioPath) {
     const char *cAudioPath = env->GetStringUTFChars(audioPath, nullptr);
-//    if (playOpenSL == nullptr) {
-//        playOpenSL = new PlayOpenSL(env, thiz);
-//    }
-//    playOpenSL->startPlayOpenSL(cAudioPath);
 
     if (fFmpegOpenSLPlayer == nullptr) {
-        fFmpegOpenSLPlayer = new FFmpegOpenSLPlayer();
+        fFmpegOpenSLPlayer = new FFmpegOpenSLPlayer(env, thiz);
     }
 
     bool result = fFmpegOpenSLPlayer->init(std::string(cAudioPath));
@@ -92,10 +86,6 @@ cpp_play_audio_by_opensl(JNIEnv *env, jobject thiz, jstring audioPath) {
 extern "C"
 JNIEXPORT void JNICALL
 cpp_stop_audio_by_opensl(JNIEnv *env, jobject thiz) {
-//    if (playOpenSL) {
-//        playOpenSL->stopPlayOpenSL();
-//    }
-
     if (fFmpegOpenSLPlayer != nullptr) {
         fFmpegOpenSLPlayer->stop();
     }
@@ -157,9 +147,6 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     g_threadManager.reset();
     if (playAudioTrack) {
         playAudioTrack = nullptr;
-    }
-    if (playOpenSL) {
-        playOpenSL = nullptr;
     }
 
     if (fFmpegOpenSLPlayer) {

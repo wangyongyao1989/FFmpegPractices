@@ -12,10 +12,14 @@
 #include <string>
 #include <queue>
 #include "BasicCommon.h"
+#include "OpenslHelper.h"
+
+
+using namespace std;
 
 class FFmpegOpenSLPlayer {
 public:
-    FFmpegOpenSLPlayer();
+    FFmpegOpenSLPlayer(JNIEnv *env, jobject thiz);
 
     ~FFmpegOpenSLPlayer();
 
@@ -48,13 +52,13 @@ public:
     std::atomic<int> mQueuedBufferCount; // 跟踪已入队的缓冲区数量
 
 private:
-    // OpenSL ES 对象
-    SLObjectItf mEngineObj;
-    SLEngineItf mEngine;
-    SLObjectItf mOutputMixObj;
-    SLObjectItf mPlayerObj;
-    SLPlayItf mPlayer;
-    SLAndroidSimpleBufferQueueItf mBufferQueue;
+    string playAudioInfo;
+
+    JavaVM *mJavaVm = nullptr;
+    jobject mJavaObj = nullptr;
+    JNIEnv *mEnv = nullptr;
+
+    OpenslHelper helper;
 
     // FFmpeg 相关
     AVFormatContext *mFormatContext;
@@ -110,6 +114,13 @@ private:
     void cleanupOpenSL();
 
     const char *getSLErrorString(SLresult result);
+
+    JNIEnv *GetJNIEnv(bool *isAttach);
+
+    void PostStatusMessage(const char *msg);
+
+    void playAudioProcedure();
+
 };
 
 
