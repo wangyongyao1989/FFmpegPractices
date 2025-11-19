@@ -16,7 +16,7 @@ public class PlayAudioOperate {
 
     // Used to load the 'ffmpegpractice' library on application startup.
     static {
-        System.loadLibrary("playaudiolib");
+        System.loadLibrary("playmedialib");
     }
 
     public String stringFromC() {
