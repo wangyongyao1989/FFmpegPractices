@@ -3,6 +3,9 @@ package com.wangyao.ffmpegpractice.fragment;
 import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -13,14 +16,9 @@ import androidx.annotation.Nullable;
 import androidx.lifecycle.ViewModelProviders;
 
 import com.wangyao.ffmpegpractice.FFViewModel;
-import com.wangyao.ffmpegpractice.databinding.FragmentHwCodecLayoutBinding;
 import com.wangyao.ffmpegpractice.databinding.FragmentPlayAudioLayoutBinding;
-import com.wangyao.hwcodeclib.ProcessHwCodec;
-import com.wangyao.playaudiolib.PlayAudioOperate;
+import com.wangyao.playaudiolib.PlayMediaOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
-import com.wangyongyao.commonlib.utils.DirectoryPath;
-
-import java.util.Random;
 
 /**
  * @author wangyongyao
@@ -29,7 +27,7 @@ import java.util.Random;
  * @decribe TODO
  * @project
  */
-public class PlayAudioFragment extends BaseFragment {
+public class PlayMeidaFragment extends BaseFragment {
 
     private FFViewModel mFfViewModel;
     private FragmentPlayAudioLayoutBinding mBinding;
@@ -37,6 +35,7 @@ public class PlayAudioFragment extends BaseFragment {
     private Button mBtn1;
     private Button mBtn2;
     private Button mBtn3;
+    private Button mBtn4;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -49,12 +48,16 @@ public class PlayAudioFragment extends BaseFragment {
     private String mYaoJpgPath;
 
     private Button mBtCodecBack;
-    private PlayAudioOperate mPlayAudioOperate;
+    private PlayMediaOperate mPlayMediaOperate;
     private StringBuilder mStringBuilder;
 
     private boolean isAudioTrackPlaying = false;
 
     private boolean isOpenSLPlaying = false;
+    private boolean isSurfaceViewPlaying = false;
+
+    private SurfaceView mSurfaceView;
+    private Surface mSurface;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -70,13 +73,16 @@ public class PlayAudioFragment extends BaseFragment {
         mBtn1 = mBinding.btnPlayAudio1;
         mBtn2 = mBinding.btnPlayAudio2;
         mBtn3 = mBinding.btnPlayAudio3;
+        mBtn4 = mBinding.btnPlayVideo4;
+
+        mSurfaceView = mBinding.surfacePlay;
 
 
     }
 
     @Override
     public void initData() {
-        mPlayAudioOperate = new PlayAudioOperate();
+        mPlayMediaOperate = new PlayMediaOperate();
         mVideoPath1 = CommonFileUtils.getModelFilePath(getContext()
                 , "video.mp4");
         mVideoPath2 = CommonFileUtils.getModelFilePath(getContext()
@@ -105,7 +111,7 @@ public class PlayAudioFragment extends BaseFragment {
 
     @Override
     public void initListener() {
-        mPlayAudioOperate.setOnStatusMsgListener(msg -> {
+        mPlayMediaOperate.setOnStatusMsgListener(msg -> {
             getActivity().runOnUiThread(() -> {
                 mStringBuilder.append(msg);
                 mTv.setText(mStringBuilder);
@@ -118,16 +124,16 @@ public class PlayAudioFragment extends BaseFragment {
         });
 
         mBtn1.setOnClickListener(view -> {
-            mTv.setText(mPlayAudioOperate.stringFromC());
+            mTv.setText(mPlayMediaOperate.stringFromC());
         });
 
         mBtn2.setOnClickListener(view -> {
             isAudioTrackPlaying = !isAudioTrackPlaying;
             if (isAudioTrackPlaying) {
-                mPlayAudioOperate.playAudioByTrack(mVideoPath2);
+                mPlayMediaOperate.playAudioByTrack(mVideoPath2);
                 mBtn2.setText("AudioTrack停止");
             } else {
-                mPlayAudioOperate.stopAudioByTrack();
+                mPlayMediaOperate.stopAudioByTrack();
                 mBtn2.setText("AudioTrack播放");
             }
         });
@@ -135,15 +141,45 @@ public class PlayAudioFragment extends BaseFragment {
         mBtn3.setOnClickListener(view -> {
             isOpenSLPlaying = !isOpenSLPlaying;
             if (isOpenSLPlaying) {
-                mPlayAudioOperate.playAudioByOpenSL(mVideoPath2);
+                mPlayMediaOperate.playAudioByOpenSL(mVideoPath2);
                 mBtn3.setText("OpenSL停止");
             } else {
-                mPlayAudioOperate.stopAudioByOpenSL();
+                mPlayMediaOperate.stopAudioByOpenSL();
                 mBtn3.setText("OpenSL播放");
             }
         });
 
+        mBtn4.setOnClickListener(view -> {
+            isSurfaceViewPlaying = !isSurfaceViewPlaying;
+            if (isSurfaceViewPlaying) {
+                mSurfaceView.setVisibility(View.VISIBLE);
+                mPlayMediaOperate.playVideoBySurface();
+                mBtn4.setText("SurfaceView停止");
+            } else {
+                mSurfaceView.setVisibility(View.GONE);
+                mPlayMediaOperate.stopVideoBySurface();
+                mBtn4.setText("SurfaceView播放");
+            }
+        });
 
+        final SurfaceHolder surfaceViewHolder = mSurfaceView.getHolder();
+        surfaceViewHolder.addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(@NonNull SurfaceHolder holder) {
+                mSurface = surfaceViewHolder.getSurface();
+                mPlayMediaOperate.initVideoBySurface(mVideoPath2, mSurface);
+            }
+
+            @Override
+            public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
+
+            }
+
+            @Override
+            public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+                mPlayMediaOperate.unInitVideoBySurface();
+            }
+        });
     }
 
 }

@@ -45,6 +45,16 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
+    <Button
+        android:id="@+id/btn_play_video_4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:text="SurfaceView播放"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_play_audio_back"
+        tools:ignore="HardcodedText" />
+
 
     <ScrollView
         android:id="@+id/scorll_view"
@@ -64,6 +74,15 @@
             android:layout_marginBottom="50dp"
             android:text="FFmpeg的编解码" />
     </ScrollView>
+
+    <SurfaceView
+        android:id="@+id/surface_play"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:layout_marginTop="100dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>

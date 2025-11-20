@@ -4,14 +4,15 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.util.Log;
+import android.view.Surface;
 
 /**
  * author : wangyongyao https://github.com/wangyongyao1989
  * Create Time : 2025/11/10
  * Descibe : FFmpegPractice com.wangyao.playaudiolib
  */
-public class PlayAudioOperate {
-    private static final String TAG = PlayAudioOperate.class.getSimpleName();
+public class PlayMediaOperate {
+    private static final String TAG = PlayMediaOperate.class.getSimpleName();
     private AudioTrack mAudioTrack; // 播放PCM音频的音轨
 
     // Used to load the 'ffmpegpractice' library on application startup.
@@ -39,6 +40,23 @@ public class PlayAudioOperate {
         native_stop_audio_by_opensl();
     }
 
+
+    public void initVideoBySurface(String videoPath, Surface surface) {
+        native_init_video_by_surface(videoPath, surface);
+    }
+
+    public void playVideoBySurface() {
+        native_play_video_by_surface();
+    }
+
+    public void stopVideoBySurface() {
+        native_stop_video_by_surface();
+    }
+
+    public void unInitVideoBySurface() {
+        native_uninit_video_by_surface();
+    }
+
     private native String native_string_from_jni();
 
     private native void native_play_audio_by_track(String audioPath);
@@ -50,6 +68,14 @@ public class PlayAudioOperate {
     private native void native_stop_audio_by_opensl();
 
 
+    private native void native_init_video_by_surface(String videoPath, Surface surface);
+
+    private native void native_play_video_by_surface();
+
+    private native void native_stop_video_by_surface();
+
+    private native void native_uninit_video_by_surface();
+
     private void CppStatusCallback(String status) {
         Log.e(TAG, "CppStatusCallback: " + status);
         if (mOnStatusMsgListener != null) {
@@ -59,12 +85,12 @@ public class PlayAudioOperate {
 
     private void cppAudioFormatCallback(int sampleRate, int channelCount) {
         Log.d(TAG, "create sampleRate=" + sampleRate + ", channelCount=" + channelCount);
-        int channelType = (channelCount==1) ? AudioFormat.CHANNEL_OUT_MONO
+        int channelType = (channelCount == 1) ? AudioFormat.CHANNEL_OUT_MONO
                 : AudioFormat.CHANNEL_OUT_STEREO;
         // 根据定义好的几个配置，来获取合适的缓冲大小
         int bufferSize = AudioTrack.getMinBufferSize(sampleRate,
                 channelType, AudioFormat.ENCODING_PCM_16BIT);
-        Log.d(TAG, "bufferSize="+bufferSize);
+        Log.d(TAG, "bufferSize=" + bufferSize);
         // 根据音频配置和缓冲区构建原始音频播放实例
         mAudioTrack = new AudioTrack(AudioManager.STREAM_MUSIC,
                 sampleRate, channelType, AudioFormat.ENCODING_PCM_16BIT,

@@ -7,9 +7,10 @@
 #include "AndroidThreadManager.h"
 #include "PlayAudioTrack.h"
 #include "FFmpegOpenSLPlayer.h"
+#include "FFSurfacePlayer.h"
 
 //包名+类名字符串定义：
-const char *java_class_name = "com/wangyao/playaudiolib/PlayAudioOperate";
+const char *java_class_name = "com/wangyao/playaudiolib/PlayMediaOperate";
 using namespace std;
 
 JavaVM *g_jvm = nullptr;
@@ -17,6 +18,7 @@ std::unique_ptr<AndroidThreadManager> g_threadManager;
 
 PlayAudioTrack *playAudioTrack = nullptr;
 FFmpegOpenSLPlayer *fFmpegOpenSLPlayer = nullptr;
+FFSurfacePlayer *fFSurfacePlayer = nullptr;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -91,14 +93,59 @@ cpp_stop_audio_by_opensl(JNIEnv *env, jobject thiz) {
     }
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+cpp_init_video_by_surface(JNIEnv *env, jobject thiz, jstring intputUrl, jobject surface) {
+    const char *url = env->GetStringUTFChars(intputUrl, 0);
+    if (fFSurfacePlayer == nullptr) {
+        fFSurfacePlayer = new FFSurfacePlayer(env, thiz);
+    }
+    fFSurfacePlayer->init(url, surface);
+//    fFSurfacePlayer->start();
+    env->ReleaseStringUTFChars(intputUrl, url);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_uninit_video_by_surface(JNIEnv *env, jobject thiz) {
+    if (fFSurfacePlayer != nullptr) {
+        fFSurfacePlayer->stop();
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_play_video_by_surface(JNIEnv *env, jobject thiz) {
+    if (fFSurfacePlayer != nullptr) {
+        fFSurfacePlayer->start();
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_stop_video_by_surface(JNIEnv *env, jobject thiz) {
+    if (fFSurfacePlayer != nullptr) {
+        fFSurfacePlayer->stop();
+    }
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
-        {"native_string_from_jni",      "()Ljava/lang/String;",  (void *) cpp_string_from_jni},
-        {"native_play_audio_by_track",  "(Ljava/lang/String;)V", (void *) cpp_play_audio_by_track},
-        {"native_stop_audio_by_track",  "()V",                   (void *) cpp_stop_audio_by_track},
-        {"native_play_audio_by_opensl", "(Ljava/lang/String;)V", (void *) cpp_play_audio_by_opensl},
-        {"native_stop_audio_by_opensl", "()V",                   (void *) cpp_stop_audio_by_opensl},
+        //音频播放
+        {"native_string_from_jni",         "()Ljava/lang/String;",      (void *) cpp_string_from_jni},
+        {"native_play_audio_by_track",     "(Ljava/lang/String;)V",     (void *) cpp_play_audio_by_track},
+        {"native_stop_audio_by_track",     "()V",                       (void *) cpp_stop_audio_by_track},
+        {"native_play_audio_by_opensl",    "(Ljava/lang/String;)V",     (void *) cpp_play_audio_by_opensl},
+        {"native_stop_audio_by_opensl",    "()V",                       (void *) cpp_stop_audio_by_opensl},
+
+        //视频播放
+        {"native_init_video_by_surface",   "(Ljava/lang/String"
+                                           ";Landroid/view/Surface;)V", (void *) cpp_init_video_by_surface},
+        {"native_uninit_video_by_surface", "()V",                       (void *) cpp_uninit_video_by_surface},
+        {"native_play_video_by_surface",   "()V",                       (void *) cpp_play_video_by_surface},
+        {"native_stop_video_by_surface",   "()V",                       (void *) cpp_stop_video_by_surface},
+
 
 };
 
