@@ -8,7 +8,7 @@
 #include <pthread.h>
 #include <atomic>
 #include <string>
-#include <queue>
+#include "ThreadSafeQueue.h"
 #include "BasicCommon.h"
 #include "jni.h"
 #include "android/native_window.h"
@@ -71,16 +71,17 @@ private:
     std::atomic<bool> mStopRequested;
 
 
-    // 位置跟踪
-    std::atomic<int64_t> mCurrentPosition;
+    // 视频帧队列
+//    std::queue<AVFrame*> videoFrameQueue;
+    ThreadSafeQueue < AVFrame * > videoFrameQueue;
+
+    int maxVideoFrames = 30;
 
     // 线程同步
     pthread_t mDecodeThread;
+    pthread_t mRenderThread;
     pthread_mutex_t mMutex;
     pthread_cond_t mBufferReadyCond;
-
-    // 缓冲区状态
-    bool mBufferFull;
 
     // 私有方法
     bool initFFmpeg(const std::string &filePath);
@@ -92,9 +93,11 @@ private:
 
     void decodeThread();
 
-    int sendFrameDataToANativeWindow(AVFrame *frame);
+    static void *renderVideoFrame(void *context);
 
-    void processBufferQueue();
+    void renderVideoThread();
+
+    int sendFrameDataToANativeWindow(AVFrame *frame);
 
     void cleanup();
 
