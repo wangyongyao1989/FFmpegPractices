@@ -1,0 +1,253 @@
+//  Author : wangyongyao https://github.com/wangyongyao1989
+// Created by MMM on 2025/11/18.
+//
+
+#ifndef FFMPEGPRACTICE_WYMEDIAPLAYER_H
+#define FFMPEGPRACTICE_WYMEDIAPLAYER_H
+
+#include <pthread.h>
+#include <android/native_window.h>
+#include <SLES/OpenSLES.h>
+#include <SLES/OpenSLES_Android.h>
+#include "BasicCommon.h"
+#include <queue>
+
+
+// 音频帧结构
+struct AudioFrame {
+    uint8_t* data;
+    int size;
+    double pts;
+    int64_t pos;
+
+    AudioFrame() : data(nullptr), size(0), pts(0), pos(0) {}
+    ~AudioFrame() {
+        if (data) {
+            av_free(data);
+            data = nullptr;
+        }
+    }
+};
+
+// 视频帧结构
+struct VideoFrame {
+    AVFrame* frame;
+    double pts;
+    int64_t pos;
+
+    VideoFrame() : frame(nullptr), pts(0), pos(0) {}
+    ~VideoFrame() {
+        if (frame) {
+            av_frame_free(&frame);
+        }
+    }
+};
+
+// 音频信息
+struct AudioInfo {
+    int streamIndex;
+    AVCodecContext* codecContext;
+    SwrContext* swrContext;
+    AVRational timeBase;
+
+    // OpenSL ES
+    SLObjectItf engineObject;
+    SLEngineItf engineEngine;
+    SLObjectItf outputMixObject;
+    SLObjectItf playerObject;
+    SLPlayItf playerPlay;
+    SLAndroidSimpleBufferQueueItf playerBufferQueue;
+
+    // 音频参数
+    int sampleRate;
+    int channels;
+    int bytesPerSample;
+    int64_t channelLayout;
+    enum AVSampleFormat format;
+
+    // 音频队列
+    std::queue<AudioFrame*> audioQueue;
+    pthread_mutex_t audioMutex;
+    pthread_cond_t audioCond;
+    int maxAudioFrames;
+
+    // 时钟
+    double clock;
+    pthread_mutex_t clockMutex;
+
+    AudioInfo() : streamIndex(-1), codecContext(nullptr), swrContext(nullptr),
+                  engineObject(nullptr), engineEngine(nullptr),
+                  outputMixObject(nullptr), playerObject(nullptr),
+                  playerPlay(nullptr), playerBufferQueue(nullptr),
+                  sampleRate(0), channels(0), bytesPerSample(0),
+                  channelLayout(0), format(AV_SAMPLE_FMT_NONE),
+                  maxAudioFrames(100), clock(0) {
+        pthread_mutex_init(&audioMutex, nullptr);
+        pthread_cond_init(&audioCond, nullptr);
+        pthread_mutex_init(&clockMutex, nullptr);
+    }
+
+    ~AudioInfo() {
+        pthread_mutex_destroy(&audioMutex);
+        pthread_cond_destroy(&audioCond);
+        pthread_mutex_destroy(&clockMutex);
+    }
+};
+
+// 视频信息
+struct VideoInfo {
+    int streamIndex;
+    AVCodecContext* codecContext;
+    AVRational timeBase;
+
+    // 渲染
+    ANativeWindow* window;
+    ANativeWindow_Buffer windowBuffer;
+    SwsContext* swsContext;
+    AVFrame* rgbFrame;
+    int width;
+    int height;
+
+    // 视频队列
+    std::queue<VideoFrame*> videoQueue;
+    pthread_mutex_t videoMutex;
+    pthread_cond_t videoCond;
+    int maxVideoFrames;
+
+    // 时钟
+    double clock;
+    pthread_mutex_t clockMutex;
+
+    VideoInfo() : streamIndex(-1), codecContext(nullptr),
+                  window(nullptr), swsContext(nullptr), rgbFrame(nullptr),
+                  width(0), height(0), maxVideoFrames(30), clock(0) {
+        pthread_mutex_init(&videoMutex, nullptr);
+        pthread_cond_init(&videoCond, nullptr);
+        pthread_mutex_init(&clockMutex, nullptr);
+    }
+
+    ~VideoInfo() {
+        pthread_mutex_destroy(&videoMutex);
+        pthread_cond_destroy(&videoCond);
+        pthread_mutex_destroy(&clockMutex);
+    }
+};
+
+class WYMediaPlayer {
+public:
+    WYMediaPlayer();
+    ~WYMediaPlayer();
+
+    void setSurface(ANativeWindow* window);
+    bool setDataSource(const char* url);
+    bool prepare();
+    bool start();
+    bool pause();
+    bool stop();
+    void release();
+    int getState() const { return mState; }
+    int64_t getDuration() const { return mDuration; }
+    int64_t getCurrentPosition() const;
+
+private:
+    enum State {
+        STATE_IDLE,
+        STATE_INITIALIZED,
+        STATE_PREPARING,
+        STATE_PREPARED,
+        STATE_STARTED,
+        STATE_PAUSED,
+        STATE_STOPPED,
+        STATE_ERROR
+    };
+
+
+    // 成员变量
+    State mState;
+    char* mUrl;
+    AVFormatContext* mFormatContext;
+    AudioInfo mAudioInfo;
+    VideoInfo mVideoInfo;
+
+    // 线程
+    pthread_t mDemuxThread;
+    pthread_t mAudioDecodeThread;
+    pthread_t mVideoDecodeThread;
+    pthread_t mAudioPlayThread;
+    pthread_t mVideoPlayThread;
+
+    // 控制变量
+    std::atomic<bool> mExit;
+    std::atomic<bool> mPause;
+    int64_t mDuration;
+
+    // 同步变量
+    pthread_mutex_t mStateMutex;
+    pthread_cond_t mStateCond;
+
+    // 数据包队列
+    std::queue<AVPacket*> mAudioPackets;
+    std::queue<AVPacket*> mVideoPackets;
+    pthread_mutex_t mPacketMutex;
+    pthread_cond_t mPacketCond;
+    int mMaxPackets;
+
+    // 私有方法
+    bool openCodecContext(int* streamIndex, AVCodecContext** codecContext,
+                          AVFormatContext* formatContext, enum AVMediaType type);
+    bool initOpenSLES();
+    bool initVideoRenderer();
+
+    // 线程函数
+    static void* demuxThread(void* arg);
+    static void* audioDecodeThread(void* arg);
+    static void* videoDecodeThread(void* arg);
+    static void* audioPlayThread(void* arg);
+    static void* videoPlayThread(void* arg);
+
+    void demux();
+    void audioDecode();
+    void videoDecode();
+    void audioPlay();
+    void videoPlay();
+
+    // 数据处理
+    void processAudioPacket(AVPacket* packet);
+    void processVideoPacket(AVPacket* packet);
+    AudioFrame* decodeAudioFrame(AVFrame* frame);
+    VideoFrame* decodeVideoFrame(AVFrame* frame);
+    void renderVideoFrame(VideoFrame* vframe);
+
+    // 队列操作
+    void putAudioPacket(AVPacket* packet);
+    void putVideoPacket(AVPacket* packet);
+    AVPacket* getAudioPacket();
+    AVPacket* getVideoPacket();
+    void clearAudioPackets();
+    void clearVideoPackets();
+
+    void putAudioFrame(AudioFrame* frame);
+    void putVideoFrame(VideoFrame* frame);
+    AudioFrame* getAudioFrame();
+    VideoFrame* getVideoFrame();
+    void clearAudioFrames();
+    void clearVideoFrames();
+
+    // 同步方法
+    double getMasterClock();
+    double getAudioClock();
+    double getVideoClock();
+    void setAudioClock(double pts);
+    void setVideoClock(double pts);
+    void syncVideo(double pts);
+
+    // OpenSL ES回调
+    void audioCallback(SLAndroidSimpleBufferQueueItf bufferQueue);
+
+    static void audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void* context);
+
+    int64_t getCurrentPosition();
+};
+
+
+#endif //FFMPEGPRACTICE_WYMEDIAPLAYER_H

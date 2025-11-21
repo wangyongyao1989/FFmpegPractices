@@ -9,6 +9,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -17,6 +18,7 @@ import androidx.lifecycle.ViewModelProviders;
 
 import com.wangyao.ffmpegpractice.FFViewModel;
 import com.wangyao.ffmpegpractice.databinding.FragmentPlayAudioLayoutBinding;
+import com.wangyao.playaudiolib.GLTextureCPlusVideoPlayerView;
 import com.wangyao.playaudiolib.PlayMediaOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 
@@ -36,6 +38,7 @@ public class PlayMeidaFragment extends BaseFragment {
     private Button mBtn2;
     private Button mBtn3;
     private Button mBtn4;
+    private Button mBtn5;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -58,6 +61,10 @@ public class PlayMeidaFragment extends BaseFragment {
 
     private SurfaceView mSurfaceView;
     private Surface mSurface;
+    private FrameLayout mGlShow;
+    private GLTextureCPlusVideoPlayerView mGLTextureVideoPlayerView;
+    private String mFragPath;
+    private String mVertexPath;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -74,8 +81,10 @@ public class PlayMeidaFragment extends BaseFragment {
         mBtn2 = mBinding.btnPlayAudio2;
         mBtn3 = mBinding.btnPlayAudio3;
         mBtn4 = mBinding.btnPlayVideo4;
+        mBtn5 = mBinding.btnPlayVideo5;
 
         mSurfaceView = mBinding.surfacePlay;
+        mGlShow = mBinding.glShow;
 
 
     }
@@ -99,6 +108,13 @@ public class PlayMeidaFragment extends BaseFragment {
 
         mYaoJpgPath = CommonFileUtils.getModelFilePath(getContext()
                 , "yao.jpg");
+
+        mFragPath = CommonFileUtils.getModelFilePath(getContext()
+                , "texture_video_play_frament.glsl");
+
+        mVertexPath = CommonFileUtils.getModelFilePath(getContext()
+                , "texture_video_play_vert.glsl");
+
         mStringBuilder = new StringBuilder();
     }
 
@@ -160,6 +176,17 @@ public class PlayMeidaFragment extends BaseFragment {
                 mPlayMediaOperate.stopVideoBySurface();
                 mBtn4.setText("SurfaceView播放");
             }
+        });
+
+        mBtn5.setOnClickListener(view -> {
+            if (mGLTextureVideoPlayerView != null) {
+                mGLTextureVideoPlayerView.destroyRender();
+                mGLTextureVideoPlayerView = null;
+            }
+            mGlShow.removeAllViews();
+            mGLTextureVideoPlayerView = new GLTextureCPlusVideoPlayerView(getActivity()
+                    , mPlayMediaOperate);
+            mGlShow.addView(mGLTextureVideoPlayerView);
         });
 
         final SurfaceHolder surfaceViewHolder = mSurfaceView.getHolder();

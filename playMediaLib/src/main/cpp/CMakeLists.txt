@@ -35,6 +35,9 @@ add_library(
 
         FFSurfacePlayer.cpp
 
+        OpenglesTexureVideoRender.cpp
+        OpenGLShader.cpp
+
 )
 
 target_link_libraries(
@@ -45,6 +48,10 @@ target_link_libraries(
         log
         #EGL为OpenGL ES与系统底层之间的接口层，OpenSLES用于播放音频；
         OpenSLES
+
+        EGL
+        GLESv3
+
         ${third-party-libs}
 
 )
