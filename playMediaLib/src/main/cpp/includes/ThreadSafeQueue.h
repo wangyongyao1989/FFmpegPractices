@@ -10,6 +10,7 @@
 #include <condition_variable>
 #include <memory>
 #include <chrono>
+#include <atomic>
 
 using namespace std;
 
@@ -37,6 +38,29 @@ public:
     void stop() {
         stop_flag_.store(true);
         condition_.notify_all();  // 重要：唤醒所有等待的线程
+    }
+
+    // 清除队列中的所有元素
+    void clear() {
+        lock_guard<mutex> lock(mutex_);
+        while (!queue_.empty()) {
+            // 如果 T 是指针类型，可能需要特殊处理来释放内存
+            // 这里只是简单地弹出元素，让元素自动析构
+            queue_.pop();
+        }
+        // 清除后通知可能正在等待的线程
+        condition_.notify_all();
+    }
+
+    // 清除队列并返回被清除的元素数量
+    size_t clear_and_count() {
+        lock_guard<mutex> lock(mutex_);
+        size_t count = queue_.size();
+        while (!queue_.empty()) {
+            queue_.pop();
+        }
+        condition_.notify_all();
+        return count;
     }
 
     // 入队操作
@@ -87,12 +111,35 @@ public:
         return result;
     }
 
+    // 带超时的出队操作
+    template<typename Rep, typename Period>
+    bool pop(T& value, const chrono::duration<Rep, Period>& timeout) {
+        unique_lock<mutex> lock(mutex_);
+        if (!condition_.wait_for(lock, timeout, [this] {
+            return stop_flag_.load() || !queue_.empty();
+        })) {
+            return false; // 超时
+        }
+
+        if (stop_flag_.load() && queue_.empty()) {
+            return false;
+        }
+
+        value = move(queue_.front());
+        queue_.pop();
+        return true;
+    }
+
     // 检查队列是否已停止
     bool is_stopped() const {
         return stop_flag_.load();
     }
 
-    // 其他方法保持不变...
+    // 重新启动队列（在停止后）
+    void restart() {
+        stop_flag_.store(false);
+    }
+
     bool empty() const {
         lock_guard<mutex> lock(mutex_);
         return queue_.empty();

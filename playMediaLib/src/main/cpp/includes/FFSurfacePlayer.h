@@ -72,7 +72,6 @@ private:
 
 
     // 视频帧队列
-//    std::queue<AVFrame*> videoFrameQueue;
     ThreadSafeQueue < AVFrame * > videoFrameQueue;
 
     int maxVideoFrames = 30;
@@ -81,7 +80,8 @@ private:
     pthread_t mDecodeThread;
     pthread_t mRenderThread;
     pthread_mutex_t mMutex;
-    pthread_cond_t mBufferReadyCond;
+    pthread_cond_t mBufferMaxCond;
+    pthread_cond_t mRenderCond;
 
     // 私有方法
     bool initFFmpeg(const std::string &filePath);
@@ -102,6 +102,8 @@ private:
     void cleanup();
 
     void cleanupFFmpeg();
+
+    void cleanupANativeWindow();
 
     JNIEnv *GetJNIEnv(bool *isAttach);
 

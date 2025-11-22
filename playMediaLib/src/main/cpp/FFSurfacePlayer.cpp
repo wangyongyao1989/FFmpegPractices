@@ -1,26 +1,24 @@
-//  Author : wangyongyao https://github.com/wangyongyao1989
+// Author : wangyongyao https://github.com/wangyongyao1989
 // Created by MMM on 2025/11/20.
-//
 
 #include "includes/FFSurfacePlayer.h"
 #include <unistd.h>
 
 FFSurfacePlayer::FFSurfacePlayer(JNIEnv *env, jobject thiz)
-        : mEnv(nullptr), mJavaObj(nullptr), mFormatContext(nullptr), mCodecContext(nullptr),
-          mVideoStreamIndex(-1),
-          mDuration(0),
-          mSampleFormat(AV_SAMPLE_FMT_NONE),
-          mIsPlaying(false),
-          mInitialized(false),
-          mStopRequested(false) {  // 初始化为0
+        : mEnv(nullptr), mJavaObj(nullptr), mFormatContext(nullptr),
+          mCodecContext(nullptr), mVideoStreamIndex(-1), mDuration(0),
+          mSampleFormat(AV_SAMPLE_FMT_NONE), mWidth(0), mHeight(0),
+          mIsPlaying(false), mInitialized(false), mStopRequested(false),
+          mNativeWindow(nullptr), mSwsContext(nullptr), mRgbFrame(nullptr),
+          mOutbuffer(nullptr), mDecodeThread(0), mRenderThread(0) {
 
     mEnv = env;
     env->GetJavaVM(&mJavaVm);
     mJavaObj = env->NewGlobalRef(thiz);
 
     pthread_mutex_init(&mMutex, nullptr);
-    pthread_cond_init(&mBufferReadyCond, nullptr);
-
+    pthread_cond_init(&mBufferMaxCond, nullptr);
+    pthread_cond_init(&mRenderCond, nullptr);
 }
 
 FFSurfacePlayer::~FFSurfacePlayer() {
@@ -28,12 +26,29 @@ FFSurfacePlayer::~FFSurfacePlayer() {
     cleanup();
 
     pthread_mutex_destroy(&mMutex);
-    pthread_cond_destroy(&mBufferReadyCond);
-    androidSurface = nullptr;
-    mNativeWindow = nullptr;
-    sws_freeContext(mSwsContext);
-    av_frame_free(&mRgbFrame);
-    videoFrameQueue.stop();
+    pthread_cond_destroy(&mBufferMaxCond);
+    pthread_cond_destroy(&mRenderCond);
+
+    if (androidSurface) {
+        mEnv->DeleteLocalRef(androidSurface);
+    }
+    if (mNativeWindow) {
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+    }
+    if (mSwsContext) {
+        sws_freeContext(mSwsContext);
+        mSwsContext = nullptr;
+    }
+    if (mRgbFrame) {
+        av_frame_free(&mRgbFrame);
+        mRgbFrame = nullptr;
+    }
+    if (mOutbuffer) {
+        av_free(mOutbuffer);
+        mOutbuffer = nullptr;
+    }
+
     mEnv->DeleteGlobalRef(mJavaObj);
 }
 
@@ -42,18 +57,19 @@ bool FFSurfacePlayer::init(const std::string &filePath, jobject surface) {
         LOGI("Already initialized");
         return true;
     }
-    androidSurface = surface;
-    // 初始化 FFmpeg
+
+    androidSurface = mEnv->NewGlobalRef(surface);
+
     if (!initFFmpeg(filePath)) {
         LOGE("Failed to initialize FFmpeg");
         PostStatusMessage("Failed to initialize FFmpeg");
         return false;
     }
 
-    //初始化 ANativeWindow
     if (!initANativeWindow()) {
-        LOGE("Failed to initialize OinitANativeWindow");
-        PostStatusMessage("Failed to initialize initANativeWindow");
+        LOGE("Failed to initialize ANativeWindow");
+        PostStatusMessage("Failed to initialize ANativeWindow");
+        cleanupFFmpeg();
         return false;
     }
 
@@ -64,19 +80,17 @@ bool FFSurfacePlayer::init(const std::string &filePath, jobject surface) {
 }
 
 bool FFSurfacePlayer::initFFmpeg(const std::string &filePath) {
-    // 打开输入文件
     if (avformat_open_input(&mFormatContext, filePath.c_str(), nullptr, nullptr) != 0) {
         LOGE("Could not open file: %s", filePath.c_str());
         return false;
     }
 
-    // 查找流信息
     if (avformat_find_stream_info(mFormatContext, nullptr) < 0) {
         LOGE("Could not find stream information");
+        avformat_close_input(&mFormatContext);
         return false;
     }
 
-    // 查找视频流
     mVideoStreamIndex = -1;
     for (unsigned int i = 0; i < mFormatContext->nb_streams; i++) {
         if (mFormatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
@@ -86,95 +100,129 @@ bool FFSurfacePlayer::initFFmpeg(const std::string &filePath) {
     }
 
     if (mVideoStreamIndex == -1) {
-        LOGE("Could not find audio stream");
+        LOGE("Could not find video stream");
+        avformat_close_input(&mFormatContext);
         return false;
     }
 
-    // 获取编解码器参数
     AVCodecParameters *codecParams = mFormatContext->streams[mVideoStreamIndex]->codecpar;
-
-    // 查找解码器
     const AVCodec *codec = avcodec_find_decoder(codecParams->codec_id);
     if (!codec) {
         LOGE("Unsupported codec");
+        avformat_close_input(&mFormatContext);
         return false;
     }
 
-    // 分配编解码器上下文
     mCodecContext = avcodec_alloc_context3(codec);
     if (!mCodecContext) {
         LOGE("Could not allocate codec context");
+        avformat_close_input(&mFormatContext);
         return false;
     }
 
-    // 复制参数到上下文
     if (avcodec_parameters_to_context(mCodecContext, codecParams) < 0) {
         LOGE("Could not copy codec parameters");
+        cleanupFFmpeg();
         return false;
     }
 
-    // 打开编解码器
     if (avcodec_open2(mCodecContext, codec, nullptr) < 0) {
         LOGE("Could not open codec");
+        cleanupFFmpeg();
         return false;
     }
 
-    // 设置视频参数
     mWidth = mCodecContext->width;
     mHeight = mCodecContext->height;
     mSampleFormat = mCodecContext->sample_fmt;
     mDuration = mFormatContext->duration;
 
-    LOGI("FFmpeg initialized mWidth: %d ,-mHeight: %d , duration: %lld",
+    LOGI("FFmpeg initialized width: %d, height: %d, duration: %lld",
          mWidth, mHeight, mDuration);
-    playMediaInfo = "FFmpeg initialized ,mWidth:" + to_string(mWidth) + ",mHeight:" +
-                    to_string(mHeight) + " ,duration:" + to_string(mDuration) + "\n";
+
+    playMediaInfo = "FFmpeg initialized, width:" + std::to_string(mWidth) +
+                    ", height:" + std::to_string(mHeight) +
+                    ", duration:" + std::to_string(mDuration) + "\n";
     PostStatusMessage(playMediaInfo.c_str());
 
     return true;
 }
 
-
 bool FFSurfacePlayer::initANativeWindow() {
-    //6.初始化ANativeWindow
     mNativeWindow = ANativeWindow_fromSurface(mEnv, androidSurface);
-    if (nullptr == mNativeWindow) {
-        LOGD("Couldn't get native window from surface.\n");
+    if (!mNativeWindow) {
+        LOGE("Couldn't get native window from surface");
         return false;
     }
-    LOGD("获取到 native window from surface\n");
-    mRgbFrame = av_frame_alloc();
 
-    mWidth = mCodecContext->width;
-    mHeight = mCodecContext->height;
-    LOGD("width： %d，==height:%d", mWidth, mHeight);
+    mRgbFrame = av_frame_alloc();
+    if (!mRgbFrame) {
+        LOGE("Could not allocate RGB frame");
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+        return false;
+    }
 
     int bufferSize = av_image_get_buffer_size(AV_PIX_FMT_RGBA, mWidth, mHeight, 1);
-    LOGD("计算解码后的rgb %d\n", bufferSize);
-
     mOutbuffer = (uint8_t *) av_malloc(bufferSize * sizeof(uint8_t));
-
-    //   转换器
-    mSwsContext = sws_getContext(mWidth, mHeight, mCodecContext->pix_fmt,
-                                 mWidth, mHeight, AV_PIX_FMT_RGBA,
-                                 SWS_BICUBIC, nullptr, nullptr,
-                                 nullptr);
-    int32_t i = ANativeWindow_setBuffersGeometry(mNativeWindow, mWidth, mHeight,
-                                                 WINDOW_FORMAT_RGBA_8888);
-    if (0 > i) {
-        LOGD("Couldn't set buffers geometry.\n");
+    if (!mOutbuffer) {
+        LOGE("Could not allocate output buffer");
+        av_frame_free(&mRgbFrame);
         ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
         return false;
     }
 
-    av_image_fill_arrays(mRgbFrame->data, mRgbFrame->linesize,
-                         mOutbuffer, AV_PIX_FMT_RGBA,
-                         mWidth, mHeight, 1);
+    mSwsContext = sws_getContext(mWidth, mHeight, mCodecContext->pix_fmt,
+                                 mWidth, mHeight, AV_PIX_FMT_RGBA,
+                                 SWS_BICUBIC, nullptr, nullptr, nullptr);
+    if (!mSwsContext) {
+        LOGE("Could not create sws context");
+        av_free(mOutbuffer);
+        mOutbuffer = nullptr;
+        av_frame_free(&mRgbFrame);
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+        return false;
+    }
 
-    LOGD("ANativeWindow_setBuffersGeometry成功\n");
+    if (ANativeWindow_setBuffersGeometry(mNativeWindow, mWidth, mHeight,
+                                         WINDOW_FORMAT_RGBA_8888) < 0) {
+        LOGE("Couldn't set buffers geometry");
+        cleanupANativeWindow();
+        return false;
+    }
+
+    if (av_image_fill_arrays(mRgbFrame->data, mRgbFrame->linesize,
+                             mOutbuffer, AV_PIX_FMT_RGBA,
+                             mWidth, mHeight, 1) < 0) {
+        LOGE("Could not fill image arrays");
+        cleanupANativeWindow();
+        return false;
+    }
+
+    LOGI("ANativeWindow initialization successful");
     return true;
 }
 
+void FFSurfacePlayer::cleanupANativeWindow() {
+    if (mSwsContext) {
+        sws_freeContext(mSwsContext);
+        mSwsContext = nullptr;
+    }
+    if (mRgbFrame) {
+        av_frame_free(&mRgbFrame);
+        mRgbFrame = nullptr;
+    }
+    if (mOutbuffer) {
+        av_free(mOutbuffer);
+        mOutbuffer = nullptr;
+    }
+    if (mNativeWindow) {
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+    }
+}
 
 bool FFSurfacePlayer::start() {
     if (!mInitialized) {
@@ -186,48 +234,34 @@ bool FFSurfacePlayer::start() {
     pthread_mutex_lock(&mMutex);
 
     if (mIsPlaying) {
-        pthread_mutex_unlock(&mMutex);
         return true;
     }
 
-    // 重置状态
     mStopRequested = false;
     mIsPlaying = true;
+    videoFrameQueue.clear();
 
-    // 启动解码线程
     if (pthread_create(&mDecodeThread, nullptr, decodeThreadWrapper, this) != 0) {
         LOGE("Failed to create decode thread");
-        PostStatusMessage("Failed to create decode thread \n");
+        PostStatusMessage("Failed to create decode thread");
         mIsPlaying = false;
-        pthread_mutex_unlock(&mMutex);
         return false;
     }
 
-    // 启动渲染线程
     if (pthread_create(&mRenderThread, nullptr, renderVideoFrame, this) != 0) {
         LOGE("Failed to create render thread");
-        PostStatusMessage("Failed to create render thread \n");
+        PostStatusMessage("Failed to create render thread");
         mIsPlaying = false;
-        pthread_mutex_unlock(&mMutex);
+        mStopRequested = true;
+        pthread_join(mDecodeThread, nullptr);
+        mDecodeThread = 0;
         return false;
     }
 
     pthread_mutex_unlock(&mMutex);
 
     LOGI("Playback started");
-    PostStatusMessage("Playback started \n");
-    return true;
-}
-
-bool FFSurfacePlayer::pause() {
-    if (!mInitialized || !mIsPlaying) {
-        return false;
-    }
-
-    pthread_mutex_lock(&mMutex);
-
-
-    pthread_mutex_unlock(&mMutex);
+    PostStatusMessage("Playback started");
     return true;
 }
 
@@ -240,7 +274,8 @@ void FFSurfacePlayer::stop() {
     mIsPlaying = false;
 
     // 通知所有等待的线程
-    pthread_cond_broadcast(&mBufferReadyCond);
+    pthread_cond_broadcast(&mBufferMaxCond);
+    pthread_cond_broadcast(&mRenderCond);
 
     // 等待解码线程结束
     if (mDecodeThread) {
@@ -255,8 +290,10 @@ void FFSurfacePlayer::stop() {
         mRenderThread = 0;
     }
 
+    videoFrameQueue.clear();
+
     LOGI("Playback stopped");
-    PostStatusMessage("Playback stopped \n");
+    PostStatusMessage("Playback stopped");
 }
 
 void *FFSurfacePlayer::decodeThreadWrapper(void *context) {
@@ -265,24 +302,28 @@ void *FFSurfacePlayer::decodeThreadWrapper(void *context) {
     return nullptr;
 }
 
-
 void FFSurfacePlayer::decodeThread() {
     AVPacket packet;
     AVFrame *frame = av_frame_alloc();
     int ret;
 
+    if (!frame) {
+        LOGE("Could not allocate frame");
+        return;
+    }
+
     LOGI("Decode thread started");
-    PostStatusMessage("Decode thread started \n");
+    PostStatusMessage("Decode thread started");
 
     while (!mStopRequested && mIsPlaying) {
         pthread_mutex_lock(&mMutex);
         // 等待直到有可用的缓冲区槽位
         while (videoFrameQueue.size() >= maxVideoFrames && !mStopRequested && mIsPlaying) {
-            LOGI("Waiting for buffer slot, queued: %d", videoFrameQueue.size());
+            LOGD("Waiting for buffer slot, queued: %zu", videoFrameQueue.size());
             playMediaInfo =
                     "Waiting for buffer slot, queued:" + to_string(videoFrameQueue.size()) + " \n";
             PostStatusMessage(playMediaInfo.c_str());
-            pthread_cond_wait(&mBufferReadyCond, &mMutex);
+            pthread_cond_wait(&mBufferMaxCond, &mMutex);
         }
 
         if (mStopRequested || !mIsPlaying) {
@@ -290,25 +331,21 @@ void FFSurfacePlayer::decodeThread() {
             break;
         }
 
-        // 读取视频包
         ret = av_read_frame(mFormatContext, &packet);
         if (ret < 0) {
             pthread_mutex_unlock(&mMutex);
 
             if (ret == AVERROR_EOF) {
                 LOGI("End of file reached");
-                // 可以选择循环播放或停止
                 break;
             } else {
                 LOGE("Error reading frame: %d", ret);
-                usleep(10000); // 短暂休眠后继续
+                usleep(10000);
                 continue;
             }
         }
 
-        // 只处理视频包
         if (packet.stream_index == mVideoStreamIndex) {
-            // 发送包到解码器
             ret = avcodec_send_packet(mCodecContext, &packet);
             if (ret < 0) {
                 LOGE("Error sending packet to decoder: %d", ret);
@@ -317,30 +354,29 @@ void FFSurfacePlayer::decodeThread() {
                 continue;
             }
 
-            // 接收解码后的帧
             while (avcodec_receive_frame(mCodecContext, frame) == 0) {
-                if (frame) {
-                    // 创建视频帧副本
-                    AVFrame *frameCopy = av_frame_alloc();
-                    if (av_frame_ref(frameCopy, frame) > 0) {
-                        videoFrameQueue.push(frameCopy);
-                    }
-                    av_frame_free(&frameCopy);
+                AVFrame *frameCopy = av_frame_alloc();
+                if (!frameCopy) {
+                    LOGE("Could not allocate frame copy");
+                    continue;
                 }
-                sendFrameDataToANativeWindow(frame);
+                if (av_frame_ref(frameCopy, frame) >= 0) {
+                    videoFrameQueue.push(frameCopy);
+                    pthread_cond_signal(&mRenderCond);
+                } else {
+                    av_frame_free(&frameCopy);
+                    pthread_mutex_unlock(&mMutex);
+                }
             }
         }
 
         av_packet_unref(&packet);
         pthread_mutex_unlock(&mMutex);
-        // 给其他线程一些执行时间
-        usleep(1000);
     }
 
     av_frame_free(&frame);
     LOGI("Decode thread finished");
 }
-
 
 void *FFSurfacePlayer::renderVideoFrame(void *context) {
     FFSurfacePlayer *player = static_cast<FFSurfacePlayer *>(context);
@@ -349,64 +385,91 @@ void *FFSurfacePlayer::renderVideoFrame(void *context) {
 }
 
 void FFSurfacePlayer::renderVideoThread() {
-    LOGI("render thread started");
-    PostStatusMessage("render thread started \n");
+    LOGI("Render thread started");
+    PostStatusMessage("Render thread started \n");
+
+    AVRational timeBase = mFormatContext->streams[mVideoStreamIndex]->time_base;
+    int64_t lastPts = AV_NOPTS_VALUE;
+
     while (!mStopRequested && mIsPlaying) {
-        if (videoFrameQueue.size() > 0) {
-            shared_ptr<AVFrame *> avFrame = videoFrameQueue.pop();
-            sendFrameDataToANativeWindow(*avFrame);
+        pthread_mutex_lock(&mMutex);
+
+        while (videoFrameQueue.empty() && !mStopRequested && mIsPlaying) {
+            pthread_cond_wait(&mRenderCond, &mMutex);
+        }
+
+        if (mStopRequested || !mIsPlaying) {
+            pthread_mutex_unlock(&mMutex);
+            break;
+        }
+
+        if (!videoFrameQueue.empty()) {
+            std::shared_ptr<AVFrame *> framePtr = videoFrameQueue.pop();
+            AVFrame *frame = *framePtr;
+            pthread_mutex_unlock(&mMutex);
+
+            // 基于时间戳的帧率控制
+            if (lastPts != AV_NOPTS_VALUE && frame->pts != AV_NOPTS_VALUE) {
+                int64_t ptsDiff = frame->pts - lastPts;
+                double timeDiff = av_q2d(timeBase) * ptsDiff * 1000000; // 转换为微秒
+                if (timeDiff > 0 && timeDiff < 1000000) { // 合理的帧间隔
+                    usleep(static_cast<useconds_t>(timeDiff));
+                }
+            }
+            lastPts = frame->pts;
+
+            sendFrameDataToANativeWindow(frame);
+
+            // 通知解码线程
+            if (videoFrameQueue.size() < maxVideoFrames / 2) {
+                pthread_cond_signal(&mBufferMaxCond);
+            }
+        } else {
+            pthread_mutex_unlock(&mMutex);
         }
     }
-    LOGI("renderVideoThread finished");
+
+    LOGI("Render thread finished");
 }
 
 int FFSurfacePlayer::sendFrameDataToANativeWindow(AVFrame *frame) {
+    if (!mNativeWindow || !frame) {
+        return -1;
+    }
+
     ANativeWindow_Buffer windowBuffer;
-    // 未压缩的数据
-    sws_scale(mSwsContext, frame->data,
-              frame->linesize, 0,
-              mCodecContext->height, mRgbFrame->data,
-              mRgbFrame->linesize);
-    auto lock = ANativeWindow_lock(mNativeWindow, &windowBuffer, nullptr);
-    if (lock < 0) {
-        LOGD("cannot lock window");
-    } else {
-        //将图像绘制到界面上，注意这里pFrameRGBA一行的像素和windowBuffer一行的像素长度可能不一致
-        //需要转换好，否则可能花屏
-        auto *dst = (uint8_t *) windowBuffer.bits;
-        for (int h = 0; h < mHeight; h++) {
-            memcpy(dst + h * windowBuffer.stride * 4,
-                   mOutbuffer + h * mRgbFrame->linesize[0],
-                   mRgbFrame->linesize[0]);
-        }
+
+    // 转换颜色空间
+    sws_scale(mSwsContext, frame->data, frame->linesize, 0,
+              mHeight, mRgbFrame->data, mRgbFrame->linesize);
+
+    // 锁定窗口缓冲区
+    if (ANativeWindow_lock(mNativeWindow, &windowBuffer, nullptr) < 0) {
+        LOGE("Cannot lock window");
+        return -1;
     }
 
-    av_usleep(33);
+    // 复制数据到窗口缓冲区
+    auto *dst = static_cast<uint8_t *>(windowBuffer.bits);
+    int dstStride = windowBuffer.stride * 4;
+    int srcStride = mRgbFrame->linesize[0];
+
+    for (int h = 0; h < mHeight; h++) {
+        memcpy(dst + h * dstStride, mOutbuffer + h * srcStride, srcStride);
+    }
+
     ANativeWindow_unlockAndPost(mNativeWindow);
-    if (videoFrameQueue.size() < maxVideoFrames / 3) {
-        // 通知解码线程有可用的缓冲区槽位
-        LOGI("缓冲区槽位小于：%d,通知解码线程继续解码", maxVideoFrames / 3);
-        playMediaInfo =
-                "缓冲区槽位小于:" + to_string(maxVideoFrames / 3) + "通知解码线程继续解码" +
-                " \n";
-        PostStatusMessage(playMediaInfo.c_str());
-        pthread_cond_signal(&mBufferReadyCond);
-    }
-    return lock;
+    return 0;
 }
-
 
 void FFSurfacePlayer::cleanup() {
     cleanupFFmpeg();
+    cleanupANativeWindow();
     mIsPlaying = false;
+    mInitialized = false;
 }
 
 void FFSurfacePlayer::cleanupFFmpeg() {
-    if (mSwsContext) {
-        sws_freeContext(mSwsContext);
-        mSwsContext = nullptr;
-    }
-
     if (mCodecContext) {
         avcodec_close(mCodecContext);
         avcodec_free_context(&mCodecContext);
@@ -419,43 +482,47 @@ void FFSurfacePlayer::cleanupFFmpeg() {
     }
 
     mVideoStreamIndex = -1;
-    mInitialized = false;
 }
 
-
 JNIEnv *FFSurfacePlayer::GetJNIEnv(bool *isAttach) {
-    JNIEnv *env;
-    int status;
-    if (nullptr == mJavaVm) {
+    if (!mJavaVm) {
         LOGE("GetJNIEnv mJavaVm == nullptr");
         return nullptr;
     }
-    *isAttach = false;
-    status = mJavaVm->GetEnv((void **) &env, JNI_VERSION_1_6);
-    if (status != JNI_OK) {
+
+    JNIEnv *env;
+    int status = mJavaVm->GetEnv((void **) &env, JNI_VERSION_1_6);
+
+    if (status == JNI_EDETACHED) {
         status = mJavaVm->AttachCurrentThread(&env, nullptr);
         if (status != JNI_OK) {
-            LOGE("GetJNIEnv failed to attach current thread");
+            LOGE("Failed to attach current thread");
             return nullptr;
         }
         *isAttach = true;
+    } else if (status != JNI_OK) {
+        LOGE("Failed to get JNIEnv");
+        return nullptr;
+    } else {
+        *isAttach = false;
     }
+
     return env;
 }
 
 void FFSurfacePlayer::PostStatusMessage(const char *msg) {
     bool isAttach = false;
-    JNIEnv *pEnv = GetJNIEnv(&isAttach);
-    if (pEnv == nullptr) {
+    JNIEnv *env = GetJNIEnv(&isAttach);
+    if (!env) {
         return;
     }
 
-    jmethodID mid = pEnv->GetMethodID(pEnv->GetObjectClass(mJavaObj), "CppStatusCallback",
-                                      "(Ljava/lang/String;)V");
+    jmethodID mid = env->GetMethodID(env->GetObjectClass(mJavaObj),
+                                     "CppStatusCallback", "(Ljava/lang/String;)V");
     if (mid) {
-        jstring jMsg = pEnv->NewStringUTF(msg);
-        pEnv->CallVoidMethod(mJavaObj, mid, jMsg);
-        pEnv->DeleteLocalRef(jMsg);
+        jstring jMsg = env->NewStringUTF(msg);
+        env->CallVoidMethod(mJavaObj, mid, jMsg);
+        env->DeleteLocalRef(jMsg);
     }
 
     if (isAttach) {
