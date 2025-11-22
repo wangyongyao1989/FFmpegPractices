@@ -193,7 +193,7 @@ public class MainActivity extends AppCompatActivity {
                 fragmentTransaction.commit();
             }
             break;
-            case PLAY_AUDIO: {
+            case PLAY_MEDIA: {
                 if (mPlayMeidaFragment == null) {
                     mPlayMeidaFragment = new PlayMeidaFragment();
                     fragmentTransaction

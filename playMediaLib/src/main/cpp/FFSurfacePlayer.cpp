@@ -317,7 +317,7 @@ void FFSurfacePlayer::decodeThread() {
 
     while (!mStopRequested && mIsPlaying) {
         pthread_mutex_lock(&mMutex);
-        // 等待直到有可用的缓冲区槽位
+        // 当队列达到最大时，解码等待。
         while (videoFrameQueue.size() >= maxVideoFrames && !mStopRequested && mIsPlaying) {
             LOGD("Waiting for buffer slot, queued: %zu", videoFrameQueue.size());
             playMediaInfo =

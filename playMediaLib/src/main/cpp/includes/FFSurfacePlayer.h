@@ -74,7 +74,7 @@ private:
     // 视频帧队列
     ThreadSafeQueue < AVFrame * > videoFrameQueue;
 
-    int maxVideoFrames = 30;
+    int maxVideoFrames = 100;
 
     // 线程同步
     pthread_t mDecodeThread;

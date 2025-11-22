@@ -67,10 +67,10 @@
         tools:ignore="HardcodedText" />
 
     <Button
-        android:id="@+id/btn_play_audio"
+        android:id="@+id/btn_play_media"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="音频播放相关"
+        android:text="音视频播放相关"
         android:layout_margin="20dp"
         app:layout_constraintStart_toEndOf="@+id/btn_process_hw_codec"
         app:layout_constraintTop_toBottomOf="@+id/btn_basic_training"
