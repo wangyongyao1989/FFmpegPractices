@@ -8,6 +8,7 @@
 #include "PlayAudioTrack.h"
 #include "FFmpegOpenSLPlayer.h"
 #include "FFSurfacePlayer.h"
+#include "FFGLPlayer.h"
 
 //包名+类名字符串定义：
 const char *java_class_name = "com/wangyao/playaudiolib/PlayMediaOperate";
@@ -19,6 +20,7 @@ std::unique_ptr<AndroidThreadManager> g_threadManager;
 PlayAudioTrack *playAudioTrack = nullptr;
 FFmpegOpenSLPlayer *fFmpegOpenSLPlayer = nullptr;
 FFSurfacePlayer *fFSurfacePlayer = nullptr;
+FFGLPlayer *fFGLPlayer = nullptr;
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -129,6 +131,49 @@ cpp_stop_video_by_surface(JNIEnv *env, jobject thiz) {
     }
 }
 
+//GL视频播放
+extern "C"
+JNIEXPORT void JNICALL
+cpp_init_video_by_gl(JNIEnv *env, jobject thiz, jstring intputUrl, jstring fragPath,
+                     jstring vertexPath, jobject surface) {
+    const char *url = env->GetStringUTFChars(intputUrl, 0);
+    const char *cFragPath = env->GetStringUTFChars(fragPath, 0);
+    const char *cVertexPath = env->GetStringUTFChars(vertexPath, 0);
+
+    if (fFGLPlayer == nullptr) {
+        fFGLPlayer = new FFGLPlayer(env, thiz);
+    }
+    fFGLPlayer->init(url, cFragPath, cVertexPath, surface);
+    env->ReleaseStringUTFChars(intputUrl, url);
+    env->ReleaseStringUTFChars(fragPath, cFragPath);
+    env->ReleaseStringUTFChars(vertexPath, cVertexPath);
+
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_uninit_video_by_gl(JNIEnv *env, jobject thiz) {
+    if (fFSurfacePlayer != nullptr) {
+        fFSurfacePlayer->stop();
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_play_video_by_gl(JNIEnv *env, jobject thiz) {
+    if (fFSurfacePlayer != nullptr) {
+        fFSurfacePlayer->start();
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+cpp_stop_video_by_gl(JNIEnv *env, jobject thiz) {
+    if (fFSurfacePlayer != nullptr) {
+        fFSurfacePlayer->stop();
+    }
+}
+
 
 // 重点：定义类名和函数签名，如果有多个方法要动态注册，在数组里面定义即可
 static const JNINativeMethod methods[] = {
@@ -146,6 +191,15 @@ static const JNINativeMethod methods[] = {
         {"native_play_video_by_surface",   "()V",                       (void *) cpp_play_video_by_surface},
         {"native_stop_video_by_surface",   "()V",                       (void *) cpp_stop_video_by_surface},
 
+        //GL视频播放
+        {"native_init_video_by_gl",        "(Ljava/lang/String;"
+                                           "Ljava/lang/String;"
+                                           "Ljava/lang/String;"
+                                           "Landroid/view/Surface;"
+                                           ")V",                        (void *) cpp_init_video_by_gl},
+        {"native_play_video_by_gl",        "()V",                       (void *) cpp_uninit_video_by_gl},
+        {"native_stop_video_by_gl",        "()V",                       (void *) cpp_play_video_by_gl},
+        {"native_uninit_video_by_gl",      "()V",                       (void *) cpp_stop_video_by_gl},
 
 };
 
@@ -198,6 +252,10 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
 
     if (fFmpegOpenSLPlayer) {
         fFmpegOpenSLPlayer = nullptr;
+    }
+
+    if (fFGLPlayer) {
+        fFGLPlayer = nullptr;
     }
 
 }

@@ -57,6 +57,23 @@ public class PlayMediaOperate {
         native_uninit_video_by_surface();
     }
 
+
+    public void initVideoByGL(String videoPath, String fragPath, String vertexPath, Surface surface) {
+        native_init_video_by_gl(videoPath, fragPath, vertexPath, surface);
+    }
+
+    public void playVideoByGL() {
+        native_play_video_by_gl();
+    }
+
+    public void stopVideoByGL() {
+        native_stop_video_by_gl();
+    }
+
+    public void unInitVideoByGL() {
+        native_uninit_video_by_gl();
+    }
+
     private native String native_string_from_jni();
 
     private native void native_play_audio_by_track(String audioPath);
@@ -67,7 +84,7 @@ public class PlayMediaOperate {
 
     private native void native_stop_audio_by_opensl();
 
-
+    //surfaceView
     private native void native_init_video_by_surface(String videoPath, Surface surface);
 
     private native void native_play_video_by_surface();
@@ -75,6 +92,16 @@ public class PlayMediaOperate {
     private native void native_stop_video_by_surface();
 
     private native void native_uninit_video_by_surface();
+
+    //GL
+    private native void native_init_video_by_gl(String videoPath, String fragPath, String vertexPath, Surface surface);
+
+    private native void native_play_video_by_gl();
+
+    private native void native_stop_video_by_gl();
+
+    private native void native_uninit_video_by_gl();
+
 
     private void CppStatusCallback(String status) {
         Log.e(TAG, "CppStatusCallback: " + status);

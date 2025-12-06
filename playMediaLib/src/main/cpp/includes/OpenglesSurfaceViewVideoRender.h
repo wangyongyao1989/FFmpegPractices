@@ -2,19 +2,21 @@
 // Created by MMM on 2024/9/6.
 //
 
-#ifndef MYYFFMPEG_OPENGLESTEXUREVIDEORENDER_H
-#define MYYFFMPEG_OPENGLESTEXUREVIDEORENDER_H
+#ifndef MYYFFMPEG_OpenglesSurfaceViewVideoRender_H
+#define MYYFFMPEG_OpenglesSurfaceViewVideoRender_H
 
-#endif //MYYFFMPEG_OPENGLESTEXUREVIDEORENDER_H
+#endif //MYYFFMPEG_OpenglesSurfaceViewVideoRender_H
 
 #include <cstdint>
 #include <memory>
 #include <android/native_window.h>
 #include <android/asset_manager.h>
 #include "OpenGLShader.h"
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
 
 
-struct video_frame {
+struct surface_video_frame {
     size_t width;
     size_t height;
     size_t stride_y;
@@ -25,7 +27,7 @@ struct video_frame {
 };
 
 // Vertices for a full screen quad.
-static const float kVerticek[8] = {
+static const float kVerticekSurface[8] = {
         -1.f, 1.f,
         -1.f, -1.f,
         1.f, 1.f,
@@ -33,24 +35,28 @@ static const float kVerticek[8] = {
 };
 
 // Texture coordinates for mapping entire texture.
-static const float kTextureCoordk[8] = {
+static const float kTextureCoordSurface[8] = {
         0, 0,
         0, 1,
         1, 0,
         1, 1
 };
 
-class OpenglesTexureVideoRender {
+class OpenglesSurfaceViewVideoRender {
 
 public:
-    OpenglesTexureVideoRender();
+    OpenglesSurfaceViewVideoRender();
 
-    ~OpenglesTexureVideoRender();
+    ~OpenglesSurfaceViewVideoRender();
 
-    void init();
+    void
+    init(ANativeWindow *window, AAssetManager *assetManager, size_t width, size_t height);
 
     void render();
 
+    void updateFrame(const surface_video_frame &frame);
+
+    void release();
 
     void draw(uint8_t *buffer, size_t length, size_t width, size_t height, float rotation);
 
@@ -74,8 +80,6 @@ public:
 private:
 
     bool createTextures();
-
-    void updateFrame(const video_frame &frame);
 
     bool updateTextures();
 
@@ -121,5 +125,10 @@ private:
 
     bool isDirty;
 
-    OpenGLShader *openGlShader;
+    OpenGLShader *openGlShader = nullptr;
+
+    EGLDisplay display = nullptr;
+    EGLSurface winsurface = nullptr;
+
+
 };

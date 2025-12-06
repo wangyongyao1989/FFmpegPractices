@@ -2,6 +2,7 @@ package com.wangyao.ffmpegpractice.fragment;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -9,7 +10,6 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -18,7 +18,6 @@ import androidx.lifecycle.ViewModelProviders;
 
 import com.wangyao.ffmpegpractice.FFViewModel;
 import com.wangyao.ffmpegpractice.databinding.FragmentPlayAudioLayoutBinding;
-import com.wangyao.playaudiolib.GLTextureCPlusVideoPlayerView;
 import com.wangyao.playaudiolib.PlayMediaOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 
@@ -58,13 +57,14 @@ public class PlayMeidaFragment extends BaseFragment {
 
     private boolean isOpenSLPlaying = false;
     private boolean isSurfaceViewPlaying = false;
+    private boolean isGLViewPlaying = false;
 
     private SurfaceView mSurfaceView;
     private Surface mSurface;
-    private FrameLayout mGlShow;
-    private GLTextureCPlusVideoPlayerView mGLTextureVideoPlayerView;
     private String mFragPath;
     private String mVertexPath;
+    private SurfaceView mGlPlayView;
+    private Surface mGlSurface;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -84,8 +84,9 @@ public class PlayMeidaFragment extends BaseFragment {
         mBtn5 = mBinding.btnPlayVideo5;
 
         mSurfaceView = mBinding.surfacePlay;
-        mGlShow = mBinding.glShow;
 
+
+        mGlPlayView = mBinding.glPlay;
 
     }
 
@@ -157,7 +158,7 @@ public class PlayMeidaFragment extends BaseFragment {
         mBtn3.setOnClickListener(view -> {
             isOpenSLPlaying = !isOpenSLPlaying;
             if (isOpenSLPlaying) {
-                mPlayMediaOperate.playAudioByOpenSL(mVideoPath2);
+                mPlayMediaOperate.playAudioByOpenSL(mVideoPath1);
                 mBtn3.setText("OpenSL停止");
             } else {
                 mPlayMediaOperate.stopAudioByOpenSL();
@@ -179,14 +180,16 @@ public class PlayMeidaFragment extends BaseFragment {
         });
 
         mBtn5.setOnClickListener(view -> {
-            if (mGLTextureVideoPlayerView != null) {
-                mGLTextureVideoPlayerView.destroyRender();
-                mGLTextureVideoPlayerView = null;
+            isGLViewPlaying = !isGLViewPlaying;
+            if (isGLViewPlaying) {
+                mGlPlayView.setVisibility(View.VISIBLE);
+                mPlayMediaOperate.playVideoByGL();
+                mBtn5.setText("GLView 停止");
+            } else {
+                mGlPlayView.setVisibility(View.GONE);
+                mPlayMediaOperate.stopVideoByGL();
+                mBtn5.setText("GLView 播放");
             }
-            mGlShow.removeAllViews();
-            mGLTextureVideoPlayerView = new GLTextureCPlusVideoPlayerView(getActivity()
-                    , mPlayMediaOperate);
-            mGlShow.addView(mGLTextureVideoPlayerView);
         });
 
         final SurfaceHolder surfaceViewHolder = mSurfaceView.getHolder();
@@ -205,6 +208,25 @@ public class PlayMeidaFragment extends BaseFragment {
             @Override
             public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
                 mPlayMediaOperate.unInitVideoBySurface();
+            }
+        });
+
+        final SurfaceHolder glViewHolder = mGlPlayView.getHolder();
+        glViewHolder.addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(@NonNull SurfaceHolder holder) {
+                mGlSurface = glViewHolder.getSurface();
+                mPlayMediaOperate.initVideoByGL(mVideoPath2, mFragPath, mVertexPath, mSurface);
+            }
+
+            @Override
+            public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
+
+            }
+
+            @Override
+            public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+                mPlayMediaOperate.unInitVideoByGL();
             }
         });
     }

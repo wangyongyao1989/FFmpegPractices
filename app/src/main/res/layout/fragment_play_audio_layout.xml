@@ -93,8 +93,8 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_play_audio_back"/>
 
-    <FrameLayout
-        android:id="@+id/gl_show"
+    <SurfaceView
+        android:id="@+id/gl_play"
         android:layout_width="300dp"
         android:layout_height="150dp"
         android:layout_marginTop="10dp"

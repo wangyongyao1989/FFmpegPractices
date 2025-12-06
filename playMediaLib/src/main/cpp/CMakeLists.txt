@@ -35,8 +35,8 @@ add_library(
 
         FFSurfacePlayer.cpp
 
-        OpenglesTexureVideoRender.cpp
         OpenGLShader.cpp
+        FFGLPlayer.cpp
 
 )
 
