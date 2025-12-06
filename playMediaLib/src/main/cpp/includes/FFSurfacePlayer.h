@@ -70,18 +70,18 @@ private:
     std::atomic<bool> mInitialized;
     std::atomic<bool> mStopRequested;
 
-
     // 视频帧队列
     ThreadSafeQueue < AVFrame * > videoFrameQueue;
 
-    int maxVideoFrames = 100;
+    int maxVideoFrames = 50;
 
     // 线程同步
     pthread_t mDecodeThread;
     pthread_t mRenderThread;
-    pthread_mutex_t mMutex;
+    pthread_mutex_t mDecodeMutex;
     pthread_cond_t mBufferMaxCond;
     pthread_cond_t mRenderCond;
+    pthread_mutex_t mRenderMutex;
 
     // 私有方法
     bool initFFmpeg(const std::string &filePath);

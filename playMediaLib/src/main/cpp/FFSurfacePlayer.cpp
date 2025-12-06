@@ -16,7 +16,8 @@ FFSurfacePlayer::FFSurfacePlayer(JNIEnv *env, jobject thiz)
     env->GetJavaVM(&mJavaVm);
     mJavaObj = env->NewGlobalRef(thiz);
 
-    pthread_mutex_init(&mMutex, nullptr);
+    pthread_mutex_init(&mDecodeMutex, nullptr);
+    pthread_mutex_init(&mRenderMutex, nullptr);
     pthread_cond_init(&mBufferMaxCond, nullptr);
     pthread_cond_init(&mRenderCond, nullptr);
 }
@@ -25,7 +26,8 @@ FFSurfacePlayer::~FFSurfacePlayer() {
     stop();
     cleanup();
 
-    pthread_mutex_destroy(&mMutex);
+    pthread_mutex_destroy(&mDecodeMutex);
+    pthread_mutex_destroy(&mRenderMutex);
     pthread_cond_destroy(&mBufferMaxCond);
     pthread_cond_destroy(&mRenderCond);
 
@@ -231,7 +233,7 @@ bool FFSurfacePlayer::start() {
         return false;
     }
 
-    pthread_mutex_lock(&mMutex);
+    pthread_mutex_lock(&mDecodeMutex);
 
     if (mIsPlaying) {
         return true;
@@ -258,7 +260,7 @@ bool FFSurfacePlayer::start() {
         return false;
     }
 
-    pthread_mutex_unlock(&mMutex);
+    pthread_mutex_unlock(&mDecodeMutex);
 
     LOGI("Playback started");
     PostStatusMessage("Playback started");
@@ -316,24 +318,24 @@ void FFSurfacePlayer::decodeThread() {
     PostStatusMessage("Decode thread started");
 
     while (!mStopRequested && mIsPlaying) {
-        pthread_mutex_lock(&mMutex);
+        pthread_mutex_lock(&mDecodeMutex);
         // 当队列达到最大时，解码等待。
         while (videoFrameQueue.size() >= maxVideoFrames && !mStopRequested && mIsPlaying) {
             LOGD("Waiting for buffer slot, queued: %zu", videoFrameQueue.size());
             playMediaInfo =
                     "Waiting for buffer slot, queued:" + to_string(videoFrameQueue.size()) + " \n";
             PostStatusMessage(playMediaInfo.c_str());
-            pthread_cond_wait(&mBufferMaxCond, &mMutex);
+            pthread_cond_wait(&mBufferMaxCond, &mDecodeMutex);
         }
 
         if (mStopRequested || !mIsPlaying) {
-            pthread_mutex_unlock(&mMutex);
+            pthread_mutex_unlock(&mDecodeMutex);
             break;
         }
 
         ret = av_read_frame(mFormatContext, &packet);
         if (ret < 0) {
-            pthread_mutex_unlock(&mMutex);
+            pthread_mutex_unlock(&mDecodeMutex);
 
             if (ret == AVERROR_EOF) {
                 LOGI("End of file reached");
@@ -350,7 +352,7 @@ void FFSurfacePlayer::decodeThread() {
             if (ret < 0) {
                 LOGE("Error sending packet to decoder: %d", ret);
                 av_packet_unref(&packet);
-                pthread_mutex_unlock(&mMutex);
+                pthread_mutex_unlock(&mDecodeMutex);
                 continue;
             }
 
@@ -365,13 +367,13 @@ void FFSurfacePlayer::decodeThread() {
                     pthread_cond_signal(&mRenderCond);
                 } else {
                     av_frame_free(&frameCopy);
-                    pthread_mutex_unlock(&mMutex);
+                    pthread_mutex_unlock(&mDecodeMutex);
                 }
             }
         }
 
         av_packet_unref(&packet);
-        pthread_mutex_unlock(&mMutex);
+        pthread_mutex_unlock(&mDecodeMutex);
     }
 
     av_frame_free(&frame);
@@ -392,21 +394,21 @@ void FFSurfacePlayer::renderVideoThread() {
     int64_t lastPts = AV_NOPTS_VALUE;
 
     while (!mStopRequested && mIsPlaying) {
-        pthread_mutex_lock(&mMutex);
+        pthread_mutex_lock(&mRenderMutex);
 
         while (videoFrameQueue.empty() && !mStopRequested && mIsPlaying) {
-            pthread_cond_wait(&mRenderCond, &mMutex);
+            pthread_cond_wait(&mRenderCond, &mRenderMutex);
         }
 
         if (mStopRequested || !mIsPlaying) {
-            pthread_mutex_unlock(&mMutex);
+            pthread_mutex_unlock(&mRenderMutex);
             break;
         }
 
         if (!videoFrameQueue.empty()) {
             std::shared_ptr<AVFrame *> framePtr = videoFrameQueue.pop();
             AVFrame *frame = *framePtr;
-            pthread_mutex_unlock(&mMutex);
+            pthread_mutex_unlock(&mRenderMutex);
 
             // 基于时间戳的帧率控制
             if (lastPts != AV_NOPTS_VALUE && frame->pts != AV_NOPTS_VALUE) {
@@ -425,7 +427,7 @@ void FFSurfacePlayer::renderVideoThread() {
                 pthread_cond_signal(&mBufferMaxCond);
             }
         } else {
-            pthread_mutex_unlock(&mMutex);
+            pthread_mutex_unlock(&mRenderMutex);
         }
     }
 
@@ -439,7 +441,7 @@ int FFSurfacePlayer::sendFrameDataToANativeWindow(AVFrame *frame) {
 
     ANativeWindow_Buffer windowBuffer;
 
-    // 转换颜色空间
+    // 颜色空间转换
     sws_scale(mSwsContext, frame->data, frame->linesize, 0,
               mHeight, mRgbFrame->data, mRgbFrame->linesize);
 
@@ -449,16 +451,30 @@ int FFSurfacePlayer::sendFrameDataToANativeWindow(AVFrame *frame) {
         return -1;
     }
 
-    // 复制数据到窗口缓冲区
-    auto *dst = static_cast<uint8_t *>(windowBuffer.bits);
-    int dstStride = windowBuffer.stride * 4;
-    int srcStride = mRgbFrame->linesize[0];
+    // 优化拷贝：检查 stride 是否匹配
+    uint8_t* dst = static_cast<uint8_t*>(windowBuffer.bits);
+    int dstStride = windowBuffer.stride * 4;  // 目标步长（字节）
+    int srcStride = mRgbFrame->linesize[0];   // 源步长（字节）
 
-    for (int h = 0; h < mHeight; h++) {
-        memcpy(dst + h * dstStride, mOutbuffer + h * srcStride, srcStride);
+    if (dstStride == srcStride) {
+        // 步长匹配，可以直接整体拷贝
+        memcpy(dst, mOutbuffer, srcStride * mHeight);
+    } else {
+        // 步长不匹配，需要逐行拷贝
+        for (int h = 0; h < mHeight; h++) {
+            memcpy(dst + h * dstStride,
+                   mOutbuffer + h * srcStride,
+                   srcStride);
+        }
     }
 
     ANativeWindow_unlockAndPost(mNativeWindow);
+
+    // 流控制
+    if (videoFrameQueue.size() < maxVideoFrames / 2) {
+        pthread_cond_signal(&mBufferMaxCond);
+    }
+
     return 0;
 }
 
