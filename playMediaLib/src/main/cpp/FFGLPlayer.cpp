@@ -10,12 +10,14 @@ FFGLPlayer::FFGLPlayer(JNIEnv *env, jobject thiz)
           mCodecContext(nullptr), mVideoStreamIndex(-1), mDuration(0),
           mSampleFormat(AV_SAMPLE_FMT_NONE), mWidth(0), mHeight(0),
           mIsPlaying(false), mInitialized(false), mStopRequested(false),
-          mNativeWindow(nullptr), mSwsContext(nullptr), mRgbFrame(nullptr),
+          mNativeWindow(nullptr),
           mOutbuffer(nullptr), mDecodeThread(0), mRenderThread(0) {
 
     mEnv = env;
     env->GetJavaVM(&mJavaVm);
     mJavaObj = env->NewGlobalRef(thiz);
+
+    eglsurfaceViewRender = new EGLSurfaceViewVideoRender();
 
     pthread_mutex_init(&mDecodeMutex, nullptr);
     pthread_mutex_init(&mRenderMutex, nullptr);
@@ -39,23 +41,21 @@ FFGLPlayer::~FFGLPlayer() {
         ANativeWindow_release(mNativeWindow);
         mNativeWindow = nullptr;
     }
-    if (mSwsContext) {
-        sws_freeContext(mSwsContext);
-        mSwsContext = nullptr;
-    }
-    if (mRgbFrame) {
-        av_frame_free(&mRgbFrame);
-        mRgbFrame = nullptr;
-    }
+
     if (mOutbuffer) {
         av_free(mOutbuffer);
         mOutbuffer = nullptr;
     }
 
+    if (eglsurfaceViewRender) {
+        eglsurfaceViewRender = nullptr;
+    }
+
     mEnv->DeleteGlobalRef(mJavaObj);
 }
 
-bool FFGLPlayer::init(const string &filePath,const string &fragPath, const string &vertexPath, jobject surface) {
+bool FFGLPlayer::init(const string &filePath, const string &fragPath, const string &vertexPath,
+                      jobject surface) {
     if (mInitialized) {
         LOGI("Already initialized");
         return true;
@@ -69,9 +69,16 @@ bool FFGLPlayer::init(const string &filePath,const string &fragPath, const strin
         return false;
     }
 
-    if (!initANativeWindow()) {
-        LOGE("Failed to initialize ANativeWindow");
-        PostStatusMessage("Failed to initialize ANativeWindow");
+//    if (!initANativeWindow()) {
+//        LOGE("Failed to initialize ANativeWindow");
+//        PostStatusMessage("Failed to initialize ANativeWindow");
+//        cleanupFFmpeg();
+//        return false;
+//    }
+
+    if (!initEGLRender(fragPath, vertexPath)) {
+        LOGE("Failed to initialize initEGLRender");
+        PostStatusMessage("Failed to initialize initEGLRender");
         cleanupFFmpeg();
         return false;
     }
@@ -140,7 +147,7 @@ bool FFGLPlayer::initFFmpeg(const std::string &filePath) {
     mSampleFormat = mCodecContext->sample_fmt;
     mDuration = mFormatContext->duration;
 
-    LOGI("FFmpeg initialized width: %d, height: %d, duration: %lld",
+    LOGI("GLPlay FFmpeg initialized width: %d, height: %d, duration: %lld",
          mWidth, mHeight, mDuration);
 
     playMediaInfo = "FFmpeg initialized, width:" + std::to_string(mWidth) +
@@ -151,81 +158,18 @@ bool FFGLPlayer::initFFmpeg(const std::string &filePath) {
     return true;
 }
 
-bool FFGLPlayer::initANativeWindow() {
+bool FFGLPlayer::initEGLRender(const string &fragPath, const string &vertexPath) {
     mNativeWindow = ANativeWindow_fromSurface(mEnv, androidSurface);
     if (!mNativeWindow) {
         LOGE("Couldn't get native window from surface");
         return false;
     }
-
-    mRgbFrame = av_frame_alloc();
-    if (!mRgbFrame) {
-        LOGE("Could not allocate RGB frame");
-        ANativeWindow_release(mNativeWindow);
-        mNativeWindow = nullptr;
-        return false;
-    }
-
-    int bufferSize = av_image_get_buffer_size(AV_PIX_FMT_RGBA, mWidth, mHeight, 1);
-    mOutbuffer = (uint8_t *) av_malloc(bufferSize * sizeof(uint8_t));
-    if (!mOutbuffer) {
-        LOGE("Could not allocate output buffer");
-        av_frame_free(&mRgbFrame);
-        ANativeWindow_release(mNativeWindow);
-        mNativeWindow = nullptr;
-        return false;
-    }
-
-    mSwsContext = sws_getContext(mWidth, mHeight, mCodecContext->pix_fmt,
-                                 mWidth, mHeight, AV_PIX_FMT_RGBA,
-                                 SWS_BICUBIC, nullptr, nullptr, nullptr);
-    if (!mSwsContext) {
-        LOGE("Could not create sws context");
-        av_free(mOutbuffer);
-        mOutbuffer = nullptr;
-        av_frame_free(&mRgbFrame);
-        ANativeWindow_release(mNativeWindow);
-        mNativeWindow = nullptr;
-        return false;
-    }
-
-    if (ANativeWindow_setBuffersGeometry(mNativeWindow, mWidth, mHeight,
-                                         WINDOW_FORMAT_RGBA_8888) < 0) {
-        LOGE("Couldn't set buffers geometry");
-        cleanupANativeWindow();
-        return false;
-    }
-
-    if (av_image_fill_arrays(mRgbFrame->data, mRgbFrame->linesize,
-                             mOutbuffer, AV_PIX_FMT_RGBA,
-                             mWidth, mHeight, 1) < 0) {
-        LOGE("Could not fill image arrays");
-        cleanupANativeWindow();
-        return false;
-    }
-
-    LOGI("ANativeWindow initialization successful");
+    eglsurfaceViewRender->surfaceCreated(mNativeWindow, nullptr);
+    eglsurfaceViewRender->setSharderStringPath(vertexPath, fragPath);
+    eglsurfaceViewRender->surfaceChanged(mWidth, mHeight);
     return true;
 }
 
-void FFGLPlayer::cleanupANativeWindow() {
-    if (mSwsContext) {
-        sws_freeContext(mSwsContext);
-        mSwsContext = nullptr;
-    }
-    if (mRgbFrame) {
-        av_frame_free(&mRgbFrame);
-        mRgbFrame = nullptr;
-    }
-    if (mOutbuffer) {
-        av_free(mOutbuffer);
-        mOutbuffer = nullptr;
-    }
-    if (mNativeWindow) {
-        ANativeWindow_release(mNativeWindow);
-        mNativeWindow = nullptr;
-    }
-}
 
 bool FFGLPlayer::start() {
     if (!mInitialized) {
@@ -420,9 +364,7 @@ void FFGLPlayer::renderVideoThread() {
                 }
             }
             lastPts = frame->pts;
-
-            sendFrameDataToANativeWindow(frame);
-
+            sendFrameDataToEGL(frame);
             // 通知解码线程
             if (videoFrameQueue.size() < maxVideoFrames / 2) {
                 pthread_cond_signal(&mBufferMaxCond);
@@ -435,53 +377,23 @@ void FFGLPlayer::renderVideoThread() {
     LOGI("Render thread finished");
 }
 
-int FFGLPlayer::sendFrameDataToANativeWindow(AVFrame *frame) {
+int FFGLPlayer::sendFrameDataToEGL(AVFrame *frame) {
     if (!mNativeWindow || !frame) {
         return -1;
     }
+    LOGI("sendFrameDataToEGL");
 
-    ANativeWindow_Buffer windowBuffer;
-
-    // 颜色空间转换
-    sws_scale(mSwsContext, frame->data, frame->linesize, 0,
-              mHeight, mRgbFrame->data, mRgbFrame->linesize);
-
-    // 锁定窗口缓冲区
-    if (ANativeWindow_lock(mNativeWindow, &windowBuffer, nullptr) < 0) {
-        LOGE("Cannot lock window");
-        return -1;
-    }
-
-    // 优化拷贝：检查 stride 是否匹配
-    uint8_t* dst = static_cast<uint8_t*>(windowBuffer.bits);
-    int dstStride = windowBuffer.stride * 4;  // 目标步长（字节）
-    int srcStride = mRgbFrame->linesize[0];   // 源步长（字节）
-
-    if (dstStride == srcStride) {
-        // 步长匹配，可以直接整体拷贝
-        memcpy(dst, mOutbuffer, srcStride * mHeight);
-    } else {
-        // 步长不匹配，需要逐行拷贝
-        for (int h = 0; h < mHeight; h++) {
-            memcpy(dst + h * dstStride,
-                   mOutbuffer + h * srcStride,
-                   srcStride);
-        }
-    }
-
-    ANativeWindow_unlockAndPost(mNativeWindow);
-
-    // 流控制
-    if (videoFrameQueue.size() < maxVideoFrames / 2) {
-        pthread_cond_signal(&mBufferMaxCond);
-    }
-
+    uint8_t *buffer;
+    int length;
+    yuv420p_frame_to_buffer(frame, &buffer, &length);
+    eglsurfaceViewRender->draw(buffer, length, mWidth, mHeight, 90);
+    eglsurfaceViewRender->render();
     return 0;
 }
 
+
 void FFGLPlayer::cleanup() {
     cleanupFFmpeg();
-    cleanupANativeWindow();
     mIsPlaying = false;
     mInitialized = false;
 }
@@ -545,4 +457,37 @@ void FFGLPlayer::PostStatusMessage(const char *msg) {
     if (isAttach) {
         mJavaVm->DetachCurrentThread();
     }
+}
+
+
+int FFGLPlayer::yuv420p_frame_to_buffer(AVFrame *frame, uint8_t **buffer, int *length) {
+    if (!frame || frame->format != AV_PIX_FMT_YUV420P) return -1;
+    int width = frame->width;
+    int height = frame->height;
+    int y_size = width * height;
+    int uv_size = y_size / 4;
+    *length = y_size + uv_size * 2;
+    *buffer = (uint8_t *) av_malloc(*length);
+    if (!*buffer) return -1;
+    uint8_t *dst = *buffer;
+
+    // 复制Y平面
+    for (int y = 0; y < height; y++) {
+        memcpy(dst, frame->data[0] + y * frame->linesize[0], width);
+        dst += width;
+    }
+
+    // 复制U平面
+    for (int y = 0; y < height / 2; y++) {
+        memcpy(dst, frame->data[1] + y * frame->linesize[1], width / 2);
+        dst += width / 2;
+    }
+
+    // 复制V平面
+    for (int y = 0; y < height / 2; y++) {
+        memcpy(dst, frame->data[2] + y * frame->linesize[2], width / 2);
+        dst += width / 2;
+    }
+
+    return 0;
 }

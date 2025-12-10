@@ -153,24 +153,24 @@ cpp_init_video_by_gl(JNIEnv *env, jobject thiz, jstring intputUrl, jstring fragP
 extern "C"
 JNIEXPORT void JNICALL
 cpp_uninit_video_by_gl(JNIEnv *env, jobject thiz) {
-    if (fFSurfacePlayer != nullptr) {
-        fFSurfacePlayer->stop();
+    if (fFGLPlayer != nullptr) {
+        fFGLPlayer->stop();
     }
 }
 
 extern "C"
 JNIEXPORT void JNICALL
 cpp_play_video_by_gl(JNIEnv *env, jobject thiz) {
-    if (fFSurfacePlayer != nullptr) {
-        fFSurfacePlayer->start();
+    if (fFGLPlayer != nullptr) {
+        fFGLPlayer->start();
     }
 }
 
 extern "C"
 JNIEXPORT void JNICALL
 cpp_stop_video_by_gl(JNIEnv *env, jobject thiz) {
-    if (fFSurfacePlayer != nullptr) {
-        fFSurfacePlayer->stop();
+    if (fFGLPlayer != nullptr) {
+        fFGLPlayer->stop();
     }
 }
 
@@ -197,9 +197,9 @@ static const JNINativeMethod methods[] = {
                                            "Ljava/lang/String;"
                                            "Landroid/view/Surface;"
                                            ")V",                        (void *) cpp_init_video_by_gl},
-        {"native_play_video_by_gl",        "()V",                       (void *) cpp_uninit_video_by_gl},
-        {"native_stop_video_by_gl",        "()V",                       (void *) cpp_play_video_by_gl},
-        {"native_uninit_video_by_gl",      "()V",                       (void *) cpp_stop_video_by_gl},
+        {"native_play_video_by_gl",        "()V",                       (void *) cpp_play_video_by_gl},
+        {"native_stop_video_by_gl",        "()V",                       (void *) cpp_stop_video_by_gl},
+        {"native_uninit_video_by_gl",      "()V",                       (void *) cpp_uninit_video_by_gl},
 
 };
 

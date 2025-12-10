@@ -38,6 +38,14 @@ add_library(
         OpenGLShader.cpp
         FFGLPlayer.cpp
 
+
+        WyyEGL/EGLSurfaceViewVideoRender.cpp
+        WyyEGL/EglSurfaceBase.cpp
+        WyyEGL/EglCore.cpp
+        WyyEGL/WindowSurface.cpp
+
+        looper/Looper.cpp
+
 )
 
 target_link_libraries(

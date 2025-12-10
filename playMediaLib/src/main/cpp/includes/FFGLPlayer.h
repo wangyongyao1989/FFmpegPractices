@@ -13,6 +13,7 @@
 #include "jni.h"
 #include "android/native_window.h"
 #include "android/native_window_jni.h"
+#include "EGLSurfaceViewVideoRender.h"
 
 class FFGLPlayer {
 public:
@@ -53,8 +54,9 @@ private:
 
     //  NativeWindow;
     ANativeWindow *mNativeWindow = nullptr;
-    SwsContext *mSwsContext = nullptr;
-    AVFrame *mRgbFrame = nullptr;
+
+    // EGLRender
+    EGLSurfaceViewVideoRender *eglsurfaceViewRender;
 
     // FFmpeg 相关
     AVFormatContext *mFormatContext;
@@ -85,8 +87,7 @@ private:
     // 私有方法
     bool initFFmpeg(const std::string &filePath);
 
-
-    bool initANativeWindow();
+    bool initEGLRender(const string &fragPath, const string &vertexPath);
 
     static void *decodeThreadWrapper(void *context);
 
@@ -96,13 +97,13 @@ private:
 
     void renderVideoThread();
 
-    int sendFrameDataToANativeWindow(AVFrame *frame);
+    int sendFrameDataToEGL(AVFrame *frame);
+
+    int yuv420p_frame_to_buffer(AVFrame *frame, uint8_t **buffer, int *length);
 
     void cleanup();
 
     void cleanupFFmpeg();
-
-    void cleanupANativeWindow();
 
     JNIEnv *GetJNIEnv(bool *isAttach);
 

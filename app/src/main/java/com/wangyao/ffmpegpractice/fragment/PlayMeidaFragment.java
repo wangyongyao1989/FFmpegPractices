@@ -85,7 +85,6 @@ public class PlayMeidaFragment extends BaseFragment {
 
         mSurfaceView = mBinding.surfacePlay;
 
-
         mGlPlayView = mBinding.glPlay;
 
     }
@@ -184,11 +183,11 @@ public class PlayMeidaFragment extends BaseFragment {
             if (isGLViewPlaying) {
                 mGlPlayView.setVisibility(View.VISIBLE);
                 mPlayMediaOperate.playVideoByGL();
-                mBtn5.setText("GLView 停止");
+                mBtn5.setText("GLTexture 停止");
             } else {
                 mGlPlayView.setVisibility(View.GONE);
                 mPlayMediaOperate.stopVideoByGL();
-                mBtn5.setText("GLView 播放");
+                mBtn5.setText("GLTexture 播放");
             }
         });
 
@@ -196,8 +195,8 @@ public class PlayMeidaFragment extends BaseFragment {
         surfaceViewHolder.addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(@NonNull SurfaceHolder holder) {
-                mSurface = surfaceViewHolder.getSurface();
-                mPlayMediaOperate.initVideoBySurface(mVideoPath2, mSurface);
+                mSurface = holder.getSurface();
+                mPlayMediaOperate.initVideoBySurface(mVideoPath1, mSurface);
             }
 
             @Override
@@ -215,8 +214,8 @@ public class PlayMeidaFragment extends BaseFragment {
         glViewHolder.addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(@NonNull SurfaceHolder holder) {
-                mGlSurface = glViewHolder.getSurface();
-                mPlayMediaOperate.initVideoByGL(mVideoPath2, mFragPath, mVertexPath, mSurface);
+                mGlSurface = holder.getSurface();
+                mPlayMediaOperate.initVideoByGL(mVideoPath2, mFragPath, mVertexPath, mGlSurface);
             }
 
             @Override
