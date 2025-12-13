@@ -2,7 +2,6 @@ package com.wangyao.ffmpegpractice.fragment;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -38,6 +37,7 @@ public class PlayMeidaFragment extends BaseFragment {
     private Button mBtn3;
     private Button mBtn4;
     private Button mBtn5;
+    private Button mBtn6;
 
     private String mVideoPath1;
     private String mVideoPath2;
@@ -58,6 +58,7 @@ public class PlayMeidaFragment extends BaseFragment {
     private boolean isOpenSLPlaying = false;
     private boolean isSurfaceViewPlaying = false;
     private boolean isGLViewPlaying = false;
+    private boolean isMediaPlaying = false;
 
     private SurfaceView mSurfaceView;
     private Surface mSurface;
@@ -65,6 +66,8 @@ public class PlayMeidaFragment extends BaseFragment {
     private String mVertexPath;
     private SurfaceView mGlPlayView;
     private Surface mGlSurface;
+    private SurfaceView mFfMediaView;
+    private Surface mMediaSurface;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -82,10 +85,12 @@ public class PlayMeidaFragment extends BaseFragment {
         mBtn3 = mBinding.btnPlayAudio3;
         mBtn4 = mBinding.btnPlayVideo4;
         mBtn5 = mBinding.btnPlayVideo5;
+        mBtn6 = mBinding.btnPlayVideo6;
 
         mSurfaceView = mBinding.surfacePlay;
 
         mGlPlayView = mBinding.glPlay;
+        mFfMediaView = mBinding.ffMedia;
 
     }
 
@@ -191,6 +196,19 @@ public class PlayMeidaFragment extends BaseFragment {
             }
         });
 
+        mBtn6.setOnClickListener(view -> {
+            isMediaPlaying = !isMediaPlaying;
+            if (isMediaPlaying) {
+                mFfMediaView.setVisibility(View.VISIBLE);
+                mPlayMediaOperate.playMediaBySurface();
+                mBtn5.setText("GLTexture 停止");
+            } else {
+                mFfMediaView.setVisibility(View.GONE);
+                mPlayMediaOperate.stopMediaBySurface();
+                mBtn5.setText("GLTexture 播放");
+            }
+        });
+
         final SurfaceHolder surfaceViewHolder = mSurfaceView.getHolder();
         surfaceViewHolder.addCallback(new SurfaceHolder.Callback() {
             @Override
@@ -226,6 +244,25 @@ public class PlayMeidaFragment extends BaseFragment {
             @Override
             public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
                 mPlayMediaOperate.unInitVideoByGL();
+            }
+        });
+
+        final SurfaceHolder mediaViewHolder = mFfMediaView.getHolder();
+        mediaViewHolder.addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(@NonNull SurfaceHolder holder) {
+                mMediaSurface = holder.getSurface();
+                mPlayMediaOperate.initMediaBySurface(mVideoPath2,mMediaSurface);
+            }
+
+            @Override
+            public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
+
+            }
+
+            @Override
+            public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+                mPlayMediaOperate.unInitMediaBySurface();
             }
         });
     }

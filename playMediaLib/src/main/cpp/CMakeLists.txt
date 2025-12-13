@@ -46,6 +46,8 @@ add_library(
 
         looper/Looper.cpp
 
+        FFMediaPlayer.cpp
+
 )
 
 target_link_libraries(

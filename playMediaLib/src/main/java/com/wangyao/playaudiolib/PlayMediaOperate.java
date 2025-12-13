@@ -74,6 +74,22 @@ public class PlayMediaOperate {
         native_uninit_video_by_gl();
     }
 
+    public void initMediaBySurface(String videoPath, Surface surface) {
+        native_init_media_by_surface(videoPath, surface);
+    }
+
+    public void playMediaBySurface() {
+        native_play_media_by_surface();
+    }
+
+    public void stopMediaBySurface() {
+        native_stop_media_by_surface();
+    }
+
+    public void unInitMediaBySurface() {
+        native_uninit_media_by_surface();
+    }
+
     private native String native_string_from_jni();
 
     private native void native_play_audio_by_track(String audioPath);
@@ -101,6 +117,15 @@ public class PlayMediaOperate {
     private native void native_stop_video_by_gl();
 
     private native void native_uninit_video_by_gl();
+
+    //surfaceView
+    private native void native_init_media_by_surface(String videoPath, Surface surface);
+
+    private native void native_play_media_by_surface();
+
+    private native void native_stop_media_by_surface();
+
+    private native void native_uninit_media_by_surface();
 
 
     private void CppStatusCallback(String status) {
