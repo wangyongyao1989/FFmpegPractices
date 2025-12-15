@@ -14,94 +14,297 @@
 #include "android/native_window.h"
 #include "android/native_window_jni.h"
 
+#include "OpenslHelper.h"
+#include <SLES/OpenSLES.h>
+#include <SLES/OpenSLES_Android.h>
+
+
+// 音频帧结构
+struct AudioFrame {
+    uint8_t *data;
+    int size;
+    double pts;
+    int64_t pos;
+
+    AudioFrame() : data(nullptr), size(0), pts(0), pos(0) {}
+
+    ~AudioFrame() {
+        if (data) {
+            av_free(data);
+            data = nullptr;
+        }
+    }
+};
+
+// 视频帧结构
+struct VideoFrame {
+    AVFrame *frame;
+    double pts;
+    int64_t pos;
+
+    VideoFrame() : frame(nullptr), pts(0), pos(0) {}
+
+    ~VideoFrame() {
+        if (frame) {
+            av_frame_free(&frame);
+        }
+    }
+};
+
+// 音频信息
+struct AudioInfo {
+    int streamIndex;
+    AVCodecContext *codecContext;
+    SwrContext *swrContext;
+    AVRational timeBase;
+
+    // OpenSL ES
+    SLObjectItf engineObject;
+    SLEngineItf engineEngine;
+    SLObjectItf outputMixObject;
+    SLObjectItf playerObject;
+    SLPlayItf playerPlay;
+    SLAndroidSimpleBufferQueueItf playerBufferQueue;
+
+    // 音频参数
+    int sampleRate;
+    int channels;
+    int bytesPerSample;
+    int64_t channelLayout;
+    enum AVSampleFormat format;
+
+    // 音频队列
+    std::queue<AudioFrame *> audioQueue;
+    pthread_mutex_t audioMutex;
+    pthread_cond_t audioCond;
+    int maxAudioFrames;
+
+    // 时钟
+    double clock;
+    pthread_mutex_t clockMutex;
+
+    AudioInfo() : streamIndex(-1), codecContext(nullptr), swrContext(nullptr),
+                  engineObject(nullptr), engineEngine(nullptr),
+                  outputMixObject(nullptr), playerObject(nullptr),
+                  playerPlay(nullptr), playerBufferQueue(nullptr),
+                  sampleRate(0), channels(0), bytesPerSample(0),
+                  channelLayout(0), format(AV_SAMPLE_FMT_NONE),
+                  maxAudioFrames(100), clock(0) {
+        pthread_mutex_init(&audioMutex, nullptr);
+        pthread_cond_init(&audioCond, nullptr);
+        pthread_mutex_init(&clockMutex, nullptr);
+    }
+
+    ~AudioInfo() {
+        pthread_mutex_destroy(&audioMutex);
+        pthread_cond_destroy(&audioCond);
+        pthread_mutex_destroy(&clockMutex);
+    }
+};
+
+// 视频信息
+struct VideoInfo {
+    int streamIndex;
+    AVCodecContext *codecContext;
+    AVRational timeBase;
+
+    // 渲染
+    ANativeWindow *window;
+    ANativeWindow_Buffer windowBuffer;
+    SwsContext *swsContext;
+    AVFrame *rgbFrame;
+    int width;
+    int height;
+
+    // 视频队列
+    std::queue<VideoFrame *> videoQueue;
+    pthread_mutex_t videoMutex;
+    pthread_cond_t videoCond;
+    int maxVideoFrames;
+
+    // 时钟
+    double clock;
+    pthread_mutex_t clockMutex;
+
+    VideoInfo() : streamIndex(-1), codecContext(nullptr),
+                  window(nullptr), swsContext(nullptr), rgbFrame(nullptr),
+                  width(0), height(0), maxVideoFrames(30), clock(0) {
+        pthread_mutex_init(&videoMutex, nullptr);
+        pthread_cond_init(&videoCond, nullptr);
+        pthread_mutex_init(&clockMutex, nullptr);
+    }
+
+    ~VideoInfo() {
+        pthread_mutex_destroy(&videoMutex);
+        pthread_cond_destroy(&videoCond);
+        pthread_mutex_destroy(&clockMutex);
+    }
+};
+
 class FFMediaPlayer {
 public:
     FFMediaPlayer(JNIEnv *env, jobject thiz);
 
     ~FFMediaPlayer();
 
-    // 初始化播放器
-    bool init(const std::string &filePath, jobject surface);
+    bool init(const char *url, jobject surface);
 
-    // 开始播放
+    bool prepare();
+
     bool start();
 
-    // 暂停播放
     bool pause();
 
-    // 停止播放
-    void stop();
+    bool stop();
 
-    // 获取播放状态
-    bool isPlaying() const { return mIsPlaying; }
+    void release();
 
-    bool isInitialized() const { return mInitialized; }
+    int getState() const { return mState; }
 
+    int64_t getDuration() const { return mDuration; }
+
+    int64_t getCurrentPosition() const;
 
 private:
-    string playMediaInfo;
+    enum State {
+        STATE_IDLE,
+        STATE_INITIALIZED,
+        STATE_PREPARING,
+        STATE_PREPARED,
+        STATE_STARTED,
+        STATE_PAUSED,
+        STATE_STOPPED,
+        STATE_ERROR
+    };
+
+    string playAudioInfo;
 
     JavaVM *mJavaVm = nullptr;
     jobject mJavaObj = nullptr;
     JNIEnv *mEnv = nullptr;
 
-    int mWidth;
-    int mHeight;
-    uint8_t *mOutbuffer;
-    jobject androidSurface = NULL;
+    OpenslHelper helper;
 
+    jobject androidSurface = NULL;
     //  NativeWindow;
     ANativeWindow *mNativeWindow = nullptr;
-    SwsContext *mSwsContext = nullptr;
-    AVFrame *mRgbFrame = nullptr;
 
-    // FFmpeg 相关
+    // 成员变量
+    State mState;
+    char *mUrl;
     AVFormatContext *mFormatContext;
-    AVCodecContext *mCodecContext;
-    int mVideoStreamIndex;
+    AudioInfo mAudioInfo;
+    VideoInfo mVideoInfo;
 
+    // 线程
+    pthread_t mDemuxThread;
+    pthread_t mAudioDecodeThread;
+    pthread_t mVideoDecodeThread;
+    pthread_t mAudioPlayThread;
+    pthread_t mVideoPlayThread;
+
+    // 控制变量
+    std::atomic<bool> mExit;
+    std::atomic<bool> mPause;
     int64_t mDuration;
-    AVSampleFormat mSampleFormat;
 
-    // 播放状态
-    std::atomic<bool> mIsPlaying;
-    std::atomic<bool> mInitialized;
-    std::atomic<bool> mStopRequested;
+    // 同步变量
+    pthread_mutex_t mStateMutex;
+    pthread_cond_t mStateCond;
 
-    // 视频帧队列
-    ThreadSafeQueue < AVFrame * > videoFrameQueue;
-
-    int maxVideoFrames = 50;
-
-    // 线程同步
-    pthread_t mDecodeThread;
-    pthread_t mRenderThread;
-    pthread_mutex_t mDecodeMutex;
-    pthread_cond_t mBufferMaxCond;
-    pthread_cond_t mRenderCond;
-    pthread_mutex_t mRenderMutex;
+    // 数据包队列
+    std::queue<AVPacket *> mAudioPackets;
+    std::queue<AVPacket *> mVideoPackets;
+    pthread_mutex_t mPacketMutex;
+    pthread_cond_t mPacketCond;
+    int mMaxPackets;
 
     // 私有方法
-    bool initFFmpeg(const std::string &filePath);
+    bool openCodecContext(int *streamIndex, AVCodecContext **codecContext,
+                          AVFormatContext *formatContext, enum AVMediaType type);
 
+    bool initOpenSLES();
 
-    bool initANativeWindow();
+    bool initVideoRenderer();
 
-    static void *decodeThreadWrapper(void *context);
+    // 线程函数
+    static void *demuxThread(void *arg);
 
-    void decodeThread();
+    static void *audioDecodeThread(void *arg);
 
-    static void *renderVideoFrame(void *context);
+    static void *videoDecodeThread(void *arg);
 
-    void renderVideoThread();
+    static void *audioPlayThread(void *arg);
 
-    int sendFrameDataToANativeWindow(AVFrame *frame);
+    static void *videoPlayThread(void *arg);
 
-    void cleanup();
+    void demux();
 
-    void cleanupFFmpeg();
+    void audioDecode();
 
-    void cleanupANativeWindow();
+    void videoDecode();
+
+    void audioPlay();
+
+    void videoPlay();
+
+    // 数据处理
+    void processAudioPacket(AVPacket *packet);
+
+    void processVideoPacket(AVPacket *packet);
+
+    AudioFrame *decodeAudioFrame(AVFrame *frame);
+
+    VideoFrame *decodeVideoFrame(AVFrame *frame);
+
+    void renderVideoFrame(VideoFrame *vframe);
+
+    // 队列操作
+    void putAudioPacket(AVPacket *packet);
+
+    void putVideoPacket(AVPacket *packet);
+
+    AVPacket *getAudioPacket();
+
+    AVPacket *getVideoPacket();
+
+    void clearAudioPackets();
+
+    void clearVideoPackets();
+
+    void putAudioFrame(AudioFrame *frame);
+
+    void putVideoFrame(VideoFrame *frame);
+
+    AudioFrame *getAudioFrame();
+
+    VideoFrame *getVideoFrame();
+
+    void clearAudioFrames();
+
+    void clearVideoFrames();
+
+    // 同步方法
+    double getMasterClock();
+
+    double getAudioClock();
+
+    double getVideoClock();
+
+    void setAudioClock(double pts);
+
+    void setVideoClock(double pts);
+
+    void syncVideo(double pts);
+
+    // OpenSL ES回调
+    void audioCallback(SLAndroidSimpleBufferQueueItf bufferQueue);
+
+    static void audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void *context);
+
+    int64_t getCurrentPosition();
+
+    const char *getSLErrorString(SLresult result);
 
     JNIEnv *GetJNIEnv(bool *isAttach);
 

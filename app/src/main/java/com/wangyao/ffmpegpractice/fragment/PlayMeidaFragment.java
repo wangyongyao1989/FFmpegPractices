@@ -43,6 +43,7 @@ public class PlayMeidaFragment extends BaseFragment {
     private String mVideoPath2;
 
     private String mAACPath;
+    private String mMp3Path;
 
     private String mH264Path;
 
@@ -105,6 +106,9 @@ public class PlayMeidaFragment extends BaseFragment {
         mAACPath = CommonFileUtils.getModelFilePath(getContext()
                 , "fuzhous.aac");
 
+        mMp3Path = CommonFileUtils.getModelFilePath(getContext()
+                , "liudehua.mp3");
+
         mH264Path = CommonFileUtils.getModelFilePath(getContext()
                 , "out.h264");
 
@@ -151,7 +155,7 @@ public class PlayMeidaFragment extends BaseFragment {
         mBtn2.setOnClickListener(view -> {
             isAudioTrackPlaying = !isAudioTrackPlaying;
             if (isAudioTrackPlaying) {
-                mPlayMediaOperate.playAudioByTrack(mVideoPath2);
+                mPlayMediaOperate.playAudioByTrack(mAACPath);
                 mBtn2.setText("AudioTrack停止");
             } else {
                 mPlayMediaOperate.stopAudioByTrack();
@@ -162,7 +166,7 @@ public class PlayMeidaFragment extends BaseFragment {
         mBtn3.setOnClickListener(view -> {
             isOpenSLPlaying = !isOpenSLPlaying;
             if (isOpenSLPlaying) {
-                mPlayMediaOperate.playAudioByOpenSL(mVideoPath1);
+                mPlayMediaOperate.playAudioByOpenSL(mMp3Path);
                 mBtn3.setText("OpenSL停止");
             } else {
                 mPlayMediaOperate.stopAudioByOpenSL();
@@ -252,7 +256,7 @@ public class PlayMeidaFragment extends BaseFragment {
             @Override
             public void surfaceCreated(@NonNull SurfaceHolder holder) {
                 mMediaSurface = holder.getSurface();
-                mPlayMediaOperate.initMediaBySurface(mVideoPath2,mMediaSurface);
+                mPlayMediaOperate.initMediaBySurface(mVideoPath2, mMediaSurface);
             }
 
             @Override

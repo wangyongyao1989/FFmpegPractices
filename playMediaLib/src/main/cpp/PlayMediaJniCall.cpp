@@ -201,6 +201,7 @@ extern "C"
 JNIEXPORT void JNICALL
 cpp_play_media_by_surface(JNIEnv *env, jobject thiz) {
     if (fFMediaPlayer != nullptr) {
+        fFMediaPlayer->prepare();
         fFMediaPlayer->start();
     }
 }

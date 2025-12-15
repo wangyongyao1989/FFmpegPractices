@@ -6,32 +6,25 @@
 #include <unistd.h>
 
 FFMediaPlayer::FFMediaPlayer(JNIEnv *env, jobject thiz)
-        : mEnv(nullptr), mJavaObj(nullptr), mFormatContext(nullptr),
-          mCodecContext(nullptr), mVideoStreamIndex(-1), mDuration(0),
-          mSampleFormat(AV_SAMPLE_FMT_NONE), mWidth(0), mHeight(0),
-          mIsPlaying(false), mInitialized(false), mStopRequested(false),
-          mNativeWindow(nullptr), mSwsContext(nullptr), mRgbFrame(nullptr),
-          mOutbuffer(nullptr), mDecodeThread(0), mRenderThread(0) {
+        : mState(STATE_IDLE),
+          mUrl(nullptr),
+          mFormatContext(nullptr),
+          mExit(false),
+          mPause(false),
+          mDuration(0),
+          mMaxPackets(50) {
 
     mEnv = env;
     env->GetJavaVM(&mJavaVm);
     mJavaObj = env->NewGlobalRef(thiz);
 
-    pthread_mutex_init(&mDecodeMutex, nullptr);
-    pthread_mutex_init(&mRenderMutex, nullptr);
-    pthread_cond_init(&mBufferMaxCond, nullptr);
-    pthread_cond_init(&mRenderCond, nullptr);
+    pthread_mutex_init(&mStateMutex, nullptr);
+    pthread_cond_init(&mStateCond, nullptr);
+    pthread_mutex_init(&mPacketMutex, nullptr);
+    pthread_cond_init(&mPacketCond, nullptr);
 }
 
 FFMediaPlayer::~FFMediaPlayer() {
-    stop();
-    cleanup();
-
-    pthread_mutex_destroy(&mDecodeMutex);
-    pthread_mutex_destroy(&mRenderMutex);
-    pthread_cond_destroy(&mBufferMaxCond);
-    pthread_cond_destroy(&mRenderCond);
-
     if (androidSurface) {
         mEnv->DeleteLocalRef(androidSurface);
     }
@@ -39,458 +32,278 @@ FFMediaPlayer::~FFMediaPlayer() {
         ANativeWindow_release(mNativeWindow);
         mNativeWindow = nullptr;
     }
-    if (mSwsContext) {
-        sws_freeContext(mSwsContext);
-        mSwsContext = nullptr;
-    }
-    if (mRgbFrame) {
-        av_frame_free(&mRgbFrame);
-        mRgbFrame = nullptr;
-    }
-    if (mOutbuffer) {
-        av_free(mOutbuffer);
-        mOutbuffer = nullptr;
-    }
-
     mEnv->DeleteGlobalRef(mJavaObj);
+    release();
+    pthread_mutex_destroy(&mStateMutex);
+    pthread_cond_destroy(&mStateCond);
+    pthread_mutex_destroy(&mPacketMutex);
+    pthread_cond_destroy(&mPacketCond);
 }
 
-bool FFMediaPlayer::init(const std::string &filePath, jobject surface) {
-    if (mInitialized) {
-        LOGI("Already initialized");
-        return true;
-    }
+bool FFMediaPlayer::init(const char *url, jobject surface) {
 
     androidSurface = mEnv->NewGlobalRef(surface);
 
-    if (!initFFmpeg(filePath)) {
-        LOGE("Failed to initialize FFmpeg");
-        PostStatusMessage("Failed to initialize FFmpeg");
-        return false;
-    }
-
-    if (!initANativeWindow()) {
-        LOGE("Failed to initialize ANativeWindow");
-        PostStatusMessage("Failed to initialize ANativeWindow");
-        cleanupFFmpeg();
-        return false;
-    }
-
-    mInitialized = true;
-    LOGI("FFMediaPlayer initialized successfully");
-    PostStatusMessage("FFMediaPlayer initialized successfully");
-    return true;
-}
-
-bool FFMediaPlayer::initFFmpeg(const std::string &filePath) {
-    if (avformat_open_input(&mFormatContext, filePath.c_str(), nullptr, nullptr) != 0) {
-        LOGE("Could not open file: %s", filePath.c_str());
-        return false;
-    }
-
-    if (avformat_find_stream_info(mFormatContext, nullptr) < 0) {
-        LOGE("Could not find stream information");
-        avformat_close_input(&mFormatContext);
-        return false;
-    }
-
-    mVideoStreamIndex = -1;
-    for (unsigned int i = 0; i < mFormatContext->nb_streams; i++) {
-        if (mFormatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            mVideoStreamIndex = i;
-            break;
-        }
-    }
-
-    if (mVideoStreamIndex == -1) {
-        LOGE("Could not find video stream");
-        avformat_close_input(&mFormatContext);
-        return false;
-    }
-
-    AVCodecParameters *codecParams = mFormatContext->streams[mVideoStreamIndex]->codecpar;
-    const AVCodec *codec = avcodec_find_decoder(codecParams->codec_id);
-    if (!codec) {
-        LOGE("Unsupported codec");
-        avformat_close_input(&mFormatContext);
-        return false;
-    }
-
-    mCodecContext = avcodec_alloc_context3(codec);
-    if (!mCodecContext) {
-        LOGE("Could not allocate codec context");
-        avformat_close_input(&mFormatContext);
-        return false;
-    }
-
-    if (avcodec_parameters_to_context(mCodecContext, codecParams) < 0) {
-        LOGE("Could not copy codec parameters");
-        cleanupFFmpeg();
-        return false;
-    }
-
-    if (avcodec_open2(mCodecContext, codec, nullptr) < 0) {
-        LOGE("Could not open codec");
-        cleanupFFmpeg();
-        return false;
-    }
-
-    mWidth = mCodecContext->width;
-    mHeight = mCodecContext->height;
-    mSampleFormat = mCodecContext->sample_fmt;
-    mDuration = mFormatContext->duration;
-
-    LOGI("FFmpeg initialized width: %d, height: %d, duration: %lld",
-         mWidth, mHeight, mDuration);
-
-    playMediaInfo = "FFmpeg initialized, width:" + std::to_string(mWidth) +
-                    ", height:" + std::to_string(mHeight) +
-                    ", duration:" + std::to_string(mDuration) + "\n";
-    PostStatusMessage(playMediaInfo.c_str());
-
-    return true;
-}
-
-bool FFMediaPlayer::initANativeWindow() {
     mNativeWindow = ANativeWindow_fromSurface(mEnv, androidSurface);
     if (!mNativeWindow) {
         LOGE("Couldn't get native window from surface");
         return false;
     }
-
-    mRgbFrame = av_frame_alloc();
-    if (!mRgbFrame) {
-        LOGE("Could not allocate RGB frame");
-        ANativeWindow_release(mNativeWindow);
-        mNativeWindow = nullptr;
-        return false;
+    if (mVideoInfo.window) {
+        ANativeWindow_release(mVideoInfo.window);
+    }
+    mVideoInfo.window = mNativeWindow;
+    if (mNativeWindow) {
+        ANativeWindow_acquire(mNativeWindow);
     }
 
-    int bufferSize = av_image_get_buffer_size(AV_PIX_FMT_RGBA, mWidth, mHeight, 1);
-    mOutbuffer = (uint8_t *) av_malloc(bufferSize * sizeof(uint8_t));
-    if (!mOutbuffer) {
-        LOGE("Could not allocate output buffer");
-        av_frame_free(&mRgbFrame);
-        ANativeWindow_release(mNativeWindow);
-        mNativeWindow = nullptr;
-        return false;
-    }
-
-    mSwsContext = sws_getContext(mWidth, mHeight, mCodecContext->pix_fmt,
-                                 mWidth, mHeight, AV_PIX_FMT_RGBA,
-                                 SWS_BICUBIC, nullptr, nullptr, nullptr);
-    if (!mSwsContext) {
-        LOGE("Could not create sws context");
-        av_free(mOutbuffer);
-        mOutbuffer = nullptr;
-        av_frame_free(&mRgbFrame);
-        ANativeWindow_release(mNativeWindow);
-        mNativeWindow = nullptr;
-        return false;
-    }
-
-    if (ANativeWindow_setBuffersGeometry(mNativeWindow, mWidth, mHeight,
-                                         WINDOW_FORMAT_RGBA_8888) < 0) {
-        LOGE("Couldn't set buffers geometry");
-        cleanupANativeWindow();
-        return false;
-    }
-
-    if (av_image_fill_arrays(mRgbFrame->data, mRgbFrame->linesize,
-                             mOutbuffer, AV_PIX_FMT_RGBA,
-                             mWidth, mHeight, 1) < 0) {
-        LOGE("Could not fill image arrays");
-        cleanupANativeWindow();
-        return false;
-    }
-
-    LOGI("ANativeWindow initialization successful");
+    mUrl = strdup(url);
+    mState = STATE_INITIALIZED;
     return true;
 }
 
-void FFMediaPlayer::cleanupANativeWindow() {
-    if (mSwsContext) {
-        sws_freeContext(mSwsContext);
-        mSwsContext = nullptr;
+
+bool FFMediaPlayer::prepare() {
+    LOGI("prepare()");
+
+    if (mState != STATE_INITIALIZED) {
+        LOGE("prepare called in invalid state: %d", mState);
+        return false;
     }
-    if (mRgbFrame) {
-        av_frame_free(&mRgbFrame);
-        mRgbFrame = nullptr;
+
+    mState = STATE_PREPARING;
+
+
+    // 打开输入文件
+    if (avformat_open_input(&mFormatContext, mUrl, nullptr, nullptr) < 0) {
+        LOGE("Could not open input file: %s", mUrl);
+        mState = STATE_ERROR;
+        return false;
     }
-    if (mOutbuffer) {
-        av_free(mOutbuffer);
-        mOutbuffer = nullptr;
+
+    // 查找流信息
+    if (avformat_find_stream_info(mFormatContext, nullptr) < 0) {
+        LOGE("Could not find stream information");
+        mState = STATE_ERROR;
+        return false;
     }
-    if (mNativeWindow) {
-        ANativeWindow_release(mNativeWindow);
-        mNativeWindow = nullptr;
+
+    // 打开音频解码器
+    if (!openCodecContext(&mAudioInfo.streamIndex,
+                          &mAudioInfo.codecContext,
+                          mFormatContext, AVMEDIA_TYPE_AUDIO)) {
+        LOGE("Could not open audio codec");
+        // 不是错误，可能没有音频流
+    } else {
+        // 初始化音频重采样
+        mAudioInfo.sampleRate = mAudioInfo.codecContext->sample_rate;
+        mAudioInfo.channels = mAudioInfo.codecContext->channels;
+        mAudioInfo.channelLayout = mAudioInfo.codecContext->channel_layout;
+        mAudioInfo.format = mAudioInfo.codecContext->sample_fmt;
+
+        if (mAudioInfo.channelLayout == 0) {
+            mAudioInfo.channelLayout = av_get_default_channel_layout(mAudioInfo.channels);
+        }
+
+        // 初始化重采样上下文
+        mAudioInfo.swrContext = swr_alloc_set_opts(nullptr,
+                                                   mAudioInfo.channelLayout,
+                                                   AV_SAMPLE_FMT_S16,
+                                                   mAudioInfo.sampleRate,
+                                                   mAudioInfo.channelLayout,
+                                                   mAudioInfo.format,
+                                                   mAudioInfo.sampleRate,
+                                                   0, nullptr);
+        if (!mAudioInfo.swrContext || swr_init(mAudioInfo.swrContext) < 0) {
+            LOGE("Could not initialize swresample");
+            mState = STATE_ERROR;
+            return false;
+        }
+
+        // 初始化OpenSL ES
+        if (!initOpenSLES()) {
+            LOGE("Could not initialize OpenSL ES");
+            mState = STATE_ERROR;
+            return false;
+        }
     }
+
+    // 打开视频解码器
+    if (!openCodecContext(&mVideoInfo.streamIndex,
+                          &mVideoInfo.codecContext,
+                          mFormatContext, AVMEDIA_TYPE_VIDEO)) {
+        LOGE("Could not open video codec");
+        mState = STATE_ERROR;
+        return false;
+    } else {
+        // 初始化视频渲染
+        if (mVideoInfo.window) {
+            initVideoRenderer();
+        }
+    }
+
+    mDuration = mFormatContext->duration / AV_TIME_BASE;
+    mState = STATE_PREPARED;
+
+    LOGI("Media player prepared successfully");
+    return true;
 }
 
 bool FFMediaPlayer::start() {
-    if (!mInitialized) {
-        LOGE("Player not initialized");
-        PostStatusMessage("Player not initialized \n");
+    if (mState != STATE_PREPARED && mState != STATE_PAUSED) {
+        LOGE("start called in invalid state: %d", mState);
         return false;
     }
 
-    pthread_mutex_lock(&mDecodeMutex);
+    mExit = false;
+    mPause = false;
 
-    if (mIsPlaying) {
-        return true;
-    }
-
-    mStopRequested = false;
-    mIsPlaying = true;
-    videoFrameQueue.clear();
-
-    if (pthread_create(&mDecodeThread, nullptr, decodeThreadWrapper, this) != 0) {
-        LOGE("Failed to create decode thread");
-        PostStatusMessage("Failed to create decode thread");
-        mIsPlaying = false;
+    // 启动解复用线程
+    if (pthread_create(&mDemuxThread, nullptr, demuxThread, this) != 0) {
+        LOGE("Could not create demux thread");
         return false;
     }
 
-    if (pthread_create(&mRenderThread, nullptr, renderVideoFrame, this) != 0) {
-        LOGE("Failed to create render thread");
-        PostStatusMessage("Failed to create render thread");
-        mIsPlaying = false;
-        mStopRequested = true;
-        pthread_join(mDecodeThread, nullptr);
-        mDecodeThread = 0;
+    // 启动音频解码线程
+    if (mAudioInfo.codecContext) {
+        if (pthread_create(&mAudioDecodeThread, nullptr, audioDecodeThread, this) != 0) {
+            LOGE("Could not create audio decode thread");
+            return false;
+        }
+
+        // 启动音频播放线程
+        if (pthread_create(&mAudioPlayThread, nullptr, audioPlayThread, this) != 0) {
+            LOGE("Could not create audio play thread");
+            return false;
+        }
+    }
+
+    // 启动视频解码线程
+    if (pthread_create(&mVideoDecodeThread, nullptr, videoDecodeThread, this) != 0) {
+        LOGE("Could not create video decode thread");
         return false;
     }
 
-    pthread_mutex_unlock(&mDecodeMutex);
+    // 启动视频播放线程
+    if (pthread_create(&mVideoPlayThread, nullptr, videoPlayThread, this) != 0) {
+        LOGE("Could not create video play thread");
+        return false;
+    }
 
-    LOGI("Playback started");
-    PostStatusMessage("Playback started");
+    // 启动音频播放
+    if (mAudioInfo.playerPlay) {
+        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_PLAYING);
+    }
+
+    mState = STATE_STARTED;
     return true;
 }
 
-void FFMediaPlayer::stop() {
-    if (!mInitialized) {
+bool FFMediaPlayer::pause() {
+    if (mState != STATE_STARTED) {
+        LOGE("pause called in invalid state: %d", mState);
+        return false;
+    }
+
+    mPause = true;
+
+    if (mAudioInfo.playerPlay) {
+        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_PAUSED);
+    }
+
+    mState = STATE_PAUSED;
+    return true;
+}
+
+bool FFMediaPlayer::stop() {
+    if (mState != STATE_STARTED && mState != STATE_PAUSED) {
+        LOGE("stop called in invalid state: %d", mState);
+        return false;
+    }
+
+    mExit = true;
+    mPause = false;
+
+    // 通知所有线程
+    pthread_cond_broadcast(&mPacketCond);
+    pthread_cond_broadcast(&mAudioInfo.audioCond);
+    pthread_cond_broadcast(&mVideoInfo.videoCond);
+
+    if (mAudioInfo.playerPlay) {
+        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_STOPPED);
+    }
+
+    // 等待线程结束
+    if (mAudioInfo.codecContext) {
+        pthread_join(mAudioDecodeThread, nullptr);
+        pthread_join(mAudioPlayThread, nullptr);
+    }
+    pthread_join(mVideoDecodeThread, nullptr);
+    pthread_join(mVideoPlayThread, nullptr);
+    pthread_join(mDemuxThread, nullptr);
+
+    // 清空队列
+    clearAudioPackets();
+    clearVideoPackets();
+    clearAudioFrames();
+    clearVideoFrames();
+
+    mState = STATE_STOPPED;
+    return true;
+}
+
+void FFMediaPlayer::release() {
+    if (mState == STATE_IDLE || mState == STATE_ERROR) {
         return;
     }
 
-    mStopRequested = true;
-    mIsPlaying = false;
+    stop();
 
-    // 通知所有等待的线程
-    pthread_cond_broadcast(&mBufferMaxCond);
-    pthread_cond_broadcast(&mRenderCond);
-
-    // 等待解码线程结束
-    if (mDecodeThread) {
-        pthread_join(mDecodeThread, nullptr);
-        mDecodeThread = 0;
+    // 释放音频资源
+    if (mAudioInfo.playerObject) {
+        (*mAudioInfo.playerObject)->Destroy(mAudioInfo.playerObject);
+        mAudioInfo.playerObject = nullptr;
+        mAudioInfo.playerPlay = nullptr;
+        mAudioInfo.playerBufferQueue = nullptr;
     }
 
-
-    // 等待解码线程结束
-    if (mRenderThread) {
-        pthread_join(mRenderThread, nullptr);
-        mRenderThread = 0;
+    if (mAudioInfo.outputMixObject) {
+        (*mAudioInfo.outputMixObject)->Destroy(mAudioInfo.outputMixObject);
+        mAudioInfo.outputMixObject = nullptr;
     }
 
-    videoFrameQueue.clear();
-
-    LOGI("Playback stopped");
-    PostStatusMessage("Playback stopped");
-}
-
-void *FFMediaPlayer::decodeThreadWrapper(void *context) {
-    FFMediaPlayer *player = static_cast<FFMediaPlayer *>(context);
-    player->decodeThread();
-    return nullptr;
-}
-
-void FFMediaPlayer::decodeThread() {
-    AVPacket packet;
-    AVFrame *frame = av_frame_alloc();
-    int ret;
-
-    if (!frame) {
-        LOGE("Could not allocate frame");
-        return;
+    if (mAudioInfo.engineObject) {
+        (*mAudioInfo.engineObject)->Destroy(mAudioInfo.engineObject);
+        mAudioInfo.engineObject = nullptr;
+        mAudioInfo.engineEngine = nullptr;
     }
 
-    LOGI("Decode thread started");
-    PostStatusMessage("Decode thread started");
-
-    while (!mStopRequested && mIsPlaying) {
-        pthread_mutex_lock(&mDecodeMutex);
-        // 当队列达到最大时，解码等待。
-        while (videoFrameQueue.size() >= maxVideoFrames && !mStopRequested && mIsPlaying) {
-            LOGD("Waiting for buffer slot, queued: %zu", videoFrameQueue.size());
-            playMediaInfo =
-                    "Waiting for buffer slot, queued:" + to_string(videoFrameQueue.size()) + " \n";
-            PostStatusMessage(playMediaInfo.c_str());
-            pthread_cond_wait(&mBufferMaxCond, &mDecodeMutex);
-        }
-
-        if (mStopRequested || !mIsPlaying) {
-            pthread_mutex_unlock(&mDecodeMutex);
-            break;
-        }
-
-        ret = av_read_frame(mFormatContext, &packet);
-        if (ret < 0) {
-            pthread_mutex_unlock(&mDecodeMutex);
-
-            if (ret == AVERROR_EOF) {
-                LOGI("End of file reached");
-                break;
-            } else {
-                LOGE("Error reading frame: %d", ret);
-                usleep(10000);
-                continue;
-            }
-        }
-
-        if (packet.stream_index == mVideoStreamIndex) {
-            ret = avcodec_send_packet(mCodecContext, &packet);
-            if (ret < 0) {
-                LOGE("Error sending packet to decoder: %d", ret);
-                av_packet_unref(&packet);
-                pthread_mutex_unlock(&mDecodeMutex);
-                continue;
-            }
-
-            while (avcodec_receive_frame(mCodecContext, frame) == 0) {
-                AVFrame *frameCopy = av_frame_alloc();
-                if (!frameCopy) {
-                    LOGE("Could not allocate frame copy");
-                    continue;
-                }
-                if (av_frame_ref(frameCopy, frame) >= 0) {
-                    videoFrameQueue.push(frameCopy);
-                    pthread_cond_signal(&mRenderCond);
-                } else {
-                    av_frame_free(&frameCopy);
-                    pthread_mutex_unlock(&mDecodeMutex);
-                }
-            }
-        }
-
-        av_packet_unref(&packet);
-        pthread_mutex_unlock(&mDecodeMutex);
+    if (mAudioInfo.swrContext) {
+        swr_free(&mAudioInfo.swrContext);
     }
 
-    av_frame_free(&frame);
-    LOGI("Decode thread finished");
-}
-
-void *FFMediaPlayer::renderVideoFrame(void *context) {
-    FFMediaPlayer *player = static_cast<FFMediaPlayer *>(context);
-    player->renderVideoThread();
-    return nullptr;
-}
-
-void FFMediaPlayer::renderVideoThread() {
-    LOGI("Render thread started");
-    PostStatusMessage("Render thread started \n");
-
-    AVRational timeBase = mFormatContext->streams[mVideoStreamIndex]->time_base;
-    int64_t lastPts = AV_NOPTS_VALUE;
-
-    while (!mStopRequested && mIsPlaying) {
-        pthread_mutex_lock(&mRenderMutex);
-
-        while (videoFrameQueue.empty() && !mStopRequested && mIsPlaying) {
-            pthread_cond_wait(&mRenderCond, &mRenderMutex);
-        }
-
-        if (mStopRequested || !mIsPlaying) {
-            pthread_mutex_unlock(&mRenderMutex);
-            break;
-        }
-
-        if (!videoFrameQueue.empty()) {
-            std::shared_ptr<AVFrame *> framePtr = videoFrameQueue.pop();
-            AVFrame *frame = *framePtr;
-            pthread_mutex_unlock(&mRenderMutex);
-
-            // 基于时间戳的帧率控制
-            if (lastPts != AV_NOPTS_VALUE && frame->pts != AV_NOPTS_VALUE) {
-                int64_t ptsDiff = frame->pts - lastPts;
-                double timeDiff = av_q2d(timeBase) * ptsDiff * 1000000; // 转换为微秒
-                if (timeDiff > 0 && timeDiff < 1000000) { // 合理的帧间隔
-                    usleep(static_cast<useconds_t>(timeDiff));
-                }
-            }
-            lastPts = frame->pts;
-
-            sendFrameDataToANativeWindow(frame);
-
-            // 通知解码线程
-            if (videoFrameQueue.size() < maxVideoFrames / 2) {
-                pthread_cond_signal(&mBufferMaxCond);
-            }
-        } else {
-            pthread_mutex_unlock(&mRenderMutex);
-        }
+    // 释放视频资源
+    if (mVideoInfo.window) {
+        ANativeWindow_release(mVideoInfo.window);
+        mVideoInfo.window = nullptr;
     }
 
-    LOGI("Render thread finished");
-}
-
-int FFMediaPlayer::sendFrameDataToANativeWindow(AVFrame *frame) {
-    if (!mNativeWindow || !frame) {
-        return -1;
+    if (mVideoInfo.swsContext) {
+        sws_freeContext(mVideoInfo.swsContext);
+        mVideoInfo.swsContext = nullptr;
     }
 
-    ANativeWindow_Buffer windowBuffer;
-
-    // 颜色空间转换
-    sws_scale(mSwsContext, frame->data, frame->linesize, 0,
-              mHeight, mRgbFrame->data, mRgbFrame->linesize);
-
-    // 锁定窗口缓冲区
-    if (ANativeWindow_lock(mNativeWindow, &windowBuffer, nullptr) < 0) {
-        LOGE("Cannot lock window");
-        return -1;
+    if (mVideoInfo.rgbFrame) {
+        av_frame_free(&mVideoInfo.rgbFrame);
     }
 
-    // 优化拷贝：检查 stride 是否匹配
-    uint8_t* dst = static_cast<uint8_t*>(windowBuffer.bits);
-    int dstStride = windowBuffer.stride * 4;  // 目标步长（字节）
-    int srcStride = mRgbFrame->linesize[0];   // 源步长（字节）
-
-    if (dstStride == srcStride) {
-        // 步长匹配，可以直接整体拷贝
-        memcpy(dst, mOutbuffer, srcStride * mHeight);
-    } else {
-        // 步长不匹配，需要逐行拷贝
-        for (int h = 0; h < mHeight; h++) {
-            memcpy(dst + h * dstStride,
-                   mOutbuffer + h * srcStride,
-                   srcStride);
-        }
+    // 释放FFmpeg资源
+    if (mAudioInfo.codecContext) {
+        avcodec_free_context(&mAudioInfo.codecContext);
     }
 
-    ANativeWindow_unlockAndPost(mNativeWindow);
-
-    // 流控制
-    if (videoFrameQueue.size() < maxVideoFrames / 2) {
-        pthread_cond_signal(&mBufferMaxCond);
-    }
-
-    return 0;
-}
-
-void FFMediaPlayer::cleanup() {
-    cleanupFFmpeg();
-    cleanupANativeWindow();
-    mIsPlaying = false;
-    mInitialized = false;
-}
-
-void FFMediaPlayer::cleanupFFmpeg() {
-    if (mCodecContext) {
-        avcodec_close(mCodecContext);
-        avcodec_free_context(&mCodecContext);
-        mCodecContext = nullptr;
+    if (mVideoInfo.codecContext) {
+        avcodec_free_context(&mVideoInfo.codecContext);
     }
 
     if (mFormatContext) {
@@ -498,7 +311,777 @@ void FFMediaPlayer::cleanupFFmpeg() {
         mFormatContext = nullptr;
     }
 
-    mVideoStreamIndex = -1;
+    if (mUrl) {
+        free(mUrl);
+        mUrl = nullptr;
+    }
+
+    mState = STATE_IDLE;
+}
+
+int64_t FFMediaPlayer::getCurrentPosition() {
+    return (int64_t) (getMasterClock() * 1000); // 转换为毫秒
+}
+
+// 线程函数实现
+void *FFMediaPlayer::demuxThread(void *arg) {
+    FFMediaPlayer *player = static_cast<FFMediaPlayer *>(arg);
+    player->demux();
+    return nullptr;
+}
+
+void *FFMediaPlayer::audioDecodeThread(void *arg) {
+    FFMediaPlayer *player = static_cast<FFMediaPlayer *>(arg);
+    player->audioDecode();
+    return nullptr;
+}
+
+void *FFMediaPlayer::videoDecodeThread(void *arg) {
+    FFMediaPlayer *player = static_cast<FFMediaPlayer *>(arg);
+    player->videoDecode();
+    return nullptr;
+}
+
+void *FFMediaPlayer::audioPlayThread(void *arg) {
+    FFMediaPlayer *player = static_cast<FFMediaPlayer *>(arg);
+    player->audioPlay();
+    return nullptr;
+}
+
+void *FFMediaPlayer::videoPlayThread(void *arg) {
+    FFMediaPlayer *player = static_cast<FFMediaPlayer *>(arg);
+    player->videoPlay();
+    return nullptr;
+}
+
+void FFMediaPlayer::demux() {
+    AVPacket *packet = av_packet_alloc();
+
+    while (!mExit) {
+        if (mPause) {
+            usleep(10000); // 暂停时睡眠10ms
+            continue;
+        }
+
+        // 控制包队列大小，避免内存占用过大
+        pthread_mutex_lock(&mPacketMutex);
+        if (mAudioPackets.size() + mVideoPackets.size() > mMaxPackets) {
+            pthread_cond_wait(&mPacketCond, &mPacketMutex);
+        }
+        pthread_mutex_unlock(&mPacketMutex);
+
+        if (av_read_frame(mFormatContext, packet) < 0) {
+            break;
+        }
+
+        if (packet->stream_index == mAudioInfo.streamIndex) {
+            putAudioPacket(packet);
+            packet = av_packet_alloc(); // 分配新包，旧的已入队
+        } else if (packet->stream_index == mVideoInfo.streamIndex) {
+            putVideoPacket(packet);
+            packet = av_packet_alloc(); // 分配新包，旧的已入队
+        } else {
+            av_packet_unref(packet);
+        }
+    }
+
+    av_packet_free(&packet);
+
+    // 发送结束信号
+    if (mAudioInfo.codecContext) {
+        AVPacket *endPacket = av_packet_alloc();
+        endPacket->data = nullptr;
+        endPacket->size = 0;
+        putAudioPacket(endPacket);
+    }
+
+    AVPacket *endPacket = av_packet_alloc();
+    endPacket->data = nullptr;
+    endPacket->size = 0;
+    putVideoPacket(endPacket);
+}
+
+void FFMediaPlayer::audioDecode() {
+    while (!mExit) {
+        if (mPause) {
+            usleep(10000);
+            continue;
+        }
+
+        AVPacket *packet = getAudioPacket();
+        if (!packet) {
+            continue;
+        }
+
+        // 检查结束包
+        if (packet->data == nullptr && packet->size == 0) {
+            av_packet_free(&packet);
+            break;
+        }
+
+        processAudioPacket(packet);
+        av_packet_free(&packet);
+    }
+
+    // 刷新解码器
+    AVPacket *flushPacket = av_packet_alloc();
+    flushPacket->data = nullptr;
+    flushPacket->size = 0;
+    processAudioPacket(flushPacket);
+    av_packet_free(&flushPacket);
+}
+
+void FFMediaPlayer::videoDecode() {
+    while (!mExit) {
+        if (mPause) {
+            usleep(10000);
+            continue;
+        }
+
+        AVPacket *packet = getVideoPacket();
+        if (!packet) {
+            continue;
+        }
+
+        // 检查结束包
+        if (packet->data == nullptr && packet->size == 0) {
+            av_packet_free(&packet);
+            break;
+        }
+
+        processVideoPacket(packet);
+        av_packet_free(&packet);
+    }
+
+    // 刷新解码器
+    AVPacket *flushPacket = av_packet_alloc();
+    flushPacket->data = nullptr;
+    flushPacket->size = 0;
+    processVideoPacket(flushPacket);
+    av_packet_free(&flushPacket);
+}
+
+void FFMediaPlayer::audioPlay() {
+    // 音频播放主要由OpenSL ES回调驱动
+    // 这里主要处理音频队列管理和时钟更新
+    while (!mExit) {
+        if (mPause) {
+            usleep(10000);
+            continue;
+        }
+
+        // 控制音频队列大小
+        pthread_mutex_lock(&mAudioInfo.audioMutex);
+        if (mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames) {
+            pthread_cond_wait(&mAudioInfo.audioCond, &mAudioInfo.audioMutex);
+        }
+        pthread_mutex_unlock(&mAudioInfo.audioMutex);
+
+        usleep(5000); // 减少CPU占用
+    }
+}
+
+void FFMediaPlayer::videoPlay() {
+    while (!mExit) {
+        if (mPause) {
+            usleep(10000);
+            continue;
+        }
+
+        VideoFrame *vframe = getVideoFrame();
+        if (!vframe) {
+            usleep(10000);
+            continue;
+        }
+
+        // 音视频同步
+        syncVideo(vframe->pts);
+
+        // 渲染视频
+        renderVideoFrame(vframe);
+        delete vframe;
+    }
+}
+
+// 数据处理方法
+void FFMediaPlayer::processAudioPacket(AVPacket *packet) {
+    AVFrame *frame = av_frame_alloc();
+    int ret = avcodec_send_packet(mAudioInfo.codecContext, packet);
+    if (ret < 0) {
+        av_frame_free(&frame);
+        return;
+    }
+
+    while (ret >= 0) {
+        ret = avcodec_receive_frame(mAudioInfo.codecContext, frame);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            break;
+        } else if (ret < 0) {
+            break;
+        }
+
+        AudioFrame *aframe = decodeAudioFrame(frame);
+        if (aframe) {
+            putAudioFrame(aframe);
+        }
+
+        av_frame_unref(frame);
+    }
+
+    av_frame_free(&frame);
+}
+
+void FFMediaPlayer::processVideoPacket(AVPacket *packet) {
+    AVFrame *frame = av_frame_alloc();
+    int ret = avcodec_send_packet(mVideoInfo.codecContext, packet);
+    if (ret < 0) {
+        av_frame_free(&frame);
+        return;
+    }
+
+    while (ret >= 0) {
+        ret = avcodec_receive_frame(mVideoInfo.codecContext, frame);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            break;
+        } else if (ret < 0) {
+            break;
+        }
+
+        VideoFrame *vframe = decodeVideoFrame(frame);
+        if (vframe) {
+            putVideoFrame(vframe);
+        }
+
+        av_frame_unref(frame);
+    }
+
+    av_frame_free(&frame);
+}
+
+AudioFrame *FFMediaPlayer::decodeAudioFrame(AVFrame *frame) {
+    if (!frame || !mAudioInfo.swrContext) {
+        return nullptr;
+    }
+
+    // 计算PTS
+    double pts = frame->best_effort_timestamp;
+    if (pts != AV_NOPTS_VALUE) {
+        pts *= av_q2d(mAudioInfo.timeBase);
+        setAudioClock(pts);
+    }
+
+    // 重采样参数
+    int dst_nb_samples = av_rescale_rnd(
+            swr_get_delay(mAudioInfo.swrContext, frame->sample_rate) + frame->nb_samples,
+            mAudioInfo.sampleRate, frame->sample_rate, AV_ROUND_UP);
+
+    // 计算输出缓冲区大小
+    int dst_buffer_size = av_samples_get_buffer_size(
+            nullptr, mAudioInfo.channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 1);
+
+    if (dst_buffer_size < 0) {
+        return nullptr;
+    }
+
+    // 分配输出缓冲区
+    uint8_t *dst_data = (uint8_t *) av_malloc(dst_buffer_size);
+    if (!dst_data) {
+        return nullptr;
+    }
+
+    // 重采样
+    int ret = swr_convert(mAudioInfo.swrContext, &dst_data, dst_nb_samples,
+                          (const uint8_t **) frame->data, frame->nb_samples);
+    if (ret < 0) {
+        av_free(dst_data);
+        return nullptr;
+    }
+
+    // 创建音频帧
+    AudioFrame *aframe = new AudioFrame();
+    aframe->data = dst_data;
+    aframe->size = dst_buffer_size;
+    aframe->pts = pts;
+//    aframe->pos = av_frame_get_pkt_pos(frame);
+
+    return aframe;
+}
+
+VideoFrame *FFMediaPlayer::decodeVideoFrame(AVFrame *frame) {
+    if (!frame) {
+        return nullptr;
+    }
+
+    // 计算PTS
+    double pts = frame->best_effort_timestamp;
+    if (pts != AV_NOPTS_VALUE) {
+        pts *= av_q2d(mVideoInfo.timeBase);
+        setVideoClock(pts);
+    }
+
+    // 创建视频帧副本
+    AVFrame *frameCopy = av_frame_alloc();
+    if (av_frame_ref(frameCopy, frame) < 0) {
+        av_frame_free(&frameCopy);
+        return nullptr;
+    }
+
+    VideoFrame *vframe = new VideoFrame();
+    vframe->frame = frameCopy;
+    vframe->pts = pts;
+//    vframe->pos = av_frame_get_pkt_pos(frame);
+
+    return vframe;
+}
+
+void FFMediaPlayer::renderVideoFrame(VideoFrame *vframe) {
+    if (!mVideoInfo.window || !vframe->frame) {
+        return;
+    }
+
+    // 设置窗口尺寸
+    ANativeWindow_setBuffersGeometry(mVideoInfo.window,
+                                     mVideoInfo.width,
+                                     mVideoInfo.height,
+                                     WINDOW_FORMAT_RGBA_8888);
+
+    // 锁定窗口
+    if (ANativeWindow_lock(mVideoInfo.window, &mVideoInfo.windowBuffer, nullptr) < 0) {
+        LOGE("Could not lock native window");
+        return;
+    }
+
+    // 初始化转换上下文
+    if (!mVideoInfo.swsContext) {
+        mVideoInfo.swsContext = sws_getContext(
+                vframe->frame->width, vframe->frame->height,
+                (AVPixelFormat) vframe->frame->format,
+                mVideoInfo.width, mVideoInfo.height, AV_PIX_FMT_RGBA,
+                SWS_BILINEAR, nullptr, nullptr, nullptr);
+    }
+
+    // 初始化RGB帧
+    if (!mVideoInfo.rgbFrame) {
+        mVideoInfo.rgbFrame = av_frame_alloc();
+        mVideoInfo.rgbFrame->format = AV_PIX_FMT_RGBA;
+        mVideoInfo.rgbFrame->width = mVideoInfo.width;
+        mVideoInfo.rgbFrame->height = mVideoInfo.height;
+        av_frame_get_buffer(mVideoInfo.rgbFrame, 32);
+    }
+
+    // 转换YUV到RGBA
+    sws_scale(mVideoInfo.swsContext,
+              vframe->frame->data, vframe->frame->linesize,
+              0, vframe->frame->height,
+              mVideoInfo.rgbFrame->data, mVideoInfo.rgbFrame->linesize);
+
+    // 复制到窗口缓冲区
+    uint8_t *dst = (uint8_t *) mVideoInfo.windowBuffer.bits;
+    uint8_t *src = mVideoInfo.rgbFrame->data[0];
+    int dstStride = mVideoInfo.windowBuffer.stride * 4;
+    int srcStride = mVideoInfo.rgbFrame->linesize[0];
+
+    for (int i = 0; i < mVideoInfo.height; i++) {
+        memcpy(dst + i * dstStride, src + i * srcStride, srcStride);
+    }
+
+    // 解锁并显示
+    ANativeWindow_unlockAndPost(mVideoInfo.window);
+}
+
+// 队列操作方法实现
+void FFMediaPlayer::putAudioPacket(AVPacket *packet) {
+    pthread_mutex_lock(&mPacketMutex);
+    mAudioPackets.push(packet);
+    pthread_cond_signal(&mPacketCond);
+    pthread_mutex_unlock(&mPacketMutex);
+}
+
+void FFMediaPlayer::putVideoPacket(AVPacket *packet) {
+    pthread_mutex_lock(&mPacketMutex);
+    mVideoPackets.push(packet);
+    pthread_cond_signal(&mPacketCond);
+    pthread_mutex_unlock(&mPacketMutex);
+}
+
+AVPacket *FFMediaPlayer::getAudioPacket() {
+    pthread_mutex_lock(&mPacketMutex);
+    while (mAudioPackets.empty() && !mExit) {
+        pthread_cond_wait(&mPacketCond, &mPacketMutex);
+    }
+
+    if (mExit) {
+        pthread_mutex_unlock(&mPacketMutex);
+        return nullptr;
+    }
+
+    AVPacket *packet = mAudioPackets.front();
+    mAudioPackets.pop();
+    pthread_cond_signal(&mPacketCond);
+    pthread_mutex_unlock(&mPacketMutex);
+
+    return packet;
+}
+
+AVPacket *FFMediaPlayer::getVideoPacket() {
+    pthread_mutex_lock(&mPacketMutex);
+    while (mVideoPackets.empty() && !mExit) {
+        pthread_cond_wait(&mPacketCond, &mPacketMutex);
+    }
+
+    if (mExit) {
+        pthread_mutex_unlock(&mPacketMutex);
+        return nullptr;
+    }
+
+    AVPacket *packet = mVideoPackets.front();
+    mVideoPackets.pop();
+    pthread_cond_signal(&mPacketCond);
+    pthread_mutex_unlock(&mPacketMutex);
+
+    return packet;
+}
+
+void FFMediaPlayer::clearAudioPackets() {
+    pthread_mutex_lock(&mPacketMutex);
+    while (!mAudioPackets.empty()) {
+        AVPacket *packet = mAudioPackets.front();
+        mAudioPackets.pop();
+        av_packet_free(&packet);
+    }
+    pthread_mutex_unlock(&mPacketMutex);
+}
+
+void FFMediaPlayer::clearVideoPackets() {
+    pthread_mutex_lock(&mPacketMutex);
+    while (!mVideoPackets.empty()) {
+        AVPacket *packet = mVideoPackets.front();
+        mVideoPackets.pop();
+        av_packet_free(&packet);
+    }
+    pthread_mutex_unlock(&mPacketMutex);
+}
+
+void FFMediaPlayer::putAudioFrame(AudioFrame *frame) {
+    pthread_mutex_lock(&mAudioInfo.audioMutex);
+    while (mAudioInfo.audioQueue.size() >= mAudioInfo.maxAudioFrames && !mExit) {
+        pthread_cond_wait(&mAudioInfo.audioCond, &mAudioInfo.audioMutex);
+    }
+
+    if (!mExit) {
+        mAudioInfo.audioQueue.push(frame);
+    }
+    pthread_cond_signal(&mAudioInfo.audioCond);
+    pthread_mutex_unlock(&mAudioInfo.audioMutex);
+}
+
+void FFMediaPlayer::putVideoFrame(VideoFrame *frame) {
+    pthread_mutex_lock(&mVideoInfo.videoMutex);
+    while (mVideoInfo.videoQueue.size() >= mVideoInfo.maxVideoFrames && !mExit) {
+        pthread_cond_wait(&mVideoInfo.videoCond, &mVideoInfo.videoMutex);
+    }
+
+    if (!mExit) {
+        mVideoInfo.videoQueue.push(frame);
+    }
+    pthread_cond_signal(&mVideoInfo.videoCond);
+    pthread_mutex_unlock(&mVideoInfo.videoMutex);
+}
+
+AudioFrame *FFMediaPlayer::getAudioFrame() {
+    pthread_mutex_lock(&mAudioInfo.audioMutex);
+    if (mAudioInfo.audioQueue.empty()) {
+        pthread_mutex_unlock(&mAudioInfo.audioMutex);
+        return nullptr;
+    }
+
+    AudioFrame *frame = mAudioInfo.audioQueue.front();
+    mAudioInfo.audioQueue.pop();
+    pthread_cond_signal(&mAudioInfo.audioCond);
+    pthread_mutex_unlock(&mAudioInfo.audioMutex);
+
+    return frame;
+}
+
+VideoFrame *FFMediaPlayer::getVideoFrame() {
+    pthread_mutex_lock(&mVideoInfo.videoMutex);
+    if (mVideoInfo.videoQueue.empty()) {
+        pthread_mutex_unlock(&mVideoInfo.videoMutex);
+        return nullptr;
+    }
+
+    VideoFrame *frame = mVideoInfo.videoQueue.front();
+    mVideoInfo.videoQueue.pop();
+    pthread_cond_signal(&mVideoInfo.videoCond);
+    pthread_mutex_unlock(&mVideoInfo.videoMutex);
+
+    return frame;
+}
+
+void FFMediaPlayer::clearAudioFrames() {
+    pthread_mutex_lock(&mAudioInfo.audioMutex);
+    while (!mAudioInfo.audioQueue.empty()) {
+        AudioFrame *frame = mAudioInfo.audioQueue.front();
+        mAudioInfo.audioQueue.pop();
+        delete frame;
+    }
+    pthread_mutex_unlock(&mAudioInfo.audioMutex);
+}
+
+void FFMediaPlayer::clearVideoFrames() {
+    pthread_mutex_lock(&mVideoInfo.videoMutex);
+    while (!mVideoInfo.videoQueue.empty()) {
+        VideoFrame *frame = mVideoInfo.videoQueue.front();
+        mVideoInfo.videoQueue.pop();
+        delete frame;
+    }
+    pthread_mutex_unlock(&mVideoInfo.videoMutex);
+}
+
+// 同步方法实现
+double FFMediaPlayer::getMasterClock() {
+    return getAudioClock(); // 以音频时钟为主时钟
+}
+
+double FFMediaPlayer::getAudioClock() {
+    pthread_mutex_lock(&mAudioInfo.clockMutex);
+    double clock = mAudioInfo.clock;
+    pthread_mutex_unlock(&mAudioInfo.clockMutex);
+    return clock;
+}
+
+double FFMediaPlayer::getVideoClock() {
+    pthread_mutex_lock(&mVideoInfo.clockMutex);
+    double clock = mVideoInfo.clock;
+    pthread_mutex_unlock(&mVideoInfo.clockMutex);
+    return clock;
+}
+
+void FFMediaPlayer::setAudioClock(double pts) {
+    pthread_mutex_lock(&mAudioInfo.clockMutex);
+    mAudioInfo.clock = pts;
+    pthread_mutex_unlock(&mAudioInfo.clockMutex);
+}
+
+void FFMediaPlayer::setVideoClock(double pts) {
+    pthread_mutex_lock(&mVideoInfo.clockMutex);
+    mVideoInfo.clock = pts;
+    pthread_mutex_unlock(&mVideoInfo.clockMutex);
+}
+
+void FFMediaPlayer::syncVideo(double pts) {
+    double audioTime = getAudioClock();
+    double videoTime = pts;
+    double diff = videoTime - audioTime;
+
+    // 同步阈值
+    const double syncThreshold = 0.01;
+    const double maxFrameDelay = 0.1;
+
+    if (fabs(diff) < maxFrameDelay) {
+        if (diff <= -syncThreshold) {
+            // 视频落后，立即显示
+            return;
+        } else if (diff >= syncThreshold) {
+            // 视频超前，延迟显示
+            int delay = (int) (diff * 1000000); // 转换为微秒
+            usleep(delay);
+        }
+    }
+    // 差异太大，直接显示
+}
+
+// OpenSL ES初始化和其他辅助方法
+bool FFMediaPlayer::openCodecContext(int *streamIndex, AVCodecContext **codecContext,
+                                     AVFormatContext *formatContext, enum AVMediaType type) {
+    int streamIdx = av_find_best_stream(formatContext, type, -1, -1, nullptr, 0);
+    if (streamIdx < 0) {
+        LOGE("Could not find %s stream", av_get_media_type_string(type));
+        return false;
+    }
+
+    AVStream *stream = formatContext->streams[streamIdx];
+    const AVCodec *codec = avcodec_find_decoder(stream->codecpar->codec_id);
+    if (!codec) {
+        LOGE("Could not find %s codec", av_get_media_type_string(type));
+        return false;
+    }
+
+    *codecContext = avcodec_alloc_context3(codec);
+    if (!*codecContext) {
+        LOGE("Could not allocate %s codec context", av_get_media_type_string(type));
+        return false;
+    }
+
+    if (avcodec_parameters_to_context(*codecContext, stream->codecpar) < 0) {
+        LOGE("Could not copy %s codec parameters", av_get_media_type_string(type));
+        return false;
+    }
+
+    if (avcodec_open2(*codecContext, codec, nullptr) < 0) {
+        LOGE("Could not open %s codec", av_get_media_type_string(type));
+        return false;
+    }
+
+    *streamIndex = streamIdx;
+
+    // 设置时间基
+    if (type == AVMEDIA_TYPE_AUDIO) {
+        mAudioInfo.timeBase = stream->time_base;
+    } else if (type == AVMEDIA_TYPE_VIDEO) {
+        mVideoInfo.timeBase = stream->time_base;
+    }
+
+    return true;
+}
+
+bool FFMediaPlayer::initOpenSLES() {
+    LOGI("initOpenSLES()");
+    SLresult result;
+
+    // 创建引擎
+    result = slCreateEngine(&mAudioInfo.engineObject, 0, nullptr, 0, nullptr, nullptr);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to create engine: %d", result);
+        return false;
+    }
+
+    result = (*mAudioInfo.engineObject)->Realize(mAudioInfo.engineObject, SL_BOOLEAN_FALSE);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to realize engine: %d", result);
+        return false;
+    }
+
+    result = (*mAudioInfo.engineObject)->GetInterface(mAudioInfo.engineObject, SL_IID_ENGINE,
+                                                      &mAudioInfo.engineEngine);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to get engine interface: %d", result);
+        return false;
+    }
+
+    // 创建混音器
+    result = (*mAudioInfo.engineEngine)->CreateOutputMix(mAudioInfo.engineEngine,
+                                                         &mAudioInfo.outputMixObject, 0, nullptr,
+                                                         nullptr);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to create output mix: %d", result);
+        return false;
+    }
+
+    result = (*mAudioInfo.outputMixObject)->Realize(mAudioInfo.outputMixObject, SL_BOOLEAN_FALSE);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to realize output mix: %d", result);
+        return false;
+    }
+
+    // 配置音频源
+    SLDataLocator_AndroidSimpleBufferQueue loc_bufq = {
+            SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2
+    };
+
+    SLDataFormat_PCM format_pcm = {
+            SL_DATAFORMAT_PCM,
+            static_cast<SLuint32>(mAudioInfo.channels),
+            static_cast<SLuint32>(mAudioInfo.sampleRate * 1000), // 转换为毫赫兹
+            SL_PCMSAMPLEFORMAT_FIXED_16,
+            SL_PCMSAMPLEFORMAT_FIXED_16,
+            mAudioInfo.channels == 2 ? (SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT)
+                                     : SL_SPEAKER_FRONT_CENTER,
+            SL_BYTEORDER_LITTLEENDIAN
+    };
+
+    SLDataSource audioSrc = {&loc_bufq, &format_pcm};
+
+    // 配置音频接收器
+    SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, mAudioInfo.outputMixObject};
+    SLDataSink audioSnk = {&loc_outmix, nullptr};
+
+    // 创建音频播放器
+    const SLInterfaceID ids[] = {SL_IID_BUFFERQUEUE};
+    const SLboolean req[] = {SL_BOOLEAN_TRUE};
+
+    result = (*mAudioInfo.engineEngine)->CreateAudioPlayer(mAudioInfo.engineEngine,
+                                                           &mAudioInfo.playerObject,
+                                                           &audioSrc, &audioSnk,
+                                                           1, ids, req);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to create audio player: %d", result);
+        return false;
+    }
+
+    result = (*mAudioInfo.playerObject)->Realize(mAudioInfo.playerObject, SL_BOOLEAN_FALSE);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to realize audio player: %d", result);
+        return false;
+    }
+
+    // 获取播放接口
+    result = (*mAudioInfo.playerObject)->GetInterface(mAudioInfo.playerObject, SL_IID_PLAY,
+                                                      &mAudioInfo.playerPlay);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to get play interface: %d", result);
+        return false;
+    }
+
+    // 获取缓冲区队列接口
+    result = (*mAudioInfo.playerObject)->GetInterface(mAudioInfo.playerObject, SL_IID_BUFFERQUEUE,
+                                                      &mAudioInfo.playerBufferQueue);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to get buffer queue interface: %d", result);
+        return false;
+    }
+
+    // 注册回调函数
+    result = (*mAudioInfo.playerBufferQueue)->RegisterCallback(mAudioInfo.playerBufferQueue,
+                                                               audioCallbackWrapper, this);
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to register buffer queue callback: %d", result);
+        return false;
+    }
+
+    return true;
+}
+
+bool FFMediaPlayer::initVideoRenderer() {
+    LOGI("initVideoRenderer()");
+    if (!mVideoInfo.window) {
+        return false;
+    }
+
+    // 获取视频尺寸
+    mVideoInfo.width = mVideoInfo.codecContext->width;
+    mVideoInfo.height = mVideoInfo.codecContext->height;
+
+    // 设置窗口尺寸
+    ANativeWindow_setBuffersGeometry(mVideoInfo.window,
+                                     mVideoInfo.width,
+                                     mVideoInfo.height,
+                                     WINDOW_FORMAT_RGBA_8888);
+
+    return true;
+}
+
+void FFMediaPlayer::audioCallback(SLAndroidSimpleBufferQueueItf bufferQueue) {
+    // 从音频队列获取一帧数据
+    AudioFrame *aframe = getAudioFrame();
+    if (aframe) {
+        // 更新音频时钟
+        setAudioClock(aframe->pts);
+
+        // 将数据送入OpenSL ES
+        (*bufferQueue)->Enqueue(bufferQueue, aframe->data, aframe->size);
+
+        delete aframe;
+    } else {
+        // 队列为空，送入静音数据
+        static uint8_t silence[4096] = {0};
+        (*bufferQueue)->Enqueue(bufferQueue, silence, sizeof(silence));
+    }
+}
+
+void FFMediaPlayer::audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void *context) {
+    AudioFrame *player = static_cast<AudioFrame *>(context);
+//    player->audioCallback(bufferQueue);
 }
 
 JNIEnv *FFMediaPlayer::GetJNIEnv(bool *isAttach) {
@@ -544,5 +1127,47 @@ void FFMediaPlayer::PostStatusMessage(const char *msg) {
 
     if (isAttach) {
         mJavaVm->DetachCurrentThread();
+    }
+}
+
+// 添加这个辅助函数来获取错误描述
+const char *FFMediaPlayer::getSLErrorString(SLresult result) {
+    switch (result) {
+        case SL_RESULT_SUCCESS:
+            return "SL_RESULT_SUCCESS";
+        case SL_RESULT_PRECONDITIONS_VIOLATED:
+            return "SL_RESULT_PRECONDITIONS_VIOLATED";
+        case SL_RESULT_PARAMETER_INVALID:
+            return "SL_RESULT_PARAMETER_INVALID";
+        case SL_RESULT_MEMORY_FAILURE:
+            return "SL_RESULT_MEMORY_FAILURE";
+        case SL_RESULT_RESOURCE_ERROR:
+            return "SL_RESULT_RESOURCE_ERROR";
+        case SL_RESULT_RESOURCE_LOST:
+            return "SL_RESULT_RESOURCE_LOST";
+        case SL_RESULT_IO_ERROR:
+            return "SL_RESULT_IO_ERROR";
+        case SL_RESULT_BUFFER_INSUFFICIENT:
+            return "SL_RESULT_BUFFER_INSUFFICIENT";
+        case SL_RESULT_CONTENT_CORRUPTED:
+            return "SL_RESULT_CONTENT_CORRUPTED";
+        case SL_RESULT_CONTENT_UNSUPPORTED:
+            return "SL_RESULT_CONTENT_UNSUPPORTED";
+        case SL_RESULT_CONTENT_NOT_FOUND:
+            return "SL_RESULT_CONTENT_NOT_FOUND";
+        case SL_RESULT_PERMISSION_DENIED:
+            return "SL_RESULT_PERMISSION_DENIED";
+        case SL_RESULT_FEATURE_UNSUPPORTED:
+            return "SL_RESULT_FEATURE_UNSUPPORTED";
+        case SL_RESULT_INTERNAL_ERROR:
+            return "SL_RESULT_INTERNAL_ERROR";
+        case SL_RESULT_UNKNOWN_ERROR:
+            return "SL_RESULT_UNKNOWN_ERROR";
+        case SL_RESULT_OPERATION_ABORTED:
+            return "SL_RESULT_OPERATION_ABORTED";
+        case SL_RESULT_CONTROL_LOST:
+            return "SL_RESULT_CONTROL_LOST";
+        default:
+            return "Unknown error";
     }
 }

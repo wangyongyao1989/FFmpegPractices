@@ -58,8 +58,6 @@ bool WYMediaPlayer::prepare() {
 
     mState = STATE_PREPARING;
 
-    // 初始化FFmpeg
-//    av_register_all();
 
     // 打开输入文件
     if (avformat_open_input(&mFormatContext, mUrl, nullptr, nullptr) < 0) {
