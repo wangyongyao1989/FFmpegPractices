@@ -22,6 +22,15 @@ FFMediaPlayer::FFMediaPlayer(JNIEnv *env, jobject thiz)
     pthread_cond_init(&mStateCond, nullptr);
     pthread_mutex_init(&mPacketMutex, nullptr);
     pthread_cond_init(&mPacketCond, nullptr);
+
+    pthread_mutex_init(&mBufferMutex, nullptr);
+    pthread_cond_init(&mBufferReadyCond, nullptr);
+
+    // 初始化OpenSLES缓冲区
+    for (int i = 0; i < NUM_BUFFERS; i++) {
+        mBuffers[i] = new uint8_t[BUFFER_SIZE];
+        memset(mBuffers[i], 0, BUFFER_SIZE); // 初始化为静音
+    }
 }
 
 FFMediaPlayer::~FFMediaPlayer() {
@@ -98,22 +107,16 @@ bool FFMediaPlayer::prepare() {
         // 初始化音频重采样
         mAudioInfo.sampleRate = mAudioInfo.codecContext->sample_rate;
         mAudioInfo.channels = mAudioInfo.codecContext->channels;
-        mAudioInfo.channelLayout = mAudioInfo.codecContext->channel_layout;
+        mAudioInfo.channelLayout = &mAudioInfo.codecContext->ch_layout;
         mAudioInfo.format = mAudioInfo.codecContext->sample_fmt;
 
-        if (mAudioInfo.channelLayout == 0) {
-            mAudioInfo.channelLayout = av_get_default_channel_layout(mAudioInfo.channels);
-        }
+        // 配置音频重采样
+        AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
+        swr_alloc_set_opts2(&mAudioInfo.swrContext,
+                            &out_ch_layout, AV_SAMPLE_FMT_S16, mAudioInfo.sampleRate,
+                            mAudioInfo.channelLayout, mAudioInfo.format, mAudioInfo.sampleRate,
+                            0, NULL);
 
-        // 初始化重采样上下文
-        mAudioInfo.swrContext = swr_alloc_set_opts(nullptr,
-                                                   mAudioInfo.channelLayout,
-                                                   AV_SAMPLE_FMT_S16,
-                                                   mAudioInfo.sampleRate,
-                                                   mAudioInfo.channelLayout,
-                                                   mAudioInfo.format,
-                                                   mAudioInfo.sampleRate,
-                                                   0, nullptr);
         if (!mAudioInfo.swrContext || swr_init(mAudioInfo.swrContext) < 0) {
             LOGE("Could not initialize swresample");
             mState = STATE_ERROR;
@@ -158,6 +161,24 @@ bool FFMediaPlayer::start() {
     mExit = false;
     mPause = false;
 
+
+    // 重置状态
+    mQueuedBufferCount = 0;
+    mCurrentBuffer = 0;
+
+    // 清空缓冲区队列
+    if (helper.bufferQueueItf) {
+        (*helper.bufferQueueItf)->Clear(helper.bufferQueueItf);
+    }
+
+    SLresult result = helper.play();
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to set play state: %d, error: %s", result, getSLErrorString(result));
+        playAudioInfo = "Failed to set play state: " + string(getSLErrorString(result));
+        PostStatusMessage(playAudioInfo.c_str());
+    }
+    LOGE("helper.play() successfully");
+
     // 启动解复用线程
     if (pthread_create(&mDemuxThread, nullptr, demuxThread, this) != 0) {
         LOGE("Could not create demux thread");
@@ -191,9 +212,10 @@ bool FFMediaPlayer::start() {
     }
 
     // 启动音频播放
-    if (mAudioInfo.playerPlay) {
-        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_PLAYING);
-    }
+//    if (mAudioInfo.playerPlay) {
+//        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_PLAYING);
+//    }
+
 
     mState = STATE_STARTED;
     return true;
@@ -207,8 +229,15 @@ bool FFMediaPlayer::pause() {
 
     mPause = true;
 
-    if (mAudioInfo.playerPlay) {
-        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_PAUSED);
+//    if (mAudioInfo.playerPlay) {
+//        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_PAUSED);
+//    }
+
+    SLresult result = helper.pause();
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to set play state: %d, error: %s", result, getSLErrorString(result));
+        playAudioInfo = "Failed to set play state: " + string(getSLErrorString(result));
+        PostStatusMessage(playAudioInfo.c_str());
     }
 
     mState = STATE_PAUSED;
@@ -229,8 +258,25 @@ bool FFMediaPlayer::stop() {
     pthread_cond_broadcast(&mAudioInfo.audioCond);
     pthread_cond_broadcast(&mVideoInfo.videoCond);
 
-    if (mAudioInfo.playerPlay) {
-        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_STOPPED);
+//    if (mAudioInfo.playerPlay) {
+//        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_STOPPED);
+//    }
+
+    if (helper.player) {
+        helper.stop();
+    }
+
+    // 清空缓冲区队列
+    if (helper.bufferQueueItf) {
+        (*helper.bufferQueueItf)->Clear(helper.bufferQueueItf);
+    }
+
+    pthread_mutex_destroy(&mBufferMutex);
+    pthread_cond_destroy(&mBufferReadyCond);
+
+    // 清理缓冲区
+    for (int i = 0; i < NUM_BUFFERS; i++) {
+        delete[] mBuffers[i];
     }
 
     // 等待线程结束
@@ -259,24 +305,24 @@ void FFMediaPlayer::release() {
 
     stop();
 
-    // 释放音频资源
-    if (mAudioInfo.playerObject) {
-        (*mAudioInfo.playerObject)->Destroy(mAudioInfo.playerObject);
-        mAudioInfo.playerObject = nullptr;
-        mAudioInfo.playerPlay = nullptr;
-        mAudioInfo.playerBufferQueue = nullptr;
-    }
-
-    if (mAudioInfo.outputMixObject) {
-        (*mAudioInfo.outputMixObject)->Destroy(mAudioInfo.outputMixObject);
-        mAudioInfo.outputMixObject = nullptr;
-    }
-
-    if (mAudioInfo.engineObject) {
-        (*mAudioInfo.engineObject)->Destroy(mAudioInfo.engineObject);
-        mAudioInfo.engineObject = nullptr;
-        mAudioInfo.engineEngine = nullptr;
-    }
+//    // 释放音频资源
+//    if (mAudioInfo.playerObject) {
+//        (*mAudioInfo.playerObject)->Destroy(mAudioInfo.playerObject);
+//        mAudioInfo.playerObject = nullptr;
+//        mAudioInfo.playerPlay = nullptr;
+//        mAudioInfo.playerBufferQueue = nullptr;
+//    }
+//
+//    if (mAudioInfo.outputMixObject) {
+//        (*mAudioInfo.outputMixObject)->Destroy(mAudioInfo.outputMixObject);
+//        mAudioInfo.outputMixObject = nullptr;
+//    }
+//
+//    if (mAudioInfo.engineObject) {
+//        (*mAudioInfo.engineObject)->Destroy(mAudioInfo.engineObject);
+//        mAudioInfo.engineObject = nullptr;
+//        mAudioInfo.engineEngine = nullptr;
+//    }
 
     if (mAudioInfo.swrContext) {
         swr_free(&mAudioInfo.swrContext);
@@ -464,6 +510,8 @@ void FFMediaPlayer::videoDecode() {
 void FFMediaPlayer::audioPlay() {
     // 音频播放主要由OpenSL ES回调驱动
     // 这里主要处理音频队列管理和时钟更新
+    LOGW("audioPlay===============");
+
     while (!mExit) {
         if (mPause) {
             usleep(10000);
@@ -471,13 +519,91 @@ void FFMediaPlayer::audioPlay() {
         }
 
         // 控制音频队列大小
-        pthread_mutex_lock(&mAudioInfo.audioMutex);
-        if (mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames) {
-            pthread_cond_wait(&mAudioInfo.audioCond, &mAudioInfo.audioMutex);
-        }
-        pthread_mutex_unlock(&mAudioInfo.audioMutex);
+//        pthread_mutex_lock(&mAudioInfo.audioMutex);
+//        if (mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames) {
+//            LOGE("mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames");
+//            pthread_cond_wait(&mAudioInfo.audioCond, &mAudioInfo.audioMutex);
+//        }
+//        pthread_mutex_unlock(&mAudioInfo.audioMutex);
 
-        usleep(5000); // 减少CPU占用
+        // 等待直到有可用的缓冲区槽位
+        pthread_mutex_lock(&mBufferMutex);
+
+        while (mQueuedBufferCount >= NUM_BUFFERS) {
+            LOGI("Waiting for buffer slot, queued: %d", mQueuedBufferCount.load());
+            playAudioInfo =
+                    "Waiting for buffer slot, queued:" + to_string(mQueuedBufferCount) + " \n";
+            PostStatusMessage(playAudioInfo.c_str());
+            pthread_cond_wait(&mBufferReadyCond, &mBufferMutex);
+        }
+
+
+        // 从音频队列获取一帧数据
+        AudioFrame *aframe = getAudioFrame();
+        if (aframe) {
+//            LOGW(" AudioFrame *aframe========");
+//            pthread_mutex_unlock(&mBufferMutex);
+//            continue;
+
+            // 更新音频时钟
+            setAudioClock(aframe->pts);
+
+            // 检查是否还有可用的缓冲区槽位
+            if (mQueuedBufferCount >= NUM_BUFFERS) {
+                LOGW("No buffer slots available, skipping frame");
+                pthread_mutex_unlock(&mBufferMutex);
+                break;
+            }
+
+
+            // 将缓冲区加入播放队列
+            SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf,
+                                                                aframe->data, aframe->size);
+            if (result != SL_RESULT_SUCCESS) {
+                LOGE("Failed to enqueue buffer: %d, error: %s",
+                     result, getSLErrorString(result));
+
+                if (result == SL_RESULT_BUFFER_INSUFFICIENT) {
+                    // 等待一段时间后重试
+                    pthread_mutex_unlock(&mBufferMutex);
+                    usleep(10000); // 10ms
+                    pthread_mutex_lock(&mBufferMutex);
+                }
+                break;
+            } else {
+                // 成功入队，更新状态
+                mQueuedBufferCount++;
+                mCurrentBuffer = (mCurrentBuffer + 1) % NUM_BUFFERS;
+                LOGI("111Buffer enqueued successfully: %d bytes, buffer index: %d, queued: %d",
+                     mBufferReadyCond, mCurrentBuffer, mQueuedBufferCount.load());
+            }
+            delete aframe;
+        } else {
+            LOGW(" 队列为空，送入静音数据");
+            // 队列为空，送入静音数据
+            static uint8_t silence[4096] = {0};
+            SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf, silence, sizeof(silence));
+            if (result != SL_RESULT_SUCCESS) {
+                LOGE("Failed to enqueue buffer: %d, error: %s",
+                     result, getSLErrorString(result));
+
+                if (result == SL_RESULT_BUFFER_INSUFFICIENT) {
+                    // 等待一段时间后重试
+                    pthread_mutex_unlock(&mBufferMutex);
+                    usleep(10000); // 10ms
+                    pthread_mutex_lock(&mBufferMutex);
+                }
+                break;
+            } else {
+                // 成功入队，更新状态
+                mQueuedBufferCount++;
+                mCurrentBuffer = (mCurrentBuffer + 1) % NUM_BUFFERS;
+                LOGI("2222Buffer enqueued successfully: %d bytes, buffer index: %d, queued: %d",
+                     mBufferReadyCond, mCurrentBuffer, mQueuedBufferCount.load());
+            }
+        }
+        pthread_mutex_unlock(&mBufferMutex);
+        usleep(1000); // 减少CPU占用
     }
 }
 
@@ -570,39 +696,68 @@ AudioFrame *FFMediaPlayer::decodeAudioFrame(AVFrame *frame) {
         setAudioClock(pts);
     }
 
-    // 重采样参数
-    int dst_nb_samples = av_rescale_rnd(
-            swr_get_delay(mAudioInfo.swrContext, frame->sample_rate) + frame->nb_samples,
-            mAudioInfo.sampleRate, frame->sample_rate, AV_ROUND_UP);
+    // 重采样音频数据
+    uint8_t *buffer = mBuffers[mCurrentBuffer];
+    uint8_t *outBuffer = buffer;
 
-    // 计算输出缓冲区大小
-    int dst_buffer_size = av_samples_get_buffer_size(
-            nullptr, mAudioInfo.channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 1);
-
-    if (dst_buffer_size < 0) {
+    // 计算最大输出样本数
+    int maxSamples = BUFFER_SIZE / (mAudioInfo.channels * 2);
+    int outSamples = swr_convert(mAudioInfo.swrContext, &outBuffer, maxSamples,
+                                 (const uint8_t **) frame->data, frame->nb_samples);
+    AudioFrame *aframe = nullptr;
+    if (outSamples > 0) {
+        int bytesDecoded = outSamples * mAudioInfo.channels * 2;
+        // 确保不超过缓冲区大小
+        if (bytesDecoded > BUFFER_SIZE) {
+            LOGW("Decoded data exceeds buffer size: %d > %d", bytesDecoded,
+                 BUFFER_SIZE);
+            bytesDecoded = BUFFER_SIZE;
+        }
+        // 创建音频帧
+        aframe = new AudioFrame();
+        aframe->data = buffer;
+        aframe->size = bytesDecoded;
+        aframe->pts = pts;
+    } else if (outSamples < 0) {
         return nullptr;
+        LOGE("swr_convert failed: %d", outSamples);
     }
 
-    // 分配输出缓冲区
-    uint8_t *dst_data = (uint8_t *) av_malloc(dst_buffer_size);
-    if (!dst_data) {
-        return nullptr;
-    }
+    LOGE("decodeAudioFrame aframe: %d,count : %d", aframe->size, ++count);
 
-    // 重采样
-    int ret = swr_convert(mAudioInfo.swrContext, &dst_data, dst_nb_samples,
-                          (const uint8_t **) frame->data, frame->nb_samples);
-    if (ret < 0) {
-        av_free(dst_data);
-        return nullptr;
-    }
+//    // 重采样参数
+//    int dst_nb_samples = av_rescale_rnd(
+//            swr_get_delay(mAudioInfo.swrContext, frame->sample_rate) + frame->nb_samples,
+//            mAudioInfo.sampleRate, frame->sample_rate, AV_ROUND_UP);
+//
+//    // 计算输出缓冲区大小
+//    int dst_buffer_size = av_samples_get_buffer_size(
+//            nullptr, mAudioInfo.channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 1);
+//
+//    if (dst_buffer_size < 0) {
+//        return nullptr;
+//    }
+//
+//    // 分配输出缓冲区
+//    uint8_t *dst_data = (uint8_t *) av_malloc(dst_buffer_size);
+//    if (!dst_data) {
+//        return nullptr;
+//    }
+//
+//    // 重采样
+//    int ret = swr_convert(mAudioInfo.swrContext, &dst_data, dst_nb_samples,
+//                          (const uint8_t **) frame->data, frame->nb_samples);
+//    if (ret < 0) {
+//        av_free(dst_data);
+//        return nullptr;
+//    }
 
     // 创建音频帧
-    AudioFrame *aframe = new AudioFrame();
-    aframe->data = dst_data;
-    aframe->size = dst_buffer_size;
-    aframe->pts = pts;
-//    aframe->pos = av_frame_get_pkt_pos(frame);
+//    AudioFrame *aframe = new AudioFrame();
+//    aframe->data = dst_data;
+//    aframe->size = dst_buffer_size;
+//    aframe->pts = pts;
+////    aframe->pos = av_frame_get_pkt_pos(frame);
 
     return aframe;
 }
@@ -937,109 +1092,83 @@ bool FFMediaPlayer::openCodecContext(int *streamIndex, AVCodecContext **codecCon
 
 bool FFMediaPlayer::initOpenSLES() {
     LOGI("initOpenSLES()");
-    SLresult result;
 
-    // 创建引擎
-    result = slCreateEngine(&mAudioInfo.engineObject, 0, nullptr, 0, nullptr, nullptr);
+    // 创建 OpenSL 引擎与引擎接口
+    SLresult result = helper.createEngine();
+    if (!helper.isSuccess(result)) {
+        LOGE("create engine error: %d", result);
+        PostStatusMessage("Create engine error\n");
+        return false;
+    }
+    PostStatusMessage("OpenSL createEngine Success \n");
+
+    // 创建混音器与混音接口
+    result = helper.createMix();
+    if (!helper.isSuccess(result)) {
+        LOGE("create mix error: %d", result);
+        PostStatusMessage("Create mix error \n");
+        return false;
+    }
+    PostStatusMessage("OpenSL createMix Success \n");
+
+    result = helper.createPlayer(mAudioInfo.channels, mAudioInfo.sampleRate * 1000,
+                                 SL_PCMSAMPLEFORMAT_FIXED_16,
+                                 mAudioInfo.channels == 2 ? (SL_SPEAKER_FRONT_LEFT |
+                                                             SL_SPEAKER_FRONT_RIGHT)
+                                                          : SL_SPEAKER_FRONT_CENTER);
+    if (!helper.isSuccess(result)) {
+        LOGE("create player error: %d", result);
+        PostStatusMessage("Create player error\n");
+        return false;
+    }
+    PostStatusMessage("OpenSL createPlayer Success \n");
+
+    // 注册回调并开始播放
+    result = helper.registerCallback(bufferQueueCallback, this);
+    if (!helper.isSuccess(result)) {
+        LOGE("register callback error: %d", result);
+        PostStatusMessage("Register callback error \n");
+        return false;
+    }
+    PostStatusMessage("OpenSL registerCallback Success \n");
+
+    // 清空缓冲区队列
+    result = (*helper.bufferQueueItf)->Clear(helper.bufferQueueItf);
     if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to create engine: %d", result);
+        LOGE("Failed to clear buffer queue: %d, error: %s", result, getSLErrorString(result));
+        playAudioInfo = "Failed to clear buffer queue:" + string(getSLErrorString(result));
+        PostStatusMessage(playAudioInfo.c_str());
         return false;
     }
 
-    result = (*mAudioInfo.engineObject)->Realize(mAudioInfo.engineObject, SL_BOOLEAN_FALSE);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to realize engine: %d", result);
-        return false;
-    }
-
-    result = (*mAudioInfo.engineObject)->GetInterface(mAudioInfo.engineObject, SL_IID_ENGINE,
-                                                      &mAudioInfo.engineEngine);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to get engine interface: %d", result);
-        return false;
-    }
-
-    // 创建混音器
-    result = (*mAudioInfo.engineEngine)->CreateOutputMix(mAudioInfo.engineEngine,
-                                                         &mAudioInfo.outputMixObject, 0, nullptr,
-                                                         nullptr);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to create output mix: %d", result);
-        return false;
-    }
-
-    result = (*mAudioInfo.outputMixObject)->Realize(mAudioInfo.outputMixObject, SL_BOOLEAN_FALSE);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to realize output mix: %d", result);
-        return false;
-    }
-
-    // 配置音频源
-    SLDataLocator_AndroidSimpleBufferQueue loc_bufq = {
-            SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2
-    };
-
-    SLDataFormat_PCM format_pcm = {
-            SL_DATAFORMAT_PCM,
-            static_cast<SLuint32>(mAudioInfo.channels),
-            static_cast<SLuint32>(mAudioInfo.sampleRate * 1000), // 转换为毫赫兹
-            SL_PCMSAMPLEFORMAT_FIXED_16,
-            SL_PCMSAMPLEFORMAT_FIXED_16,
-            mAudioInfo.channels == 2 ? (SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT)
-                                     : SL_SPEAKER_FRONT_CENTER,
-            SL_BYTEORDER_LITTLEENDIAN
-    };
-
-    SLDataSource audioSrc = {&loc_bufq, &format_pcm};
-
-    // 配置音频接收器
-    SLDataLocator_OutputMix loc_outmix = {SL_DATALOCATOR_OUTPUTMIX, mAudioInfo.outputMixObject};
-    SLDataSink audioSnk = {&loc_outmix, nullptr};
-
-    // 创建音频播放器
-    const SLInterfaceID ids[] = {SL_IID_BUFFERQUEUE};
-    const SLboolean req[] = {SL_BOOLEAN_TRUE};
-
-    result = (*mAudioInfo.engineEngine)->CreateAudioPlayer(mAudioInfo.engineEngine,
-                                                           &mAudioInfo.playerObject,
-                                                           &audioSrc, &audioSnk,
-                                                           1, ids, req);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to create audio player: %d", result);
-        return false;
-    }
-
-    result = (*mAudioInfo.playerObject)->Realize(mAudioInfo.playerObject, SL_BOOLEAN_FALSE);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to realize audio player: %d", result);
-        return false;
-    }
-
-    // 获取播放接口
-    result = (*mAudioInfo.playerObject)->GetInterface(mAudioInfo.playerObject, SL_IID_PLAY,
-                                                      &mAudioInfo.playerPlay);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to get play interface: %d", result);
-        return false;
-    }
-
-    // 获取缓冲区队列接口
-    result = (*mAudioInfo.playerObject)->GetInterface(mAudioInfo.playerObject, SL_IID_BUFFERQUEUE,
-                                                      &mAudioInfo.playerBufferQueue);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to get buffer queue interface: %d", result);
-        return false;
-    }
-
-    // 注册回调函数
-    result = (*mAudioInfo.playerBufferQueue)->RegisterCallback(mAudioInfo.playerBufferQueue,
-                                                               audioCallbackWrapper, this);
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to register buffer queue callback: %d", result);
-        return false;
-    }
-
+    LOGI("OpenSL ES initialized successfully: %d Hz, %d channels", mAudioInfo.sampleRate,
+         mAudioInfo.channels);
+    playAudioInfo =
+            "OpenSL ES  initialized ,Hz:" + to_string(mAudioInfo.sampleRate) + ",channels:" +
+            to_string(mAudioInfo.channels) + " ,duration:" + to_string(mDuration) + "\n";
+    PostStatusMessage(playAudioInfo.c_str());
     return true;
+}
+
+void FFMediaPlayer::bufferQueueCallback(SLAndroidSimpleBufferQueueItf bq, void *context) {
+    FFMediaPlayer *player = static_cast<FFMediaPlayer *>(context);
+    player->processBufferQueue();
+
+}
+
+void FFMediaPlayer::processBufferQueue() {
+    pthread_mutex_lock(&mBufferMutex);
+    LOGI("processBufferQueue=======");
+
+    // 缓冲区已播放完成，减少计数
+    if (mQueuedBufferCount > 0) {
+        mQueuedBufferCount--;
+        LOGI("Buffer processed, queued count: %d", mQueuedBufferCount.load());
+    }
+
+    // 通知解码线程有可用的缓冲区槽位
+    pthread_cond_signal(&mBufferReadyCond);
+    pthread_mutex_unlock(&mBufferMutex);
 }
 
 bool FFMediaPlayer::initVideoRenderer() {

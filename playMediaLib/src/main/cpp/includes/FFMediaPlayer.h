@@ -22,16 +22,20 @@
 // 音频帧结构
 struct AudioFrame {
     uint8_t *data;
+    AVFrame *frame;
     int size;
     double pts;
     int64_t pos;
 
-    AudioFrame() : data(nullptr), size(0), pts(0), pos(0) {}
+    AudioFrame() : data(nullptr),frame(nullptr), size(0), pts(0), pos(0) {}
 
     ~AudioFrame() {
         if (data) {
             av_free(data);
             data = nullptr;
+        }
+        if (frame) {
+            av_frame_free(&frame);
         }
     }
 };
@@ -59,18 +63,18 @@ struct AudioInfo {
     AVRational timeBase;
 
     // OpenSL ES
-    SLObjectItf engineObject;
-    SLEngineItf engineEngine;
-    SLObjectItf outputMixObject;
-    SLObjectItf playerObject;
-    SLPlayItf playerPlay;
-    SLAndroidSimpleBufferQueueItf playerBufferQueue;
+//    SLObjectItf engineObject;
+//    SLEngineItf engineEngine;
+//    SLObjectItf outputMixObject;
+//    SLObjectItf playerObject;
+//    SLPlayItf playerPlay;
+//    SLAndroidSimpleBufferQueueItf playerBufferQueue;
 
     // 音频参数
     int sampleRate;
     int channels;
     int bytesPerSample;
-    int64_t channelLayout;
+    AVChannelLayout *channelLayout;
     enum AVSampleFormat format;
 
     // 音频队列
@@ -84,11 +88,11 @@ struct AudioInfo {
     pthread_mutex_t clockMutex;
 
     AudioInfo() : streamIndex(-1), codecContext(nullptr), swrContext(nullptr),
-                  engineObject(nullptr), engineEngine(nullptr),
-                  outputMixObject(nullptr), playerObject(nullptr),
-                  playerPlay(nullptr), playerBufferQueue(nullptr),
+//                  engineObject(nullptr), engineEngine(nullptr),
+//                  outputMixObject(nullptr), playerObject(nullptr),
+//                  playerPlay(nullptr), playerBufferQueue(nullptr),
                   sampleRate(0), channels(0), bytesPerSample(0),
-                  channelLayout(0), format(AV_SAMPLE_FMT_NONE),
+                  channelLayout(nullptr), format(AV_SAMPLE_FMT_NONE),
                   maxAudioFrames(100), clock(0) {
         pthread_mutex_init(&audioMutex, nullptr);
         pthread_cond_init(&audioCond, nullptr);
@@ -184,6 +188,21 @@ private:
     JNIEnv *mEnv = nullptr;
 
     OpenslHelper helper;
+
+    static void bufferQueueCallback(SLAndroidSimpleBufferQueueItf bq, void *context);
+    // 缓冲区
+    static const int NUM_BUFFERS = 4;
+    static const int BUFFER_SIZE = 4096;
+    uint8_t *mBuffers[NUM_BUFFERS];
+    int mCurrentBuffer;
+    std::atomic<int> mQueuedBufferCount; // 跟踪已入队的缓冲区数量
+
+    pthread_mutex_t mBufferMutex;
+    pthread_cond_t mBufferReadyCond;
+
+    int count;
+
+    void processBufferQueue();
 
     jobject androidSurface = NULL;
     //  NativeWindow;

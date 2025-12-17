@@ -397,6 +397,7 @@ void FFmpegOpenSLPlayer::decodeThread() {
                         LOGW("No buffer slots available, skipping frame");
                         break;
                     }
+                    LOGE("(*helper.bufferQueueItf)->Enqueue(: ");
 
                     // 将缓冲区加入播放队列
                     SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf,
@@ -439,6 +440,8 @@ void FFmpegOpenSLPlayer::decodeThread() {
 
 void FFmpegOpenSLPlayer::bufferQueueCallback(SLAndroidSimpleBufferQueueItf bq, void *context) {
     FFmpegOpenSLPlayer *player = static_cast<FFmpegOpenSLPlayer *>(context);
+    LOGI("bufferQueueCallback p=====================");
+
     player->processBufferQueue();
 }
 
