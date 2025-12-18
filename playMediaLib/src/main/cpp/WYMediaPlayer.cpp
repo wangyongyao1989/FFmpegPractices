@@ -6,6 +6,8 @@
 #include <unistd.h>
 
 
+
+
 WYMediaPlayer::WYMediaPlayer()
         : mState(STATE_IDLE),
           mUrl(nullptr),
@@ -58,6 +60,8 @@ bool WYMediaPlayer::prepare() {
 
     mState = STATE_PREPARING;
 
+//    // 初始化FFmpeg
+//    av_register_all();
 
     // 打开输入文件
     if (avformat_open_input(&mFormatContext, mUrl, nullptr, nullptr) < 0) {
@@ -543,7 +547,7 @@ void WYMediaPlayer::processVideoPacket(AVPacket* packet) {
     av_frame_free(&frame);
 }
 
-AudioFrame *WYMediaPlayer::decodeAudioFrame(AVFrame* frame) {
+AudioFrame* WYMediaPlayer::decodeAudioFrame(AVFrame* frame) {
     if (!frame || !mAudioInfo.swrContext) {
         return nullptr;
     }
@@ -1061,6 +1065,6 @@ void WYMediaPlayer::audioCallback(SLAndroidSimpleBufferQueueItf bufferQueue) {
 }
 
 void WYMediaPlayer::audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void* context) {
-    AudioFrame* player = static_cast<AudioFrame*>(context);
-//    player->audioCallback(bufferQueue);
+    WYMediaPlayer* player = static_cast<WYMediaPlayer*>(context);
+    player->audioCallback(bufferQueue);
 }

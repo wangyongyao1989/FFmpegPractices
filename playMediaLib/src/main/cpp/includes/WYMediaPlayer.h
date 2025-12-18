@@ -12,15 +12,15 @@
 #include "BasicCommon.h"
 #include <queue>
 
-
 // 音频帧结构
 struct AudioFrame {
-    uint8_t* data;
+    uint8_t *data;
     int size;
     double pts;
     int64_t pos;
 
     AudioFrame() : data(nullptr), size(0), pts(0), pos(0) {}
+
     ~AudioFrame() {
         if (data) {
             av_free(data);
@@ -31,11 +31,12 @@ struct AudioFrame {
 
 // 视频帧结构
 struct VideoFrame {
-    AVFrame* frame;
+    AVFrame *frame;
     double pts;
     int64_t pos;
 
     VideoFrame() : frame(nullptr), pts(0), pos(0) {}
+
     ~VideoFrame() {
         if (frame) {
             av_frame_free(&frame);
@@ -46,8 +47,8 @@ struct VideoFrame {
 // 音频信息
 struct AudioInfo {
     int streamIndex;
-    AVCodecContext* codecContext;
-    SwrContext* swrContext;
+    AVCodecContext *codecContext;
+    SwrContext *swrContext;
     AVRational timeBase;
 
     // OpenSL ES
@@ -66,7 +67,7 @@ struct AudioInfo {
     enum AVSampleFormat format;
 
     // 音频队列
-    std::queue<AudioFrame*> audioQueue;
+    std::queue<AudioFrame *> audioQueue;
     pthread_mutex_t audioMutex;
     pthread_cond_t audioCond;
     int maxAudioFrames;
@@ -97,19 +98,19 @@ struct AudioInfo {
 // 视频信息
 struct VideoInfo {
     int streamIndex;
-    AVCodecContext* codecContext;
+    AVCodecContext *codecContext;
     AVRational timeBase;
 
     // 渲染
-    ANativeWindow* window;
+    ANativeWindow *window;
     ANativeWindow_Buffer windowBuffer;
-    SwsContext* swsContext;
-    AVFrame* rgbFrame;
+    SwsContext *swsContext;
+    AVFrame *rgbFrame;
     int width;
     int height;
 
     // 视频队列
-    std::queue<VideoFrame*> videoQueue;
+    std::queue<VideoFrame *> videoQueue;
     pthread_mutex_t videoMutex;
     pthread_cond_t videoCond;
     int maxVideoFrames;
@@ -136,17 +137,27 @@ struct VideoInfo {
 class WYMediaPlayer {
 public:
     WYMediaPlayer();
+
     ~WYMediaPlayer();
 
-    void setSurface(ANativeWindow* window);
-    bool setDataSource(const char* url);
+    void setSurface(ANativeWindow *window);
+
+    bool setDataSource(const char *url);
+
     bool prepare();
+
     bool start();
+
     bool pause();
+
     bool stop();
+
     void release();
+
     int getState() const { return mState; }
+
     int64_t getDuration() const { return mDuration; }
+
     int64_t getCurrentPosition() const;
 
 private:
@@ -164,8 +175,8 @@ private:
 
     // 成员变量
     State mState;
-    char* mUrl;
-    AVFormatContext* mFormatContext;
+    char *mUrl;
+    AVFormatContext *mFormatContext;
     AudioInfo mAudioInfo;
     VideoInfo mVideoInfo;
 
@@ -186,67 +197,94 @@ private:
     pthread_cond_t mStateCond;
 
     // 数据包队列
-    std::queue<AVPacket*> mAudioPackets;
-    std::queue<AVPacket*> mVideoPackets;
+    std::queue<AVPacket *> mAudioPackets;
+    std::queue<AVPacket *> mVideoPackets;
     pthread_mutex_t mPacketMutex;
     pthread_cond_t mPacketCond;
     int mMaxPackets;
 
     // 私有方法
-    bool openCodecContext(int* streamIndex, AVCodecContext** codecContext,
-                          AVFormatContext* formatContext, enum AVMediaType type);
+    bool openCodecContext(int *streamIndex, AVCodecContext **codecContext,
+                          AVFormatContext *formatContext, enum AVMediaType type);
+
     bool initOpenSLES();
+
     bool initVideoRenderer();
 
     // 线程函数
-    static void* demuxThread(void* arg);
-    static void* audioDecodeThread(void* arg);
-    static void* videoDecodeThread(void* arg);
-    static void* audioPlayThread(void* arg);
-    static void* videoPlayThread(void* arg);
+    static void *demuxThread(void *arg);
+
+    static void *audioDecodeThread(void *arg);
+
+    static void *videoDecodeThread(void *arg);
+
+    static void *audioPlayThread(void *arg);
+
+    static void *videoPlayThread(void *arg);
 
     void demux();
+
     void audioDecode();
+
     void videoDecode();
+
     void audioPlay();
+
     void videoPlay();
 
     // 数据处理
-    void processAudioPacket(AVPacket* packet);
-    void processVideoPacket(AVPacket* packet);
-    AudioFrame* decodeAudioFrame(AVFrame* frame);
-    VideoFrame* decodeVideoFrame(AVFrame* frame);
-    void renderVideoFrame(VideoFrame* vframe);
+    void processAudioPacket(AVPacket *packet);
+
+    void processVideoPacket(AVPacket *packet);
+
+    AudioFrame *decodeAudioFrame(AVFrame *frame);
+
+    VideoFrame *decodeVideoFrame(AVFrame *frame);
+
+    void renderVideoFrame(VideoFrame *vframe);
 
     // 队列操作
-    void putAudioPacket(AVPacket* packet);
-    void putVideoPacket(AVPacket* packet);
-    AVPacket* getAudioPacket();
-    AVPacket* getVideoPacket();
+    void putAudioPacket(AVPacket *packet);
+
+    void putVideoPacket(AVPacket *packet);
+
+    AVPacket *getAudioPacket();
+
+    AVPacket *getVideoPacket();
+
     void clearAudioPackets();
+
     void clearVideoPackets();
 
-    void putAudioFrame(AudioFrame* frame);
-    void putVideoFrame(VideoFrame* frame);
-    AudioFrame* getAudioFrame();
-    VideoFrame* getVideoFrame();
+    void putAudioFrame(AudioFrame *frame);
+
+    void putVideoFrame(VideoFrame *frame);
+
+    AudioFrame *getAudioFrame();
+
+    VideoFrame *getVideoFrame();
+
     void clearAudioFrames();
+
     void clearVideoFrames();
 
     // 同步方法
     double getMasterClock();
+
     double getAudioClock();
+
     double getVideoClock();
+
     void setAudioClock(double pts);
+
     void setVideoClock(double pts);
+
     void syncVideo(double pts);
 
     // OpenSL ES回调
     void audioCallback(SLAndroidSimpleBufferQueueItf bufferQueue);
 
-    static void audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void* context);
-
-    int64_t getCurrentPosition();
+    static void audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void *context);
 };
 
 

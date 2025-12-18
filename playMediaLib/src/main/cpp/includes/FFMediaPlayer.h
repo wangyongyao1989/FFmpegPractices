@@ -21,19 +21,19 @@
 
 // 音频帧结构
 struct AudioFrame {
-    uint8_t *data;
+//    uint8_t *data;
     AVFrame *frame;
-    int size;
+//    int size;
     double pts;
     int64_t pos;
 
-    AudioFrame() : data(nullptr),frame(nullptr), size(0), pts(0), pos(0) {}
+    AudioFrame() :  frame(nullptr), pts(0), pos(0) {}
 
     ~AudioFrame() {
-        if (data) {
-            av_free(data);
-            data = nullptr;
-        }
+//        if (data) {
+//            av_free(data);
+//            data = nullptr;
+//        }
         if (frame) {
             av_frame_free(&frame);
         }
@@ -61,15 +61,6 @@ struct AudioInfo {
     AVCodecContext *codecContext;
     SwrContext *swrContext;
     AVRational timeBase;
-
-    // OpenSL ES
-//    SLObjectItf engineObject;
-//    SLEngineItf engineEngine;
-//    SLObjectItf outputMixObject;
-//    SLObjectItf playerObject;
-//    SLPlayItf playerPlay;
-//    SLAndroidSimpleBufferQueueItf playerBufferQueue;
-
     // 音频参数
     int sampleRate;
     int channels;
@@ -189,7 +180,16 @@ private:
 
     OpenslHelper helper;
 
+    // OpenSL ES回调
+    void processBufferQueue();
+
     static void bufferQueueCallback(SLAndroidSimpleBufferQueueItf bq, void *context);
+
+    // OpenSL ES回调
+    void audioCallback(SLAndroidSimpleBufferQueueItf bufferQueue);
+
+    static void audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void *context);
+
     // 缓冲区
     static const int NUM_BUFFERS = 4;
     static const int BUFFER_SIZE = 4096;
@@ -202,7 +202,6 @@ private:
 
     int count;
 
-    void processBufferQueue();
 
     jobject androidSurface = NULL;
     //  NativeWindow;
@@ -316,10 +315,6 @@ private:
 
     void syncVideo(double pts);
 
-    // OpenSL ES回调
-    void audioCallback(SLAndroidSimpleBufferQueueItf bufferQueue);
-
-    static void audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void *context);
 
     int64_t getCurrentPosition();
 

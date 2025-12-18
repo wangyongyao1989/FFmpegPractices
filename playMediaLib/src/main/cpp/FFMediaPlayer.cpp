@@ -171,14 +171,6 @@ bool FFMediaPlayer::start() {
         (*helper.bufferQueueItf)->Clear(helper.bufferQueueItf);
     }
 
-    SLresult result = helper.play();
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to set play state: %d, error: %s", result, getSLErrorString(result));
-        playAudioInfo = "Failed to set play state: " + string(getSLErrorString(result));
-        PostStatusMessage(playAudioInfo.c_str());
-    }
-    LOGE("helper.play() successfully");
-
     // 启动解复用线程
     if (pthread_create(&mDemuxThread, nullptr, demuxThread, this) != 0) {
         LOGE("Could not create demux thread");
@@ -212,9 +204,13 @@ bool FFMediaPlayer::start() {
     }
 
     // 启动音频播放
-//    if (mAudioInfo.playerPlay) {
-//        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_PLAYING);
-//    }
+    SLresult result = helper.play();
+    if (result != SL_RESULT_SUCCESS) {
+        LOGE("Failed to set play state: %d, error: %s", result, getSLErrorString(result));
+        playAudioInfo = "Failed to set play state: " + string(getSLErrorString(result));
+        PostStatusMessage(playAudioInfo.c_str());
+    }
+    LOGE("helper.play() successfully");
 
 
     mState = STATE_STARTED;
@@ -228,10 +224,6 @@ bool FFMediaPlayer::pause() {
     }
 
     mPause = true;
-
-//    if (mAudioInfo.playerPlay) {
-//        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_PAUSED);
-//    }
 
     SLresult result = helper.pause();
     if (result != SL_RESULT_SUCCESS) {
@@ -304,25 +296,6 @@ void FFMediaPlayer::release() {
     }
 
     stop();
-
-//    // 释放音频资源
-//    if (mAudioInfo.playerObject) {
-//        (*mAudioInfo.playerObject)->Destroy(mAudioInfo.playerObject);
-//        mAudioInfo.playerObject = nullptr;
-//        mAudioInfo.playerPlay = nullptr;
-//        mAudioInfo.playerBufferQueue = nullptr;
-//    }
-//
-//    if (mAudioInfo.outputMixObject) {
-//        (*mAudioInfo.outputMixObject)->Destroy(mAudioInfo.outputMixObject);
-//        mAudioInfo.outputMixObject = nullptr;
-//    }
-//
-//    if (mAudioInfo.engineObject) {
-//        (*mAudioInfo.engineObject)->Destroy(mAudioInfo.engineObject);
-//        mAudioInfo.engineObject = nullptr;
-//        mAudioInfo.engineEngine = nullptr;
-//    }
 
     if (mAudioInfo.swrContext) {
         swr_free(&mAudioInfo.swrContext);
@@ -412,6 +385,7 @@ void FFMediaPlayer::demux() {
         // 控制包队列大小，避免内存占用过大
         pthread_mutex_lock(&mPacketMutex);
         if (mAudioPackets.size() + mVideoPackets.size() > mMaxPackets) {
+//            LOGI("demux() Waiting for Packets slot, Packets: %d", mAudioPackets.size() + mVideoPackets.size());
             pthread_cond_wait(&mPacketCond, &mPacketMutex);
         }
         pthread_mutex_unlock(&mPacketMutex);
@@ -511,20 +485,42 @@ void FFMediaPlayer::audioPlay() {
     // 音频播放主要由OpenSL ES回调驱动
     // 这里主要处理音频队列管理和时钟更新
     LOGW("audioPlay===============");
-
+//    for (int i = 0; i < 1; i++) {
+//        static uint8_t silence[4096] = {0};
+//        SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf, silence,
+//                                                            sizeof(silence));
+//        if (result != SL_RESULT_SUCCESS) {
+//            LOGE("Failed to enqueue buffer: %d, error: %s",
+//                 result, getSLErrorString(result));
+//
+//            if (result == SL_RESULT_BUFFER_INSUFFICIENT) {
+//                // 等待一段时间后重试
+//                pthread_mutex_unlock(&mBufferMutex);
+//                usleep(10000); // 10ms
+//                pthread_mutex_lock(&mBufferMutex);
+//            }
+//            break;
+//        } else {
+//            // 成功入队，更新状态
+//            mQueuedBufferCount++;
+//            mCurrentBuffer = (mCurrentBuffer + 1) % NUM_BUFFERS;
+//            LOGI("33333Buffer enqueued successfully: %d bytes, buffer index: %d, queued: %d",
+//                 mBufferReadyCond, mCurrentBuffer, mQueuedBufferCount.load());
+//        }
+//    }
     while (!mExit) {
         if (mPause) {
             usleep(10000);
             continue;
         }
-
+/*
         // 控制音频队列大小
-//        pthread_mutex_lock(&mAudioInfo.audioMutex);
-//        if (mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames) {
-//            LOGE("mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames");
-//            pthread_cond_wait(&mAudioInfo.audioCond, &mAudioInfo.audioMutex);
-//        }
-//        pthread_mutex_unlock(&mAudioInfo.audioMutex);
+        pthread_mutex_lock(&mAudioInfo.audioMutex);
+        if (mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames) {
+            LOGE("mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames");
+            pthread_cond_wait(&mAudioInfo.audioCond, &mAudioInfo.audioMutex);
+        }
+        pthread_mutex_unlock(&mAudioInfo.audioMutex);*/
 
         // 等待直到有可用的缓冲区槽位
         pthread_mutex_lock(&mBufferMutex);
@@ -541,48 +537,74 @@ void FFMediaPlayer::audioPlay() {
         // 从音频队列获取一帧数据
         AudioFrame *aframe = getAudioFrame();
         if (aframe) {
-//            LOGW(" AudioFrame *aframe========");
+//            LOGW(" AudioFrame *aframe========%ld",aframe->pts);
 //            pthread_mutex_unlock(&mBufferMutex);
 //            continue;
 
             // 更新音频时钟
             setAudioClock(aframe->pts);
 
-            // 检查是否还有可用的缓冲区槽位
-            if (mQueuedBufferCount >= NUM_BUFFERS) {
-                LOGW("No buffer slots available, skipping frame");
-                pthread_mutex_unlock(&mBufferMutex);
-                break;
-            }
+            // 重采样音频数据
+            uint8_t *buffer = mBuffers[mCurrentBuffer];
+            uint8_t *outBuffer = buffer;
 
+            // 计算最大输出样本数
+            int maxSamples = BUFFER_SIZE / (mAudioInfo.channels * 2);
+            int outSamples = swr_convert(mAudioInfo.swrContext, &outBuffer, maxSamples,
+                                         (const uint8_t **) aframe->frame->data,
+                                         aframe->frame->nb_samples);
 
-            // 将缓冲区加入播放队列
-            SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf,
-                                                                aframe->data, aframe->size);
-            if (result != SL_RESULT_SUCCESS) {
-                LOGE("Failed to enqueue buffer: %d, error: %s",
-                     result, getSLErrorString(result));
-
-                if (result == SL_RESULT_BUFFER_INSUFFICIENT) {
-                    // 等待一段时间后重试
-                    pthread_mutex_unlock(&mBufferMutex);
-                    usleep(10000); // 10ms
-                    pthread_mutex_lock(&mBufferMutex);
+            if (outSamples > 0) {
+                int bytesDecoded = outSamples * mAudioInfo.channels * 2;
+                // 确保不超过缓冲区大小
+                if (bytesDecoded > BUFFER_SIZE) {
+                    LOGW("Decoded data exceeds buffer size: %d > %d", bytesDecoded,
+                         BUFFER_SIZE);
+                    bytesDecoded = BUFFER_SIZE;
                 }
-                break;
-            } else {
-                // 成功入队，更新状态
-                mQueuedBufferCount++;
-                mCurrentBuffer = (mCurrentBuffer + 1) % NUM_BUFFERS;
-                LOGI("111Buffer enqueued successfully: %d bytes, buffer index: %d, queued: %d",
-                     mBufferReadyCond, mCurrentBuffer, mQueuedBufferCount.load());
+
+                // 检查是否还有可用的缓冲区槽位
+                if (mQueuedBufferCount >= NUM_BUFFERS) {
+                    LOGW("No buffer slots available, skipping frame");
+                    pthread_mutex_unlock(&mBufferMutex);
+                    break;
+                }
+
+
+                // 将缓冲区加入播放队列
+                SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf,
+                                                                    buffer, bytesDecoded);
+
+                if (result != SL_RESULT_SUCCESS) {
+                    LOGE("Failed to enqueue buffer: %d, error: %s",
+                         result, getSLErrorString(result));
+
+                    if (result == SL_RESULT_BUFFER_INSUFFICIENT) {
+                        // 等待一段时间后重试
+                        pthread_mutex_unlock(&mBufferMutex);
+                        usleep(10000); // 10ms
+                        pthread_mutex_lock(&mBufferMutex);
+                    }
+                    break;
+                } else {
+                    // 成功入队，更新状态
+                    mQueuedBufferCount++;
+                    mCurrentBuffer = (mCurrentBuffer + 1) % NUM_BUFFERS;
+                    LOGI("111Buffer enqueued successfully: %d bytes, buffer index: %d, queued: %d",
+                         bytesDecoded, mCurrentBuffer, mQueuedBufferCount.load());
+                }
+            } else if (outSamples < 0) {
+                LOGE("swr_convert failed: %d", outSamples);
             }
+
             delete aframe;
-        } else {
+
+        } /*else {
             LOGW(" 队列为空，送入静音数据");
             // 队列为空，送入静音数据
             static uint8_t silence[4096] = {0};
-            SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf, silence, sizeof(silence));
+            SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf, silence,
+                                                                sizeof(silence));
             if (result != SL_RESULT_SUCCESS) {
                 LOGE("Failed to enqueue buffer: %d, error: %s",
                      result, getSLErrorString(result));
@@ -601,7 +623,7 @@ void FFMediaPlayer::audioPlay() {
                 LOGI("2222Buffer enqueued successfully: %d bytes, buffer index: %d, queued: %d",
                      mBufferReadyCond, mCurrentBuffer, mQueuedBufferCount.load());
             }
-        }
+        }*/
         pthread_mutex_unlock(&mBufferMutex);
         usleep(1000); // 减少CPU占用
     }
@@ -696,68 +718,16 @@ AudioFrame *FFMediaPlayer::decodeAudioFrame(AVFrame *frame) {
         setAudioClock(pts);
     }
 
-    // 重采样音频数据
-    uint8_t *buffer = mBuffers[mCurrentBuffer];
-    uint8_t *outBuffer = buffer;
-
-    // 计算最大输出样本数
-    int maxSamples = BUFFER_SIZE / (mAudioInfo.channels * 2);
-    int outSamples = swr_convert(mAudioInfo.swrContext, &outBuffer, maxSamples,
-                                 (const uint8_t **) frame->data, frame->nb_samples);
-    AudioFrame *aframe = nullptr;
-    if (outSamples > 0) {
-        int bytesDecoded = outSamples * mAudioInfo.channels * 2;
-        // 确保不超过缓冲区大小
-        if (bytesDecoded > BUFFER_SIZE) {
-            LOGW("Decoded data exceeds buffer size: %d > %d", bytesDecoded,
-                 BUFFER_SIZE);
-            bytesDecoded = BUFFER_SIZE;
-        }
-        // 创建音频帧
-        aframe = new AudioFrame();
-        aframe->data = buffer;
-        aframe->size = bytesDecoded;
-        aframe->pts = pts;
-    } else if (outSamples < 0) {
+    // 创建视频帧副本
+    AVFrame *frameCopy = av_frame_alloc();
+    if (av_frame_ref(frameCopy, frame) < 0) {
+        av_frame_free(&frameCopy);
         return nullptr;
-        LOGE("swr_convert failed: %d", outSamples);
     }
 
-    LOGE("decodeAudioFrame aframe: %d,count : %d", aframe->size, ++count);
-
-//    // 重采样参数
-//    int dst_nb_samples = av_rescale_rnd(
-//            swr_get_delay(mAudioInfo.swrContext, frame->sample_rate) + frame->nb_samples,
-//            mAudioInfo.sampleRate, frame->sample_rate, AV_ROUND_UP);
-//
-//    // 计算输出缓冲区大小
-//    int dst_buffer_size = av_samples_get_buffer_size(
-//            nullptr, mAudioInfo.channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 1);
-//
-//    if (dst_buffer_size < 0) {
-//        return nullptr;
-//    }
-//
-//    // 分配输出缓冲区
-//    uint8_t *dst_data = (uint8_t *) av_malloc(dst_buffer_size);
-//    if (!dst_data) {
-//        return nullptr;
-//    }
-//
-//    // 重采样
-//    int ret = swr_convert(mAudioInfo.swrContext, &dst_data, dst_nb_samples,
-//                          (const uint8_t **) frame->data, frame->nb_samples);
-//    if (ret < 0) {
-//        av_free(dst_data);
-//        return nullptr;
-//    }
-
-    // 创建音频帧
-//    AudioFrame *aframe = new AudioFrame();
-//    aframe->data = dst_data;
-//    aframe->size = dst_buffer_size;
-//    aframe->pts = pts;
-////    aframe->pos = av_frame_get_pkt_pos(frame);
+    AudioFrame *aframe = new AudioFrame();
+    aframe->frame = frameCopy;
+    aframe->pts = pts;
 
     return aframe;
 }
@@ -785,11 +755,12 @@ VideoFrame *FFMediaPlayer::decodeVideoFrame(AVFrame *frame) {
     vframe->frame = frameCopy;
     vframe->pts = pts;
 //    vframe->pos = av_frame_get_pkt_pos(frame);
-
+//    LOGE("decodeVideoFrame vframe,count : %d,pts:%ld", ++count,pts);
     return vframe;
 }
 
 void FFMediaPlayer::renderVideoFrame(VideoFrame *vframe) {
+//    LOGW("renderVideoFrame===============");
     if (!mVideoInfo.window || !vframe->frame) {
         return;
     }
@@ -920,6 +891,7 @@ void FFMediaPlayer::clearVideoPackets() {
 void FFMediaPlayer::putAudioFrame(AudioFrame *frame) {
     pthread_mutex_lock(&mAudioInfo.audioMutex);
     while (mAudioInfo.audioQueue.size() >= mAudioInfo.maxAudioFrames && !mExit) {
+        LOGI("putAudioFrame Waiting for buffer slot, audioQueue: %d", mAudioInfo.audioQueue.size());
         pthread_cond_wait(&mAudioInfo.audioCond, &mAudioInfo.audioMutex);
     }
 
@@ -933,6 +905,7 @@ void FFMediaPlayer::putAudioFrame(AudioFrame *frame) {
 void FFMediaPlayer::putVideoFrame(VideoFrame *frame) {
     pthread_mutex_lock(&mVideoInfo.videoMutex);
     while (mVideoInfo.videoQueue.size() >= mVideoInfo.maxVideoFrames && !mExit) {
+        LOGI("putVideoFrame Waiting for buffer slot, videoQueue: %d", mVideoInfo.videoQueue.size());
         pthread_cond_wait(&mVideoInfo.videoCond, &mVideoInfo.videoMutex);
     }
 
@@ -1036,10 +1009,13 @@ void FFMediaPlayer::syncVideo(double pts) {
     if (fabs(diff) < maxFrameDelay) {
         if (diff <= -syncThreshold) {
             // 视频落后，立即显示
+            LOGW("视频落后，立即显示===============");
+
             return;
         } else if (diff >= syncThreshold) {
             // 视频超前，延迟显示
             int delay = (int) (diff * 1000000); // 转换为微秒
+            LOGW("视频超前，延迟显示===============%d", delay);
             usleep(delay);
         }
     }
@@ -1163,7 +1139,7 @@ void FFMediaPlayer::processBufferQueue() {
     // 缓冲区已播放完成，减少计数
     if (mQueuedBufferCount > 0) {
         mQueuedBufferCount--;
-        LOGI("Buffer processed, queued count: %d", mQueuedBufferCount.load());
+//        LOGI("Buffer processed, queued count: %d", mQueuedBufferCount.load());
     }
 
     // 通知解码线程有可用的缓冲区槽位
@@ -1190,28 +1166,6 @@ bool FFMediaPlayer::initVideoRenderer() {
     return true;
 }
 
-void FFMediaPlayer::audioCallback(SLAndroidSimpleBufferQueueItf bufferQueue) {
-    // 从音频队列获取一帧数据
-    AudioFrame *aframe = getAudioFrame();
-    if (aframe) {
-        // 更新音频时钟
-        setAudioClock(aframe->pts);
-
-        // 将数据送入OpenSL ES
-        (*bufferQueue)->Enqueue(bufferQueue, aframe->data, aframe->size);
-
-        delete aframe;
-    } else {
-        // 队列为空，送入静音数据
-        static uint8_t silence[4096] = {0};
-        (*bufferQueue)->Enqueue(bufferQueue, silence, sizeof(silence));
-    }
-}
-
-void FFMediaPlayer::audioCallbackWrapper(SLAndroidSimpleBufferQueueItf bufferQueue, void *context) {
-    AudioFrame *player = static_cast<AudioFrame *>(context);
-//    player->audioCallback(bufferQueue);
-}
 
 JNIEnv *FFMediaPlayer::GetJNIEnv(bool *isAttach) {
     if (!mJavaVm) {

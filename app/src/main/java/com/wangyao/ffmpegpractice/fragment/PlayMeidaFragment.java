@@ -205,11 +205,11 @@ public class PlayMeidaFragment extends BaseFragment {
             if (isMediaPlaying) {
                 mFfMediaView.setVisibility(View.VISIBLE);
                 mPlayMediaOperate.playMediaBySurface();
-                mBtn5.setText("GLTexture 停止");
+                mBtn6.setText("音视频同步 停止");
             } else {
                 mFfMediaView.setVisibility(View.GONE);
                 mPlayMediaOperate.stopMediaBySurface();
-                mBtn5.setText("GLTexture 播放");
+                mBtn6.setText("音视频同步 播放");
             }
         });
 
