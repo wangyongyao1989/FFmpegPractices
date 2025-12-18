@@ -21,19 +21,13 @@
 
 // 音频帧结构
 struct AudioFrame {
-//    uint8_t *data;
     AVFrame *frame;
-//    int size;
     double pts;
     int64_t pos;
 
-    AudioFrame() :  frame(nullptr), pts(0), pos(0) {}
+    AudioFrame() : frame(nullptr), pts(0), pos(0) {}
 
     ~AudioFrame() {
-//        if (data) {
-//            av_free(data);
-//            data = nullptr;
-//        }
         if (frame) {
             av_frame_free(&frame);
         }
@@ -79,9 +73,6 @@ struct AudioInfo {
     pthread_mutex_t clockMutex;
 
     AudioInfo() : streamIndex(-1), codecContext(nullptr), swrContext(nullptr),
-//                  engineObject(nullptr), engineEngine(nullptr),
-//                  outputMixObject(nullptr), playerObject(nullptr),
-//                  playerPlay(nullptr), playerBufferQueue(nullptr),
                   sampleRate(0), channels(0), bytesPerSample(0),
                   channelLayout(nullptr), format(AV_SAMPLE_FMT_NONE),
                   maxAudioFrames(100), clock(0) {
@@ -102,12 +93,6 @@ struct VideoInfo {
     int streamIndex;
     AVCodecContext *codecContext;
     AVRational timeBase;
-
-    // 渲染
-    ANativeWindow *window;
-    ANativeWindow_Buffer windowBuffer;
-    SwsContext *swsContext;
-    AVFrame *rgbFrame;
     int width;
     int height;
 
@@ -122,7 +107,6 @@ struct VideoInfo {
     pthread_mutex_t clockMutex;
 
     VideoInfo() : streamIndex(-1), codecContext(nullptr),
-                  window(nullptr), swsContext(nullptr), rgbFrame(nullptr),
                   width(0), height(0), maxVideoFrames(30), clock(0) {
         pthread_mutex_init(&videoMutex, nullptr);
         pthread_cond_init(&videoCond, nullptr);
@@ -206,6 +190,9 @@ private:
     jobject androidSurface = NULL;
     //  NativeWindow;
     ANativeWindow *mNativeWindow = nullptr;
+    SwsContext *mSwsContext = nullptr;
+    AVFrame *mRgbFrame = nullptr;
+    uint8_t *mOutbuffer = nullptr;
 
     // 成员变量
     State mState;
@@ -242,6 +229,10 @@ private:
                           AVFormatContext *formatContext, enum AVMediaType type);
 
     bool initOpenSLES();
+
+    bool initANativeWindow();
+
+    void cleanupANativeWindow();
 
     bool initVideoRenderer();
 

@@ -52,20 +52,6 @@ FFMediaPlayer::~FFMediaPlayer() {
 bool FFMediaPlayer::init(const char *url, jobject surface) {
 
     androidSurface = mEnv->NewGlobalRef(surface);
-
-    mNativeWindow = ANativeWindow_fromSurface(mEnv, androidSurface);
-    if (!mNativeWindow) {
-        LOGE("Couldn't get native window from surface");
-        return false;
-    }
-    if (mVideoInfo.window) {
-        ANativeWindow_release(mVideoInfo.window);
-    }
-    mVideoInfo.window = mNativeWindow;
-    if (mNativeWindow) {
-        ANativeWindow_acquire(mNativeWindow);
-    }
-
     mUrl = strdup(url);
     mState = STATE_INITIALIZED;
     return true;
@@ -140,9 +126,7 @@ bool FFMediaPlayer::prepare() {
         return false;
     } else {
         // 初始化视频渲染
-        if (mVideoInfo.window) {
-            initVideoRenderer();
-        }
+        initANativeWindow();
     }
 
     mDuration = mFormatContext->duration / AV_TIME_BASE;
@@ -250,13 +234,11 @@ bool FFMediaPlayer::stop() {
     pthread_cond_broadcast(&mAudioInfo.audioCond);
     pthread_cond_broadcast(&mVideoInfo.videoCond);
 
-//    if (mAudioInfo.playerPlay) {
-//        (*mAudioInfo.playerPlay)->SetPlayState(mAudioInfo.playerPlay, SL_PLAYSTATE_STOPPED);
-//    }
-
     if (helper.player) {
         helper.stop();
     }
+
+    cleanupANativeWindow();
 
     // 清空缓冲区队列
     if (helper.bufferQueueItf) {
@@ -294,26 +276,9 @@ void FFMediaPlayer::release() {
     if (mState == STATE_IDLE || mState == STATE_ERROR) {
         return;
     }
-
     stop();
-
     if (mAudioInfo.swrContext) {
         swr_free(&mAudioInfo.swrContext);
-    }
-
-    // 释放视频资源
-    if (mVideoInfo.window) {
-        ANativeWindow_release(mVideoInfo.window);
-        mVideoInfo.window = nullptr;
-    }
-
-    if (mVideoInfo.swsContext) {
-        sws_freeContext(mVideoInfo.swsContext);
-        mVideoInfo.swsContext = nullptr;
-    }
-
-    if (mVideoInfo.rgbFrame) {
-        av_frame_free(&mVideoInfo.rgbFrame);
     }
 
     // 释放FFmpeg资源
@@ -485,43 +450,11 @@ void FFMediaPlayer::audioPlay() {
     // 音频播放主要由OpenSL ES回调驱动
     // 这里主要处理音频队列管理和时钟更新
     LOGW("audioPlay===============");
-//    for (int i = 0; i < 1; i++) {
-//        static uint8_t silence[4096] = {0};
-//        SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf, silence,
-//                                                            sizeof(silence));
-//        if (result != SL_RESULT_SUCCESS) {
-//            LOGE("Failed to enqueue buffer: %d, error: %s",
-//                 result, getSLErrorString(result));
-//
-//            if (result == SL_RESULT_BUFFER_INSUFFICIENT) {
-//                // 等待一段时间后重试
-//                pthread_mutex_unlock(&mBufferMutex);
-//                usleep(10000); // 10ms
-//                pthread_mutex_lock(&mBufferMutex);
-//            }
-//            break;
-//        } else {
-//            // 成功入队，更新状态
-//            mQueuedBufferCount++;
-//            mCurrentBuffer = (mCurrentBuffer + 1) % NUM_BUFFERS;
-//            LOGI("33333Buffer enqueued successfully: %d bytes, buffer index: %d, queued: %d",
-//                 mBufferReadyCond, mCurrentBuffer, mQueuedBufferCount.load());
-//        }
-//    }
     while (!mExit) {
         if (mPause) {
             usleep(10000);
             continue;
         }
-/*
-        // 控制音频队列大小
-        pthread_mutex_lock(&mAudioInfo.audioMutex);
-        if (mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames) {
-            LOGE("mAudioInfo.audioQueue.size() > mAudioInfo.maxAudioFrames");
-            pthread_cond_wait(&mAudioInfo.audioCond, &mAudioInfo.audioMutex);
-        }
-        pthread_mutex_unlock(&mAudioInfo.audioMutex);*/
-
         // 等待直到有可用的缓冲区槽位
         pthread_mutex_lock(&mBufferMutex);
 
@@ -537,10 +470,6 @@ void FFMediaPlayer::audioPlay() {
         // 从音频队列获取一帧数据
         AudioFrame *aframe = getAudioFrame();
         if (aframe) {
-//            LOGW(" AudioFrame *aframe========%ld",aframe->pts);
-//            pthread_mutex_unlock(&mBufferMutex);
-//            continue;
-
             // 更新音频时钟
             setAudioClock(aframe->pts);
 
@@ -599,31 +528,7 @@ void FFMediaPlayer::audioPlay() {
 
             delete aframe;
 
-        } /*else {
-            LOGW(" 队列为空，送入静音数据");
-            // 队列为空，送入静音数据
-            static uint8_t silence[4096] = {0};
-            SLresult result = (*helper.bufferQueueItf)->Enqueue(helper.bufferQueueItf, silence,
-                                                                sizeof(silence));
-            if (result != SL_RESULT_SUCCESS) {
-                LOGE("Failed to enqueue buffer: %d, error: %s",
-                     result, getSLErrorString(result));
-
-                if (result == SL_RESULT_BUFFER_INSUFFICIENT) {
-                    // 等待一段时间后重试
-                    pthread_mutex_unlock(&mBufferMutex);
-                    usleep(10000); // 10ms
-                    pthread_mutex_lock(&mBufferMutex);
-                }
-                break;
-            } else {
-                // 成功入队，更新状态
-                mQueuedBufferCount++;
-                mCurrentBuffer = (mCurrentBuffer + 1) % NUM_BUFFERS;
-                LOGI("2222Buffer enqueued successfully: %d bytes, buffer index: %d, queued: %d",
-                     mBufferReadyCond, mCurrentBuffer, mQueuedBufferCount.load());
-            }
-        }*/
+        }
         pthread_mutex_unlock(&mBufferMutex);
         usleep(1000); // 减少CPU占用
     }
@@ -754,65 +659,45 @@ VideoFrame *FFMediaPlayer::decodeVideoFrame(AVFrame *frame) {
     VideoFrame *vframe = new VideoFrame();
     vframe->frame = frameCopy;
     vframe->pts = pts;
-//    vframe->pos = av_frame_get_pkt_pos(frame);
-//    LOGE("decodeVideoFrame vframe,count : %d,pts:%ld", ++count,pts);
     return vframe;
 }
 
 void FFMediaPlayer::renderVideoFrame(VideoFrame *vframe) {
-//    LOGW("renderVideoFrame===============");
-    if (!mVideoInfo.window || !vframe->frame) {
+    LOGW("renderVideoFrame===============");
+    if (!mNativeWindow || !vframe) {
+        return ;
+    }
+
+    ANativeWindow_Buffer windowBuffer;
+
+    // 颜色空间转换
+    sws_scale(mSwsContext, vframe->frame->data, vframe->frame->linesize, 0,
+              mVideoInfo.height, mRgbFrame->data, mRgbFrame->linesize);
+
+    // 锁定窗口缓冲区
+    if (ANativeWindow_lock(mNativeWindow, &windowBuffer, nullptr) < 0) {
+        LOGE("Cannot lock window");
         return;
     }
 
-    // 设置窗口尺寸
-    ANativeWindow_setBuffersGeometry(mVideoInfo.window,
-                                     mVideoInfo.width,
-                                     mVideoInfo.height,
-                                     WINDOW_FORMAT_RGBA_8888);
+    // 优化拷贝：检查 stride 是否匹配
+    uint8_t* dst = static_cast<uint8_t*>(windowBuffer.bits);
+    int dstStride = windowBuffer.stride * 4;  // 目标步长（字节）
+    int srcStride = mRgbFrame->linesize[0];   // 源步长（字节）
 
-    // 锁定窗口
-    if (ANativeWindow_lock(mVideoInfo.window, &mVideoInfo.windowBuffer, nullptr) < 0) {
-        LOGE("Could not lock native window");
-        return;
+    if (dstStride == srcStride) {
+        // 步长匹配，可以直接整体拷贝
+        memcpy(dst, mOutbuffer, srcStride * mVideoInfo.height);
+    } else {
+        // 步长不匹配，需要逐行拷贝
+        for (int h = 0; h < mVideoInfo.height; h++) {
+            memcpy(dst + h * dstStride,
+                   mOutbuffer + h * srcStride,
+                   srcStride);
+        }
     }
 
-    // 初始化转换上下文
-    if (!mVideoInfo.swsContext) {
-        mVideoInfo.swsContext = sws_getContext(
-                vframe->frame->width, vframe->frame->height,
-                (AVPixelFormat) vframe->frame->format,
-                mVideoInfo.width, mVideoInfo.height, AV_PIX_FMT_RGBA,
-                SWS_BILINEAR, nullptr, nullptr, nullptr);
-    }
-
-    // 初始化RGB帧
-    if (!mVideoInfo.rgbFrame) {
-        mVideoInfo.rgbFrame = av_frame_alloc();
-        mVideoInfo.rgbFrame->format = AV_PIX_FMT_RGBA;
-        mVideoInfo.rgbFrame->width = mVideoInfo.width;
-        mVideoInfo.rgbFrame->height = mVideoInfo.height;
-        av_frame_get_buffer(mVideoInfo.rgbFrame, 32);
-    }
-
-    // 转换YUV到RGBA
-    sws_scale(mVideoInfo.swsContext,
-              vframe->frame->data, vframe->frame->linesize,
-              0, vframe->frame->height,
-              mVideoInfo.rgbFrame->data, mVideoInfo.rgbFrame->linesize);
-
-    // 复制到窗口缓冲区
-    uint8_t *dst = (uint8_t *) mVideoInfo.windowBuffer.bits;
-    uint8_t *src = mVideoInfo.rgbFrame->data[0];
-    int dstStride = mVideoInfo.windowBuffer.stride * 4;
-    int srcStride = mVideoInfo.rgbFrame->linesize[0];
-
-    for (int i = 0; i < mVideoInfo.height; i++) {
-        memcpy(dst + i * dstStride, src + i * srcStride, srcStride);
-    }
-
-    // 解锁并显示
-    ANativeWindow_unlockAndPost(mVideoInfo.window);
+    ANativeWindow_unlockAndPost(mNativeWindow);
 }
 
 // 队列操作方法实现
@@ -1009,13 +894,12 @@ void FFMediaPlayer::syncVideo(double pts) {
     if (fabs(diff) < maxFrameDelay) {
         if (diff <= -syncThreshold) {
             // 视频落后，立即显示
-            LOGW("视频落后，立即显示===============");
-
+//            LOGW("视频落后，立即显示===============");
             return;
         } else if (diff >= syncThreshold) {
             // 视频超前，延迟显示
             int delay = (int) (diff * 1000000); // 转换为微秒
-            LOGW("视频超前，延迟显示===============%d", delay);
+//            LOGW("视频超前，延迟显示===============%d", delay);
             usleep(delay);
         }
     }
@@ -1134,12 +1018,10 @@ void FFMediaPlayer::bufferQueueCallback(SLAndroidSimpleBufferQueueItf bq, void *
 
 void FFMediaPlayer::processBufferQueue() {
     pthread_mutex_lock(&mBufferMutex);
-    LOGI("processBufferQueue=======");
-
     // 缓冲区已播放完成，减少计数
     if (mQueuedBufferCount > 0) {
         mQueuedBufferCount--;
-//        LOGI("Buffer processed, queued count: %d", mQueuedBufferCount.load());
+        LOGI("Buffer processed, queued count: %d", mQueuedBufferCount.load());
     }
 
     // 通知解码线程有可用的缓冲区槽位
@@ -1147,23 +1029,86 @@ void FFMediaPlayer::processBufferQueue() {
     pthread_mutex_unlock(&mBufferMutex);
 }
 
-bool FFMediaPlayer::initVideoRenderer() {
-    LOGI("initVideoRenderer()");
-    if (!mVideoInfo.window) {
-        return false;
-    }
 
+bool FFMediaPlayer::initANativeWindow() {
     // 获取视频尺寸
     mVideoInfo.width = mVideoInfo.codecContext->width;
     mVideoInfo.height = mVideoInfo.codecContext->height;
 
-    // 设置窗口尺寸
-    ANativeWindow_setBuffersGeometry(mVideoInfo.window,
-                                     mVideoInfo.width,
-                                     mVideoInfo.height,
-                                     WINDOW_FORMAT_RGBA_8888);
+    mNativeWindow = ANativeWindow_fromSurface(mEnv, androidSurface);
+    if (!mNativeWindow) {
+        LOGE("Couldn't get native window from surface");
+        return false;
+    }
 
+    mRgbFrame = av_frame_alloc();
+    if (!mRgbFrame) {
+        LOGE("Could not allocate RGB frame");
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+        return false;
+    }
+
+    int bufferSize = av_image_get_buffer_size(AV_PIX_FMT_RGBA, mVideoInfo.width, mVideoInfo.height,
+                                              1);
+    mOutbuffer = (uint8_t *) av_malloc(bufferSize * sizeof(uint8_t));
+    if (!mOutbuffer) {
+        LOGE("Could not allocate output buffer");
+        av_frame_free(&mRgbFrame);
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+        return false;
+    }
+
+    mSwsContext = sws_getContext(mVideoInfo.width, mVideoInfo.height, mVideoInfo.codecContext->pix_fmt,
+                                 mVideoInfo.width, mVideoInfo.height, AV_PIX_FMT_RGBA,
+                                 SWS_BICUBIC, nullptr, nullptr, nullptr);
+    if (!mSwsContext) {
+        LOGE("Could not create sws context");
+        av_free(mOutbuffer);
+        mOutbuffer = nullptr;
+        av_frame_free(&mRgbFrame);
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+        return false;
+    }
+
+    if (ANativeWindow_setBuffersGeometry(mNativeWindow, mVideoInfo.width, mVideoInfo.height,
+                                         WINDOW_FORMAT_RGBA_8888) < 0) {
+        LOGE("Couldn't set buffers geometry");
+        cleanupANativeWindow();
+        return false;
+    }
+
+    if (av_image_fill_arrays(mRgbFrame->data, mRgbFrame->linesize,
+                             mOutbuffer, AV_PIX_FMT_RGBA,
+                             mVideoInfo.width, mVideoInfo.height, 1) < 0) {
+        LOGE("Could not fill image arrays");
+        cleanupANativeWindow();
+        return false;
+    }
+
+    LOGI("ANativeWindow initialization successful");
     return true;
+}
+
+void FFMediaPlayer::cleanupANativeWindow() {
+    if (mSwsContext) {
+        sws_freeContext(mSwsContext);
+        mSwsContext = nullptr;
+    }
+    if (mRgbFrame) {
+        av_frame_free(&mRgbFrame);
+        mRgbFrame = nullptr;
+    }
+    if (mOutbuffer) {
+        av_free(mOutbuffer);
+        mOutbuffer = nullptr;
+    }
+    if (mNativeWindow) {
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+    }
 }
 
 
