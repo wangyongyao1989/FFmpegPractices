@@ -165,19 +165,6 @@ bool FFMediaPlayer::start() {
         return false;
     }
 
-    // 启动音频解码线程
-    if (mAudioInfo.codecContext) {
-        if (pthread_create(&mAudioDecodeThread, nullptr, audioDecodeThread, this) != 0) {
-            LOGE("Could not create audio decode thread");
-            return false;
-        }
-
-        // 启动音频播放线程
-        if (pthread_create(&mAudioPlayThread, nullptr, audioPlayThread, this) != 0) {
-            LOGE("Could not create audio play thread");
-            return false;
-        }
-    }
 
     // 启动视频解码线程
     if (pthread_create(&mVideoDecodeThread, nullptr, videoDecodeThread, this) != 0) {
@@ -191,14 +178,27 @@ bool FFMediaPlayer::start() {
         return false;
     }
 
-    // 启动音频播放
-    SLresult result = helper.play();
-    if (result != SL_RESULT_SUCCESS) {
-        LOGE("Failed to set play state: %d, error: %s", result, getSLErrorString(result));
-        playAudioInfo = "Failed to set play state: " + string(getSLErrorString(result));
-        PostStatusMessage(playAudioInfo.c_str());
+    // 启动音频解码线程
+    if (mAudioInfo.codecContext) {
+        if (pthread_create(&mAudioDecodeThread, nullptr, audioDecodeThread, this) != 0) {
+            LOGE("Could not create audio decode thread");
+            return false;
+        }
+
+        // 启动音频播放线程
+        if (pthread_create(&mAudioPlayThread, nullptr, audioPlayThread, this) != 0) {
+            LOGE("Could not create audio play thread");
+            return false;
+        }
+        // 启动音频播放
+        SLresult result = helper.play();
+        if (result != SL_RESULT_SUCCESS) {
+            LOGE("Failed to set play state: %d, error: %s", result, getSLErrorString(result));
+            playAudioInfo = "Failed to set play state: " + string(getSLErrorString(result));
+            PostStatusMessage(playAudioInfo.c_str());
+        }
+        LOGE("helper.play() successfully");
     }
-    LOGE("helper.play() successfully");
 
 
     mState = STATE_STARTED;
@@ -233,16 +233,23 @@ bool FFMediaPlayer::stop() {
     mExit = true;
     mPause = false;
 
-    // 通知所有线程
+    // 设置退出标志后，先通知所有条件变量
     pthread_cond_broadcast(&mPacketCond);
     pthread_cond_broadcast(&mAudioInfo.audioCond);
     pthread_cond_broadcast(&mVideoInfo.videoCond);
     pthread_cond_broadcast(&mBufferReadyCond);
 
+    // 等待一小段时间让线程检测到退出标志
+    usleep(100000);
+
+    // 再次通知，确保所有线程都能退出
+    pthread_cond_broadcast(&mPacketCond);
+    pthread_cond_broadcast(&mAudioInfo.audioCond);
+    pthread_cond_broadcast(&mVideoInfo.videoCond);
+
     cleanupANativeWindow();
 
 
-    // 等待线程结束
     if (mAudioInfo.codecContext) {
         pthread_join(mAudioDecodeThread, nullptr);
         pthread_join(mAudioPlayThread, nullptr);
@@ -467,9 +474,6 @@ void FFMediaPlayer::audioPlay() {
         // 从音频队列获取一帧数据
         AudioFrame *aframe = getAudioFrame();
         if (aframe) {
-            // 更新音频时钟
-            setAudioClock(aframe->pts);
-
             // 重采样音频数据
             uint8_t *buffer = mBuffers[mCurrentBuffer];
             uint8_t *outBuffer = buffer;
@@ -557,6 +561,8 @@ void FFMediaPlayer::videoPlay() {
             usleep(10000);
             continue;
         }
+        // 定期输出性能信息
+        logPerformanceStats();
 
         VideoFrame *vframe = getVideoFrame();
         if (!vframe) {
@@ -906,23 +912,14 @@ void FFMediaPlayer::syncVideo(double pts) {
     // 同步阈值
     const double syncThreshold = 0.01;  // 10ms同步阈值
     const double maxFrameDelay = 0.1;   // 最大100ms延迟
-    LOGE("视频减音频的差值：%ld", diff);
 
     if (fabs(diff) < maxFrameDelay) {
         if (diff <= -syncThreshold) {
             // 视频落后，立即显示
-            LOGW("视频落后，立即显示===============");
-            playAudioInfo =
-                    "视频落后，立即显示=============== \n";
-            PostStatusMessage(playAudioInfo.c_str());
             return;
         } else if (diff >= syncThreshold) {
             // 视频超前，延迟显示
-            int delay = (int) (diff * 1000000 ); // 转换为微秒
-            LOGW("视频超前，延迟显示===============%d", delay);
-            playAudioInfo =
-                    "视频超前，延迟显示===============" + to_string(delay) + " \n";
-            PostStatusMessage(playAudioInfo.c_str());
+            int delay = (int) (diff * 1000000); // 转换为微秒
             usleep(delay);
         }
     }
@@ -1046,6 +1043,17 @@ void FFMediaPlayer::processBufferQueue() {
     // 缓冲区已播放完成，减少计数
     if (mQueuedBufferCount > 0) {
         mQueuedBufferCount--;
+
+        // 更新音频时钟（减去已播放的缓冲区时长）
+        if (mAudioInfo.codecContext && mAudioInfo.sampleRate > 0) {
+            double buffer_duration = (double) BUFFER_SIZE /
+                                     (mAudioInfo.channels * 2 * mAudioInfo.sampleRate);
+
+            pthread_mutex_lock(&mAudioInfo.clockMutex);
+            // 更新音频时钟
+            mAudioInfo.clock -= buffer_duration;
+            pthread_mutex_unlock(&mAudioInfo.clockMutex);
+        }
     }
     // 通知解码线程有可用的缓冲区槽位
     pthread_cond_signal(&mBufferReadyCond);
@@ -1224,5 +1232,33 @@ const char *FFMediaPlayer::getSLErrorString(SLresult result) {
             return "SL_RESULT_CONTROL_LOST";
         default:
             return "Unknown error";
+    }
+}
+
+// 定期输出性能信息
+void FFMediaPlayer::logPerformanceStats() {
+    static int64_t last_log_time = 0;
+    int64_t current_time = av_gettime();
+
+    if (current_time - last_log_time > 500000) {
+        last_log_time = current_time;
+
+        PerformanceStats stats;
+        stats.demuxPackets = mAudioPackets.size() + mVideoPackets.size();
+        stats.audioQueueSize = mAudioInfo.audioQueue.size();
+        stats.videoQueueSize = mVideoInfo.videoQueue.size();
+        stats.audioClock = getAudioClock();
+        stats.videoClock = getVideoClock();
+        stats.syncDiff = stats.videoClock - stats.audioClock;
+
+        LOGW("Performance: Demux=%ld, AudioQ=%ld, VideoQ=%ld, A-V=%.3fs",
+             stats.demuxPackets, stats.audioQueueSize, stats.videoQueueSize, stats.syncDiff);
+        playAudioInfo =
+                "Performance: Demux=" + to_string(stats.demuxPackets)
+                + ",AudioQ=" + to_string(stats.audioQueueSize)
+                + ",VideoQ=" + to_string(stats.videoQueueSize)
+                + ",A-V=" + to_string(stats.syncDiff)
+                + "s \n";
+        PostStatusMessage(playAudioInfo.c_str());
     }
 }

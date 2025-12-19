@@ -120,6 +120,19 @@ struct VideoInfo {
     }
 };
 
+
+// 添加性能监控结构
+struct PerformanceStats {
+    int64_t demuxPackets;
+    int64_t audioFrames;
+    int64_t videoFrames;
+    int64_t audioQueueSize;
+    int64_t videoQueueSize;
+    double audioClock;
+    double videoClock;
+    double syncDiff;
+};
+
 class FFMediaPlayer {
 public:
     FFMediaPlayer(JNIEnv *env, jobject thiz);
@@ -314,6 +327,8 @@ private:
     JNIEnv *GetJNIEnv(bool *isAttach);
 
     void PostStatusMessage(const char *msg);
+
+    void logPerformanceStats();
 };
 
 
