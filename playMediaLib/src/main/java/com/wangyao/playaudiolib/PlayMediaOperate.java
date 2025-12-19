@@ -129,7 +129,7 @@ public class PlayMediaOperate {
 
 
     private void CppStatusCallback(String status) {
-        Log.d(TAG, "CppStatusCallback: " + status);
+//        Log.d(TAG, "CppStatusCallback: " + status);
         if (mOnStatusMsgListener != null) {
             mOnStatusMsgListener.onStatusMsg(status);
         }
