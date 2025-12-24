@@ -19,7 +19,7 @@ import androidx.lifecycle.ViewModelProviders;
 import com.wangyao.ffmpegpractice.databinding.ActivityMainBinding;
 import com.wangyao.ffmpegpractice.fragment.BasicTraningFragment;
 import com.wangyao.ffmpegpractice.fragment.CodecTraningFragment;
-import com.wangyao.ffmpegpractice.fragment.PlayAudioFragment;
+import com.wangyao.ffmpegpractice.fragment.PlayMeidaFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessHwCodecFragment;
 import com.wangyao.ffmpegpractice.fragment.MainFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessAudioFragmnet;
@@ -39,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
     private ProcessAudioFragmnet mProcessAudioFragmnet;
     private ProcessFilterFragment mProcessFilterFragment;
     private ProcessHwCodecFragment mProcessHwCodecFragment;
-    private PlayAudioFragment mPlayAudioFragment;
+    private PlayMeidaFragment mPlayMeidaFragment;
 
 
     private FrameLayout mFlBasicTraning;
@@ -193,13 +193,13 @@ public class MainActivity extends AppCompatActivity {
                 fragmentTransaction.commit();
             }
             break;
-            case PLAY_AUDIO: {
-                if (mPlayAudioFragment == null) {
-                    mPlayAudioFragment = new PlayAudioFragment();
+            case PLAY_MEDIA: {
+                if (mPlayMeidaFragment == null) {
+                    mPlayMeidaFragment = new PlayMeidaFragment();
                     fragmentTransaction
-                            .add(mFlPlayAudio.getId(), mPlayAudioFragment);
+                            .add(mFlPlayAudio.getId(), mPlayMeidaFragment);
                 }
-                fragmentTransaction.show(mPlayAudioFragment);
+                fragmentTransaction.show(mPlayMeidaFragment);
                 fragmentTransaction.commit();
             }
             break;
@@ -235,8 +235,8 @@ public class MainActivity extends AppCompatActivity {
             ftr.hide(mProcessHwCodecFragment);
         }
 
-        if (mPlayAudioFragment != null) {
-            ftr.hide(mPlayAudioFragment);
+        if (mPlayMeidaFragment != null) {
+            ftr.hide(mPlayMeidaFragment);
         }
 
     }

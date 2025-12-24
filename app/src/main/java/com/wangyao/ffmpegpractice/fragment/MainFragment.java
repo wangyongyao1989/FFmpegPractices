@@ -2,7 +2,6 @@ package com.wangyao.ffmpegpractice.fragment;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,7 +9,6 @@ import android.widget.Button;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.ViewModelProviders;
 
 import com.wangyao.ffmpegpractice.FFViewModel;
@@ -32,7 +30,7 @@ public class MainFragment extends BaseFragment {
     private Button mBtnProcessAudio;
     private Button mBtnProcessFilter;
     private Button mBtnProcessHwCodec;
-    private Button mBtnPlayAudio;
+    private Button mBtnPlayMeida;
 
     @Override
     public View getLayoutDataBing(@NonNull LayoutInflater inflater
@@ -49,7 +47,7 @@ public class MainFragment extends BaseFragment {
         mBtnProcessAudio = mBinding.btnProcessAudio;
         mBtnProcessFilter = mBinding.btnProcessFilter;
         mBtnProcessHwCodec = mBinding.btnProcessHwCodec;
-        mBtnPlayAudio = mBinding.btnPlayAudio;
+        mBtnPlayMeida = mBinding.btnPlayMedia;
 
     }
 
@@ -91,8 +89,8 @@ public class MainFragment extends BaseFragment {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PROCESS_HW_CODEC);
         });
 
-        mBtnPlayAudio.setOnClickListener(view -> {
-            mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PLAY_AUDIO);
+        mBtnPlayMeida.setOnClickListener(view -> {
+            mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.PLAY_MEDIA);
         });
 
     }

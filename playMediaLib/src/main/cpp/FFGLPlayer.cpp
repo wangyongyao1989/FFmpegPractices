@@ -1,0 +1,493 @@
+//  Author : wangyongyao https://github.com/wangyongyao1989
+// Created by MMM on 2025/12/6.
+//
+
+#include "FFGLPlayer.h"
+#include <unistd.h>
+
+FFGLPlayer::FFGLPlayer(JNIEnv *env, jobject thiz)
+        : mEnv(nullptr), mJavaObj(nullptr), mFormatContext(nullptr),
+          mCodecContext(nullptr), mVideoStreamIndex(-1), mDuration(0),
+          mSampleFormat(AV_SAMPLE_FMT_NONE), mWidth(0), mHeight(0),
+          mIsPlaying(false), mInitialized(false), mStopRequested(false),
+          mNativeWindow(nullptr),
+          mOutbuffer(nullptr), mDecodeThread(0), mRenderThread(0) {
+
+    mEnv = env;
+    env->GetJavaVM(&mJavaVm);
+    mJavaObj = env->NewGlobalRef(thiz);
+
+    eglsurfaceViewRender = new EGLSurfaceViewVideoRender();
+
+    pthread_mutex_init(&mDecodeMutex, nullptr);
+    pthread_mutex_init(&mRenderMutex, nullptr);
+    pthread_cond_init(&mBufferMaxCond, nullptr);
+    pthread_cond_init(&mRenderCond, nullptr);
+}
+
+FFGLPlayer::~FFGLPlayer() {
+    stop();
+    cleanup();
+
+    pthread_mutex_destroy(&mDecodeMutex);
+    pthread_mutex_destroy(&mRenderMutex);
+    pthread_cond_destroy(&mBufferMaxCond);
+    pthread_cond_destroy(&mRenderCond);
+
+    if (androidSurface) {
+        mEnv->DeleteLocalRef(androidSurface);
+    }
+    if (mNativeWindow) {
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+    }
+
+    if (mOutbuffer) {
+        av_free(mOutbuffer);
+        mOutbuffer = nullptr;
+    }
+
+    if (eglsurfaceViewRender) {
+        eglsurfaceViewRender = nullptr;
+    }
+
+    mEnv->DeleteGlobalRef(mJavaObj);
+}
+
+bool FFGLPlayer::init(const string &filePath, const string &fragPath, const string &vertexPath,
+                      jobject surface) {
+    if (mInitialized) {
+        LOGI("Already initialized");
+        return true;
+    }
+
+    androidSurface = mEnv->NewGlobalRef(surface);
+
+    if (!initFFmpeg(filePath)) {
+        LOGE("Failed to initialize FFmpeg");
+        PostStatusMessage("Failed to initialize FFmpeg");
+        return false;
+    }
+
+//    if (!initANativeWindow()) {
+//        LOGE("Failed to initialize ANativeWindow");
+//        PostStatusMessage("Failed to initialize ANativeWindow");
+//        cleanupFFmpeg();
+//        return false;
+//    }
+
+    if (!initEGLRender(fragPath, vertexPath)) {
+        LOGE("Failed to initialize initEGLRender");
+        PostStatusMessage("Failed to initialize initEGLRender");
+        cleanupFFmpeg();
+        return false;
+    }
+
+    mInitialized = true;
+    LOGI("FFGLPlayer initialized successfully");
+    PostStatusMessage("FFGLPlayer initialized successfully");
+    return true;
+}
+
+bool FFGLPlayer::initFFmpeg(const std::string &filePath) {
+    if (avformat_open_input(&mFormatContext, filePath.c_str(), nullptr, nullptr) != 0) {
+        LOGE("Could not open file: %s", filePath.c_str());
+        return false;
+    }
+
+    if (avformat_find_stream_info(mFormatContext, nullptr) < 0) {
+        LOGE("Could not find stream information");
+        avformat_close_input(&mFormatContext);
+        return false;
+    }
+
+    mVideoStreamIndex = -1;
+    for (unsigned int i = 0; i < mFormatContext->nb_streams; i++) {
+        if (mFormatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            mVideoStreamIndex = i;
+            break;
+        }
+    }
+
+    if (mVideoStreamIndex == -1) {
+        LOGE("Could not find video stream");
+        avformat_close_input(&mFormatContext);
+        return false;
+    }
+
+    AVCodecParameters *codecParams = mFormatContext->streams[mVideoStreamIndex]->codecpar;
+    const AVCodec *codec = avcodec_find_decoder(codecParams->codec_id);
+    if (!codec) {
+        LOGE("Unsupported codec");
+        avformat_close_input(&mFormatContext);
+        return false;
+    }
+
+    mCodecContext = avcodec_alloc_context3(codec);
+    if (!mCodecContext) {
+        LOGE("Could not allocate codec context");
+        avformat_close_input(&mFormatContext);
+        return false;
+    }
+
+    if (avcodec_parameters_to_context(mCodecContext, codecParams) < 0) {
+        LOGE("Could not copy codec parameters");
+        cleanupFFmpeg();
+        return false;
+    }
+
+    if (avcodec_open2(mCodecContext, codec, nullptr) < 0) {
+        LOGE("Could not open codec");
+        cleanupFFmpeg();
+        return false;
+    }
+
+    mWidth = mCodecContext->width;
+    mHeight = mCodecContext->height;
+    mSampleFormat = mCodecContext->sample_fmt;
+    mDuration = mFormatContext->duration;
+
+    LOGI("GLPlay FFmpeg initialized width: %d, height: %d, duration: %lld",
+         mWidth, mHeight, mDuration);
+
+    playMediaInfo = "FFmpeg initialized, width:" + std::to_string(mWidth) +
+                    ", height:" + std::to_string(mHeight) +
+                    ", duration:" + std::to_string(mDuration) + "\n";
+    PostStatusMessage(playMediaInfo.c_str());
+
+    return true;
+}
+
+bool FFGLPlayer::initEGLRender(const string &fragPath, const string &vertexPath) {
+    mNativeWindow = ANativeWindow_fromSurface(mEnv, androidSurface);
+    if (!mNativeWindow) {
+        LOGE("Couldn't get native window from surface");
+        return false;
+    }
+    eglsurfaceViewRender->surfaceCreated(mNativeWindow, nullptr);
+    eglsurfaceViewRender->setSharderStringPath(vertexPath, fragPath);
+    eglsurfaceViewRender->surfaceChanged(mWidth, mHeight);
+    return true;
+}
+
+
+bool FFGLPlayer::start() {
+    if (!mInitialized) {
+        LOGE("Player not initialized");
+        PostStatusMessage("Player not initialized \n");
+        return false;
+    }
+
+    pthread_mutex_lock(&mDecodeMutex);
+
+    if (mIsPlaying) {
+        return true;
+    }
+
+    mStopRequested = false;
+    mIsPlaying = true;
+    videoFrameQueue.clear();
+
+    if (pthread_create(&mDecodeThread, nullptr, decodeThreadWrapper, this) != 0) {
+        LOGE("Failed to create decode thread");
+        PostStatusMessage("Failed to create decode thread");
+        mIsPlaying = false;
+        return false;
+    }
+
+    if (pthread_create(&mRenderThread, nullptr, renderVideoFrame, this) != 0) {
+        LOGE("Failed to create render thread");
+        PostStatusMessage("Failed to create render thread");
+        mIsPlaying = false;
+        mStopRequested = true;
+        pthread_join(mDecodeThread, nullptr);
+        mDecodeThread = 0;
+        return false;
+    }
+
+    pthread_mutex_unlock(&mDecodeMutex);
+
+    LOGI("Playback started");
+    PostStatusMessage("Playback started");
+    return true;
+}
+
+void FFGLPlayer::stop() {
+    if (!mInitialized) {
+        return;
+    }
+
+    mStopRequested = true;
+    mIsPlaying = false;
+
+    // 通知所有等待的线程
+    pthread_cond_broadcast(&mBufferMaxCond);
+    pthread_cond_broadcast(&mRenderCond);
+
+    // 等待解码线程结束
+    if (mDecodeThread) {
+        pthread_join(mDecodeThread, nullptr);
+        mDecodeThread = 0;
+    }
+
+
+    // 等待解码线程结束
+    if (mRenderThread) {
+        pthread_join(mRenderThread, nullptr);
+        mRenderThread = 0;
+    }
+
+    videoFrameQueue.clear();
+
+    LOGI("Playback stopped");
+    PostStatusMessage("Playback stopped");
+}
+
+void *FFGLPlayer::decodeThreadWrapper(void *context) {
+    FFGLPlayer *player = static_cast<FFGLPlayer *>(context);
+    player->decodeThread();
+    return nullptr;
+}
+
+void FFGLPlayer::decodeThread() {
+    AVPacket packet;
+    AVFrame *frame = av_frame_alloc();
+    int ret;
+
+    if (!frame) {
+        LOGE("Could not allocate frame");
+        return;
+    }
+
+    LOGI("Decode thread started");
+    PostStatusMessage("Decode thread started");
+
+    while (!mStopRequested && mIsPlaying) {
+        pthread_mutex_lock(&mDecodeMutex);
+        // 当队列达到最大时，解码等待。
+        while (videoFrameQueue.size() >= maxVideoFrames && !mStopRequested && mIsPlaying) {
+            LOGD("Waiting for buffer slot, queued: %zu", videoFrameQueue.size());
+            playMediaInfo =
+                    "Waiting for buffer slot, queued:" + to_string(videoFrameQueue.size()) + " \n";
+            PostStatusMessage(playMediaInfo.c_str());
+            pthread_cond_wait(&mBufferMaxCond, &mDecodeMutex);
+        }
+
+        if (mStopRequested || !mIsPlaying) {
+            pthread_mutex_unlock(&mDecodeMutex);
+            break;
+        }
+
+        ret = av_read_frame(mFormatContext, &packet);
+        if (ret < 0) {
+            pthread_mutex_unlock(&mDecodeMutex);
+
+            if (ret == AVERROR_EOF) {
+                LOGI("End of file reached");
+                break;
+            } else {
+                LOGE("Error reading frame: %d", ret);
+                usleep(10000);
+                continue;
+            }
+        }
+
+        if (packet.stream_index == mVideoStreamIndex) {
+            ret = avcodec_send_packet(mCodecContext, &packet);
+            if (ret < 0) {
+                LOGE("Error sending packet to decoder: %d", ret);
+                av_packet_unref(&packet);
+                pthread_mutex_unlock(&mDecodeMutex);
+                continue;
+            }
+
+            while (avcodec_receive_frame(mCodecContext, frame) == 0) {
+                AVFrame *frameCopy = av_frame_alloc();
+                if (!frameCopy) {
+                    LOGE("Could not allocate frame copy");
+                    continue;
+                }
+                if (av_frame_ref(frameCopy, frame) >= 0) {
+                    videoFrameQueue.push(frameCopy);
+                    pthread_cond_signal(&mRenderCond);
+                } else {
+                    av_frame_free(&frameCopy);
+                    pthread_mutex_unlock(&mDecodeMutex);
+                }
+            }
+        }
+
+        av_packet_unref(&packet);
+        pthread_mutex_unlock(&mDecodeMutex);
+    }
+
+    av_frame_free(&frame);
+    LOGI("Decode thread finished");
+}
+
+void *FFGLPlayer::renderVideoFrame(void *context) {
+    FFGLPlayer *player = static_cast<FFGLPlayer *>(context);
+    player->renderVideoThread();
+    return nullptr;
+}
+
+void FFGLPlayer::renderVideoThread() {
+    LOGI("Render thread started");
+    PostStatusMessage("Render thread started \n");
+
+    AVRational timeBase = mFormatContext->streams[mVideoStreamIndex]->time_base;
+    int64_t lastPts = AV_NOPTS_VALUE;
+
+    while (!mStopRequested && mIsPlaying) {
+        pthread_mutex_lock(&mRenderMutex);
+
+        while (videoFrameQueue.empty() && !mStopRequested && mIsPlaying) {
+            pthread_cond_wait(&mRenderCond, &mRenderMutex);
+        }
+
+        if (mStopRequested || !mIsPlaying) {
+            pthread_mutex_unlock(&mRenderMutex);
+            break;
+        }
+
+        if (!videoFrameQueue.empty()) {
+            std::shared_ptr<AVFrame *> framePtr = videoFrameQueue.pop();
+            AVFrame *frame = *framePtr;
+            pthread_mutex_unlock(&mRenderMutex);
+
+            // 基于时间戳的帧率控制
+            if (lastPts != AV_NOPTS_VALUE && frame->pts != AV_NOPTS_VALUE) {
+                int64_t ptsDiff = frame->pts - lastPts;
+                double timeDiff = av_q2d(timeBase) * ptsDiff * 1000000; // 转换为微秒
+                if (timeDiff > 0 && timeDiff < 1000000) { // 合理的帧间隔
+                    usleep(static_cast<useconds_t>(timeDiff));
+                }
+            }
+            lastPts = frame->pts;
+            sendFrameDataToEGL(frame);
+            // 通知解码线程
+            if (videoFrameQueue.size() < maxVideoFrames / 2) {
+                pthread_cond_signal(&mBufferMaxCond);
+            }
+        } else {
+            pthread_mutex_unlock(&mRenderMutex);
+        }
+    }
+
+    LOGI("Render thread finished");
+}
+
+int FFGLPlayer::sendFrameDataToEGL(AVFrame *frame) {
+    if (!mNativeWindow || !frame) {
+        return -1;
+    }
+    LOGI("sendFrameDataToEGL");
+
+    uint8_t *buffer;
+    int length;
+    yuv420p_frame_to_buffer(frame, &buffer, &length);
+    eglsurfaceViewRender->draw(buffer, length, mWidth, mHeight, 90);
+    eglsurfaceViewRender->render();
+    return 0;
+}
+
+
+void FFGLPlayer::cleanup() {
+    cleanupFFmpeg();
+    mIsPlaying = false;
+    mInitialized = false;
+}
+
+void FFGLPlayer::cleanupFFmpeg() {
+    if (mCodecContext) {
+        avcodec_close(mCodecContext);
+        avcodec_free_context(&mCodecContext);
+        mCodecContext = nullptr;
+    }
+
+    if (mFormatContext) {
+        avformat_close_input(&mFormatContext);
+        mFormatContext = nullptr;
+    }
+
+    mVideoStreamIndex = -1;
+}
+
+JNIEnv *FFGLPlayer::GetJNIEnv(bool *isAttach) {
+    if (!mJavaVm) {
+        LOGE("GetJNIEnv mJavaVm == nullptr");
+        return nullptr;
+    }
+
+    JNIEnv *env;
+    int status = mJavaVm->GetEnv((void **) &env, JNI_VERSION_1_6);
+
+    if (status == JNI_EDETACHED) {
+        status = mJavaVm->AttachCurrentThread(&env, nullptr);
+        if (status != JNI_OK) {
+            LOGE("Failed to attach current thread");
+            return nullptr;
+        }
+        *isAttach = true;
+    } else if (status != JNI_OK) {
+        LOGE("Failed to get JNIEnv");
+        return nullptr;
+    } else {
+        *isAttach = false;
+    }
+
+    return env;
+}
+
+void FFGLPlayer::PostStatusMessage(const char *msg) {
+    bool isAttach = false;
+    JNIEnv *env = GetJNIEnv(&isAttach);
+    if (!env) {
+        return;
+    }
+
+    jmethodID mid = env->GetMethodID(env->GetObjectClass(mJavaObj),
+                                     "CppStatusCallback", "(Ljava/lang/String;)V");
+    if (mid) {
+        jstring jMsg = env->NewStringUTF(msg);
+        env->CallVoidMethod(mJavaObj, mid, jMsg);
+        env->DeleteLocalRef(jMsg);
+    }
+
+    if (isAttach) {
+        mJavaVm->DetachCurrentThread();
+    }
+}
+
+
+int FFGLPlayer::yuv420p_frame_to_buffer(AVFrame *frame, uint8_t **buffer, int *length) {
+    if (!frame || frame->format != AV_PIX_FMT_YUV420P) return -1;
+    int width = frame->width;
+    int height = frame->height;
+    int y_size = width * height;
+    int uv_size = y_size / 4;
+    *length = y_size + uv_size * 2;
+    *buffer = (uint8_t *) av_malloc(*length);
+    if (!*buffer) return -1;
+    uint8_t *dst = *buffer;
+
+    // 复制Y平面
+    for (int y = 0; y < height; y++) {
+        memcpy(dst, frame->data[0] + y * frame->linesize[0], width);
+        dst += width;
+    }
+
+    // 复制U平面
+    for (int y = 0; y < height / 2; y++) {
+        memcpy(dst, frame->data[1] + y * frame->linesize[1], width / 2);
+        dst += width / 2;
+    }
+
+    // 复制V平面
+    for (int y = 0; y < height / 2; y++) {
+        memcpy(dst, frame->data[2] + y * frame->linesize[2], width / 2);
+        dst += width / 2;
+    }
+
+    return 0;
+}
