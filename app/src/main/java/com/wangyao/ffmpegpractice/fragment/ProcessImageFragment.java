@@ -18,6 +18,7 @@ import com.wangyao.ffmpegpractice.databinding.FragmentProcessImageLayoutBinding;
 import com.wangyao.processimagelib.ProcessImageOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 import com.wangyongyao.commonlib.utils.DirectoryPath;
+import com.wangyongyao.commonlib.utils.FilePickerDialog;
 
 import java.util.Random;
 
@@ -53,6 +54,7 @@ public class ProcessImageFragment extends BaseFragment {
     private String mYaoJpgPath;
 
     private Button mBtCodecBack;
+    private Button mBtCodecFiles;
     private ProcessImageOperate mProcessImage;
     private StringBuilder mStringBuilder;
 
@@ -67,6 +69,7 @@ public class ProcessImageFragment extends BaseFragment {
     public void initView() {
         mTv = mBinding.tvProcessImage;
         mBtCodecBack = mBinding.btnProcessImageBack;
+        mBtCodecFiles = mBinding.btnProcessImageFiles;
         mBtn1 = mBinding.btnProcessImage1;
         mBtn2 = mBinding.btnProcessImage2;
         mBtn3 = mBinding.btnProcessImage3;
@@ -120,6 +123,12 @@ public class ProcessImageFragment extends BaseFragment {
 
         mBtCodecBack.setOnClickListener(view -> {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.MAIN);
+        });
+
+        mBtCodecFiles.setOnClickListener(view -> {
+            String photoDir = DirectoryPath.createPhotoDir(getContext());
+            FilePickerDialog.show(getContext(), photoDir,
+                    "处理图像 - 生成文件", getContext().getPackageName() + ".fileprovider");
         });
 
         mBtn1.setOnClickListener(view -> {

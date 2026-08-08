@@ -29,6 +29,14 @@
                 tools:ignore="HardcodedText" />
 
             <Button
+                android:id="@+id/btn_process_audio_files"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="查看生成文件"
+                tools:ignore="HardcodedText" />
+
+            <Button
                 android:id="@+id/btn_process_audio_1"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

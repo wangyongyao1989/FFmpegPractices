@@ -17,6 +17,7 @@ import com.wangyao.ffmpegpractice.FFViewModel;
 import com.wangyao.ffmpegpractice.databinding.FragmentCodecTraningLayoutBinding;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 import com.wangyongyao.commonlib.utils.DirectoryPath;
+import com.wangyongyao.commonlib.utils.FilePickerDialog;
 
 import java.util.Random;
 
@@ -50,6 +51,7 @@ public class CodecTraningFragment extends BaseFragment {
     private String mH264Path;
 
     private Button mBtCodecBack;
+    private Button mBtCodecFiles;
     private CodecOperate mCodecOperate;
     private StringBuilder mStringBuilder;
 
@@ -64,6 +66,7 @@ public class CodecTraningFragment extends BaseFragment {
     public void initView() {
         mTv = mBinding.sampleText;
         mBtCodecBack = mBinding.btnCodecBack;
+        mBtCodecFiles = mBinding.btnCodecFiles;
         mBtn1 = mBinding.btnCodec1;
         mBtn2 = mBinding.btnCodec2;
         mBtn3 = mBinding.btnCodec3;
@@ -114,6 +117,12 @@ public class CodecTraningFragment extends BaseFragment {
 
         mBtCodecBack.setOnClickListener(view -> {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.MAIN);
+        });
+
+        mBtCodecFiles.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            FilePickerDialog.show(getContext(), videoDir,
+                    "编解码 - 生成文件", getContext().getPackageName() + ".fileprovider");
         });
 
         mBtn1.setOnClickListener(view -> {
