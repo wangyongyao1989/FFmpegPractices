@@ -17,6 +17,7 @@ import com.wangyao.ffmpegpractice.databinding.FragmentProcessFilterLayoutBinding
 import com.wangyao.processfilterlib.ProcessFilterOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 import com.wangyongyao.commonlib.utils.DirectoryPath;
+import com.wangyongyao.commonlib.utils.FilePickerDialog;
 
 import java.util.Random;
 
@@ -49,6 +50,7 @@ public class ProcessFilterFragment extends BaseFragment {
     private String mYaoJpgPath;
 
     private Button mBtCodecBack;
+    private Button mBtCodecFiles;
     private ProcessFilterOperate mFilterOperate;
     private StringBuilder mStringBuilder;
 
@@ -63,6 +65,7 @@ public class ProcessFilterFragment extends BaseFragment {
     public void initView() {
         mTv = mBinding.tvProcessFilter;
         mBtCodecBack = mBinding.btnProcessFilterBack;
+        mBtCodecFiles = mBinding.btnProcessFilterFiles;
         mBtn1 = mBinding.btnProcessFilter1;
         mBtn2 = mBinding.btnProcessFilter2;
         mBtn3 = mBinding.btnProcessFilter3;
@@ -112,6 +115,12 @@ public class ProcessFilterFragment extends BaseFragment {
 
         mBtCodecBack.setOnClickListener(view -> {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.MAIN);
+        });
+
+        mBtCodecFiles.setOnClickListener(view -> {
+            String videoDir = DirectoryPath.createVideoDir(getContext());
+            FilePickerDialog.show(getContext(), videoDir,
+                    "滤镜处理 - 生成文件", getContext().getPackageName() + ".fileprovider");
         });
 
         mBtn1.setOnClickListener(view -> {

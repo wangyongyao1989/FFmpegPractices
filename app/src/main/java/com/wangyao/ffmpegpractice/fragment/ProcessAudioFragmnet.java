@@ -17,6 +17,7 @@ import com.wangyao.ffmpegpractice.databinding.FragmentProcessAudioLayoutBinding;
 import com.wangyao.processaudiolib.ProcessAuidoOperate;
 import com.wangyongyao.commonlib.utils.CommonFileUtils;
 import com.wangyongyao.commonlib.utils.DirectoryPath;
+import com.wangyongyao.commonlib.utils.FilePickerDialog;
 
 import java.util.Random;
 
@@ -47,6 +48,7 @@ public class ProcessAudioFragmnet extends BaseFragment {
     private String mYaoJpgPath;
 
     private Button mBtCodecBack;
+    private Button mBtCodecFiles;
     private ProcessAuidoOperate mAuidoOperate;
     private StringBuilder mStringBuilder;
 
@@ -61,6 +63,7 @@ public class ProcessAudioFragmnet extends BaseFragment {
     public void initView() {
         mTv = mBinding.tvProcessAudio;
         mBtCodecBack = mBinding.btnProcessAudioBack;
+        mBtCodecFiles = mBinding.btnProcessAudioFiles;
         mBtn1 = mBinding.btnProcessAudio1;
         mBtn2 = mBinding.btnProcessAudio2;
         mBtn3 = mBinding.btnProcessAudio3;
@@ -110,6 +113,12 @@ public class ProcessAudioFragmnet extends BaseFragment {
 
         mBtCodecBack.setOnClickListener(view -> {
             mFfViewModel.getSwitchFragment().postValue(FFViewModel.FRAGMENT_STATUS.MAIN);
+        });
+
+        mBtCodecFiles.setOnClickListener(view -> {
+            String audioDir = DirectoryPath.createAudioDir(getContext());
+            FilePickerDialog.show(getContext(), audioDir,
+                    "处理音频 - 生成文件", getContext().getPackageName() + ".fileprovider");
         });
 
         mBtn1.setOnClickListener(view -> {
