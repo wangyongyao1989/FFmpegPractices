@@ -8,9 +8,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.FrameLayout;
 
-import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
@@ -30,7 +28,6 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = MainActivity.class.getSimpleName();
     private ActivityMainBinding mBinding;
-    private FrameLayout mFlMain;
     private FFViewModel mFFViewModel;
     private MainFragment mMainFragment;
     private BasicTraningFragment mBasicTraningFragment;
@@ -41,25 +38,12 @@ public class MainActivity extends AppCompatActivity {
     private ProcessHwCodecFragment mProcessHwCodecFragment;
     private PlayMeidaFragment mPlayMeidaFragment;
 
-
-    private FrameLayout mFlBasicTraning;
-    private FrameLayout mFlCodecTraning;
-    private FrameLayout mFlProcessImage;
-    private FrameLayout mFlProcessAudio;
-    private FrameLayout mFlProcessFilter;
-    private FrameLayout mFlProcessHwCodec;
-    private FrameLayout mFlPlayAudio;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         checkPermission();
         mBinding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(mBinding.getRoot());
-        ActionBar supportActionBar = getSupportActionBar();
-        if (supportActionBar != null) {
-            supportActionBar.hide();
-        }
         if (getRequestedOrientation() != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         }
@@ -77,12 +61,30 @@ public class MainActivity extends AppCompatActivity {
         FragmentManager fragmentManager = getSupportFragmentManager();
         FragmentTransaction mFragmentTransaction = fragmentManager.beginTransaction();
         mFragmentTransaction
-                .add(mFlMain.getId(), mMainFragment)
+                .add(mBinding.fragmentContainer.getId(), mMainFragment)
                 .commit();
     }
 
     private void initListener() {
-
+        mBinding.navigationRail.setOnItemSelectedListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.menu_basic) {
+                selectionFragment(FFViewModel.FRAGMENT_STATUS.BASIC_TRANING);
+            } else if (itemId == R.id.menu_codec) {
+                selectionFragment(FFViewModel.FRAGMENT_STATUS.CODEC_TRANING);
+            } else if (itemId == R.id.menu_image) {
+                selectionFragment(FFViewModel.FRAGMENT_STATUS.PROCESS_IMAGE);
+            } else if (itemId == R.id.menu_audio) {
+                selectionFragment(FFViewModel.FRAGMENT_STATUS.PROCESS_AUDIO);
+            } else if (itemId == R.id.menu_filter) {
+                selectionFragment(FFViewModel.FRAGMENT_STATUS.PROCESS_FILTER);
+            } else if (itemId == R.id.menu_hw_codec) {
+                selectionFragment(FFViewModel.FRAGMENT_STATUS.PROCESS_HW_CODEC);
+            } else if (itemId == R.id.menu_play) {
+                selectionFragment(FFViewModel.FRAGMENT_STATUS.PLAY_MEDIA);
+            }
+            return true;
+        });
     }
 
     @SuppressLint("RestrictedApi")
@@ -90,8 +92,29 @@ public class MainActivity extends AppCompatActivity {
         mFFViewModel = ViewModelProviders.of(this).get(FFViewModel.class);
         mFFViewModel.getSwitchFragment().observe(this, fragmentStatus -> {
             Log.e(TAG, "initObserver fragmentStatus: " + fragmentStatus);
+            updateRailSelection(fragmentStatus);
             selectionFragment(fragmentStatus);
         });
+    }
+
+    private void updateRailSelection(FFViewModel.FRAGMENT_STATUS status) {
+        if (status == FFViewModel.FRAGMENT_STATUS.MAIN) {
+            return;
+        }
+        int menuId;
+        switch (status) {
+            case BASIC_TRANING: menuId = R.id.menu_basic; break;
+            case CODEC_TRANING: menuId = R.id.menu_codec; break;
+            case PROCESS_IMAGE: menuId = R.id.menu_image; break;
+            case PROCESS_AUDIO: menuId = R.id.menu_audio; break;
+            case PROCESS_FILTER: menuId = R.id.menu_filter; break;
+            case PROCESS_HW_CODEC: menuId = R.id.menu_hw_codec; break;
+            case PLAY_MEDIA: menuId = R.id.menu_play; break;
+            default: return;
+        }
+        if (mBinding.navigationRail.getSelectedItemId() != menuId) {
+            mBinding.navigationRail.setSelectedItemId(menuId);
+        }
     }
 
     private void initEventListener() {
@@ -104,15 +127,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initView() {
-        mFlMain = mBinding.flMain;
-        mFlBasicTraning = mBinding.flBasicTraning;
-        mFlCodecTraning = mBinding.flCodecTraning;
-        mFlProcessImage = mBinding.flProcessImage;
-        mFlProcessAudio = mBinding.flProcessAudio;
-        mFlProcessFilter = mBinding.flProcessFilter;
-        mFlProcessHwCodec = mBinding.flProcessHwCodec;
-        mFlPlayAudio = mBinding.flPlayAudio;
-
+        View headerView = mBinding.navigationRail.findViewById(R.id.rail_header_logo);
+        if (headerView != null) {
+            headerView.setOnClickListener(v -> selectionFragment(FFViewModel.FRAGMENT_STATUS.MAIN));
+        }
     }
 
 
@@ -120,11 +138,11 @@ public class MainActivity extends AppCompatActivity {
         FragmentManager fragmentManager = getSupportFragmentManager();
         FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
         hideTransaction(fragmentTransaction);
+        int containerId = mBinding.fragmentContainer.getId();
         switch (status) {
 
             case MAIN: {
                 fragmentTransaction.show(mMainFragment);
-                fragmentTransaction.commit();
             }
             break;
 
@@ -132,10 +150,9 @@ public class MainActivity extends AppCompatActivity {
                 if (mBasicTraningFragment == null) {
                     mBasicTraningFragment = new BasicTraningFragment();
                     fragmentTransaction
-                            .add(mFlBasicTraning.getId(), mBasicTraningFragment);
+                            .add(containerId, mBasicTraningFragment);
                 }
                 fragmentTransaction.show(mBasicTraningFragment);
-                fragmentTransaction.commit();
             }
             break;
 
@@ -143,10 +160,9 @@ public class MainActivity extends AppCompatActivity {
                 if (mCodecTraningFragment == null) {
                     mCodecTraningFragment = new CodecTraningFragment();
                     fragmentTransaction
-                            .add(mFlCodecTraning.getId(), mCodecTraningFragment);
+                            .add(containerId, mCodecTraningFragment);
                 }
                 fragmentTransaction.show(mCodecTraningFragment);
-                fragmentTransaction.commit();
             }
             break;
 
@@ -154,10 +170,9 @@ public class MainActivity extends AppCompatActivity {
                 if (mProcessImageFragment == null) {
                     mProcessImageFragment = new ProcessImageFragment();
                     fragmentTransaction
-                            .add(mFlProcessImage.getId(), mProcessImageFragment);
+                            .add(containerId, mProcessImageFragment);
                 }
                 fragmentTransaction.show(mProcessImageFragment);
-                fragmentTransaction.commit();
             }
             break;
 
@@ -165,10 +180,9 @@ public class MainActivity extends AppCompatActivity {
                 if (mProcessAudioFragmnet == null) {
                     mProcessAudioFragmnet = new ProcessAudioFragmnet();
                     fragmentTransaction
-                            .add(mFlProcessAudio.getId(), mProcessAudioFragmnet);
+                            .add(containerId, mProcessAudioFragmnet);
                 }
                 fragmentTransaction.show(mProcessAudioFragmnet);
-                fragmentTransaction.commit();
             }
             break;
 
@@ -176,10 +190,9 @@ public class MainActivity extends AppCompatActivity {
                 if (mProcessFilterFragment == null) {
                     mProcessFilterFragment = new ProcessFilterFragment();
                     fragmentTransaction
-                            .add(mFlProcessFilter.getId(), mProcessFilterFragment);
+                            .add(containerId, mProcessFilterFragment);
                 }
                 fragmentTransaction.show(mProcessFilterFragment);
-                fragmentTransaction.commit();
             }
             break;
 
@@ -187,23 +200,22 @@ public class MainActivity extends AppCompatActivity {
                 if (mProcessHwCodecFragment == null) {
                     mProcessHwCodecFragment = new ProcessHwCodecFragment();
                     fragmentTransaction
-                            .add(mFlProcessHwCodec.getId(), mProcessHwCodecFragment);
+                            .add(containerId, mProcessHwCodecFragment);
                 }
                 fragmentTransaction.show(mProcessHwCodecFragment);
-                fragmentTransaction.commit();
             }
             break;
             case PLAY_MEDIA: {
                 if (mPlayMeidaFragment == null) {
                     mPlayMeidaFragment = new PlayMeidaFragment();
                     fragmentTransaction
-                            .add(mFlPlayAudio.getId(), mPlayMeidaFragment);
+                            .add(containerId, mPlayMeidaFragment);
                 }
                 fragmentTransaction.show(mPlayMeidaFragment);
-                fragmentTransaction.commit();
             }
             break;
         }
+        fragmentTransaction.commit();
     }
 
     private void hideTransaction(FragmentTransaction ftr) {

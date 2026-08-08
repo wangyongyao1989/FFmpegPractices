@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/menu_basic"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="基础训练" />
+    <item
+        android:id="@+id/menu_codec"
+        android:icon="@android:drawable/ic_menu_camera"
+        android:title="编解码" />
+    <item
+        android:id="@+id/menu_image"
+        android:icon="@android:drawable/ic_menu_gallery"
+        android:title="处理图像" />
+    <item
+        android:id="@+id/menu_audio"
+        android:icon="@android:drawable/ic_menu_call"
+        android:title="处理音频" />
+    <item
+        android:id="@+id/menu_filter"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="滤镜处理" />
+    <item
+        android:id="@+id/menu_hw_codec"
+        android:icon="@android:drawable/ic_menu_preferences"
+        android:title="硬件编解码" />
+    <item
+        android:id="@+id/menu_play"
+        android:icon="@android:drawable/ic_menu_slideshow"
+        android:title="播放相关" />
+</menu>
