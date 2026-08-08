@@ -5,75 +5,86 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <Button
-        android:id="@+id/btn_process_filter_back"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/ll_button_container"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:text="返回"
+        android:orientation="vertical"
+        android:padding="5dp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="HardcodedText" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <Button
-        android:id="@+id/btn_process_filter_1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:text="获取ffmpeg的参数"
-        app:layout_constraintStart_toEndOf="@+id/btn_process_filter_back"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="HardcodedText" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
-    <Button
-        android:id="@+id/btn_process_filter_2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:text="视频滤镜处理"
-        app:layout_constraintStart_toEndOf="@+id/btn_process_filter_1"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="HardcodedText" />
+            <Button
+                android:id="@+id/btn_process_filter_back"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="返回"
+                tools:ignore="HardcodedText" />
 
-    <Button
-        android:id="@+id/btn_process_filter_3"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:text="把视频画面转存成PNG"
-        app:layout_constraintStart_toEndOf="@+id/btn_process_filter_2"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="HardcodedText" />
+            <Button
+                android:id="@+id/btn_process_filter_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="获取ffmpeg的参数"
+                tools:ignore="HardcodedText" />
 
-    <Button
-        android:id="@+id/btn_process_filter_4"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:text="老电影怀旧风"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_process_filter_back"
-        tools:ignore="HardcodedText" />
+            <Button
+                android:id="@+id/btn_process_filter_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="视频滤镜处理"
+                tools:ignore="HardcodedText" />
 
+            <Button
+                android:id="@+id/btn_process_filter_3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="把视频画面转存成PNG"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_process_filter_4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="老电影怀旧风"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+    </LinearLayout>
 
     <ScrollView
         android:id="@+id/scorll_view"
         android:layout_width="match_parent"
         android:layout_height="0dp"
+        android:fillViewport="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_process_filter_4">
+        app:layout_constraintTop_toBottomOf="@+id/ll_button_container">
 
         <TextView
             android:id="@+id/tv_process_filter"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="10dp"
             android:text="FFmpeg的编解码"
             tools:ignore="HardcodedText" />
     </ScrollView>
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>
