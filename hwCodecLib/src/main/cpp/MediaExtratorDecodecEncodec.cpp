@@ -87,7 +87,7 @@ MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputP
         return;
     }
 
-    //5.初始化编码器
+    // 5. 初始化编码器
     if (!initEncodec(false)) {
         LOGE("Failed to initialize Encodec");
         callbackInfo =
@@ -96,11 +96,11 @@ MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputP
         return;
     }
 
-    // 4. 执行编码
-    if (!decodec()) {
-        LOGE("Decodec failed");
+    // 6. 执行编码
+    if (!encodec(false)) {
+        LOGE("Encodec failed");
         callbackInfo =
-                "Decodec failed \n";
+                "Encodec failed \n";
         PostStatusMessage(callbackInfo.c_str());
         return;
     }
@@ -199,10 +199,10 @@ bool MediaExtratorDecodecEncodec::selectTracksAndGetFormat() {
                 hasAudio = true;
 
                 // 获取音频格式信息
-                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_SAMPLE_RATE, mEncParams.sampleRate);
-                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_CHANNEL_COUNT,
-                                      mEncParams.numChannels);
-                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_BIT_RATE, mEncParams.bitrate);
+                AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_SAMPLE_RATE, &mEncParams.sampleRate);
+                AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CHANNEL_COUNT,
+                                      &mEncParams.numChannels);
+                AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_BIT_RATE, &mEncParams.bitrate);
 
                 LOGI("Audio track: sampleRate=%d, channels=%d",
                      mEncParams.sampleRate, mEncParams.numChannels);
@@ -468,15 +468,23 @@ bool MediaExtratorDecodecEncodec::initEncodec(bool asyncMode) {
 
     // 添加视频轨道
     if (hasVideo) {
-        AMediaExtractor_selectTrack(extractor, videoTrackIndex);
-        mVideoFormat = AMediaExtractor_getTrackFormat(extractor, videoTrackIndex);
-        AMediaFormat_getString(mVideoFormat, AMEDIAFORMAT_KEY_MIME, &video_mime);
+        // 创建一个新的 AMediaFormat 用于编码，不要直接使用 Extractor 的 format
+        // Extractor 的 format 是给解码器用的，包含了 CSD (SPS/PPS) 数据且缺少编码器必要的参数
+        AMediaFormat *videoFormat = AMediaFormat_new();
+        AMediaFormat_setString(videoFormat, AMEDIAFORMAT_KEY_MIME, video_mime);
+        AMediaFormat_setInt32(videoFormat, AMEDIAFORMAT_KEY_WIDTH, mEncParams.width);
+        AMediaFormat_setInt32(videoFormat, AMEDIAFORMAT_KEY_HEIGHT, mEncParams.height);
+        AMediaFormat_setInt32(videoFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT, mEncParams.colorFormat);
+        AMediaFormat_setInt32(videoFormat, AMEDIAFORMAT_KEY_BIT_RATE, mEncParams.bitrate);
+        AMediaFormat_setInt32(videoFormat, AMEDIAFORMAT_KEY_FRAME_RATE, mEncParams.frameRate);
+        AMediaFormat_setInt32(videoFormat, AMEDIAFORMAT_KEY_I_FRAME_INTERVAL, mEncParams.iFrameInterval);
+
         LOGI("encodec video_mime: %s", video_mime);
-        callbackInfo =
-                "encodec video_mime:" + string(video_mime) + "\n";
+        callbackInfo = "encodec video_mime:" + string(video_mime) + "\n";
         PostStatusMessage(callbackInfo.c_str());
 
-        mVideoEnCodec = createMediaCodec(mVideoFormat, video_mime, "", true /*isEncoder*/);
+        mVideoEnCodec = createMediaCodec(videoFormat, video_mime, "", true /*isEncoder*/);
+        AMediaFormat_delete(videoFormat);
 
         if (!mVideoEnCodec) {
             LOGE("Failed to create video encodec");
@@ -485,7 +493,6 @@ bool MediaExtratorDecodecEncodec::initEncodec(bool asyncMode) {
             PostStatusMessage(callbackInfo.c_str());
             return false;
         }
-
 
         if (asyncMode) {
             AMediaCodecOnAsyncNotifyCallback aCB = {OnInputAvailableCB, OnOutputAvailableCB,
@@ -504,21 +511,25 @@ bool MediaExtratorDecodecEncodec::initEncodec(bool asyncMode) {
         callbackInfo =
                 "create video encodec success:  \n";
         PostStatusMessage(callbackInfo.c_str());
-        AMediaCodec_start(mVideoDeCodec);
+        AMediaCodec_start(mVideoEnCodec);
     }
 
 
     // 添加音频轨道
     if (hasAudio) {
-        AMediaExtractor_selectTrack(extractor, audioTrackIndex);
-        mAudioFormat = AMediaExtractor_getTrackFormat(extractor, audioTrackIndex);
-        AMediaFormat_getString(mAudioFormat, AMEDIAFORMAT_KEY_MIME, &audio_mime);
+        AMediaFormat *audioFormat = AMediaFormat_new();
+        AMediaFormat_setString(audioFormat, AMEDIAFORMAT_KEY_MIME, audio_mime);
+        AMediaFormat_setInt32(audioFormat, AMEDIAFORMAT_KEY_SAMPLE_RATE, mEncParams.sampleRate);
+        AMediaFormat_setInt32(audioFormat, AMEDIAFORMAT_KEY_CHANNEL_COUNT, mEncParams.numChannels);
+        AMediaFormat_setInt32(audioFormat, AMEDIAFORMAT_KEY_BIT_RATE, mEncParams.bitrate);
+
         LOGI("audio_mime: %s", audio_mime);
         callbackInfo =
                 "audio_mime:" + string(audio_mime) + "\n";
         PostStatusMessage(callbackInfo.c_str());
 
-        mAudioEnCodec = createMediaCodec(mAudioFormat, audio_mime, "", false /*isEncoder*/);
+        mAudioEnCodec = createMediaCodec(audioFormat, audio_mime, "", true /*isEncoder*/);
+        AMediaFormat_delete(audioFormat);
 
         if (!mAudioEnCodec) {
             LOGE("Failed to create audio encodec");
@@ -545,7 +556,7 @@ bool MediaExtratorDecodecEncodec::initEncodec(bool asyncMode) {
         callbackInfo =
                 "create audio encodec success:  \n";
         PostStatusMessage(callbackInfo.c_str());
-        AMediaCodec_start(mAudioDeCodec);
+        AMediaCodec_start(mAudioEnCodec);
     }
 
 
@@ -553,6 +564,7 @@ bool MediaExtratorDecodecEncodec::initEncodec(bool asyncMode) {
     callbackInfo =
             "initEncodec initialized successfully \n";
     PostStatusMessage(callbackInfo.c_str());
+    return true;
 }
 
 bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
