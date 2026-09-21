@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <atomic>
 #include <string>
+#include <inttypes.h>
 #include "ThreadSafeQueue.h"
 #include "BasicCommon.h"
 #include "jni.h"

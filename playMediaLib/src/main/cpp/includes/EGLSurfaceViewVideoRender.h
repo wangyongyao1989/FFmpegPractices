@@ -117,6 +117,8 @@ private:
 
     void delete_program(GLuint &program);
 
+    pthread_mutex_t m_Mutex;
+
     GLuint m_program = 0;
 
     GLuint m_vertexShader = 0;

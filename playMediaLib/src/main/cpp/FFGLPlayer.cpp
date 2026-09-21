@@ -9,7 +9,7 @@ FFGLPlayer::FFGLPlayer(JNIEnv *env, jobject thiz)
         : mEnv(nullptr), mJavaObj(nullptr), mFormatContext(nullptr),
           mCodecContext(nullptr), mVideoStreamIndex(-1), mDuration(0),
           mSampleFormat(AV_SAMPLE_FMT_NONE), mWidth(0), mHeight(0),
-          mIsPlaying(false), mInitialized(false), mStopRequested(false),
+          mIsPlaying(false), mInitialized(false), mStopRequested(false), mDecodeFinished(false),
           mNativeWindow(nullptr),
           mOutbuffer(nullptr), mDecodeThread(0), mRenderThread(0) {
 
@@ -34,9 +34,6 @@ FFGLPlayer::~FFGLPlayer() {
     pthread_cond_destroy(&mBufferMaxCond);
     pthread_cond_destroy(&mRenderCond);
 
-    if (androidSurface) {
-        mEnv->DeleteLocalRef(androidSurface);
-    }
     if (mNativeWindow) {
         ANativeWindow_release(mNativeWindow);
         mNativeWindow = nullptr;
@@ -48,10 +45,27 @@ FFGLPlayer::~FFGLPlayer() {
     }
 
     if (eglsurfaceViewRender) {
+        delete eglsurfaceViewRender;
         eglsurfaceViewRender = nullptr;
     }
 
-    mEnv->DeleteGlobalRef(mJavaObj);
+    bool isAttach = false;
+    JNIEnv *env = GetJNIEnv(&isAttach);
+    if (env) {
+        if (androidSurface) {
+            env->DeleteGlobalRef(androidSurface);
+            androidSurface = nullptr;
+        }
+
+        if (mJavaObj) {
+            env->DeleteGlobalRef(mJavaObj);
+            mJavaObj = nullptr;
+        }
+
+        if (isAttach) {
+            mJavaVm->DetachCurrentThread();
+        }
+    }
 }
 
 bool FFGLPlayer::init(const string &filePath, const string &fragPath, const string &vertexPath,
@@ -61,6 +75,10 @@ bool FFGLPlayer::init(const string &filePath, const string &fragPath, const stri
         return true;
     }
 
+    if (androidSurface) {
+        mEnv->DeleteGlobalRef(androidSurface);
+        androidSurface = nullptr;
+    }
     androidSurface = mEnv->NewGlobalRef(surface);
 
     if (!initFFmpeg(filePath)) {
@@ -159,6 +177,10 @@ bool FFGLPlayer::initFFmpeg(const std::string &filePath) {
 }
 
 bool FFGLPlayer::initEGLRender(const string &fragPath, const string &vertexPath) {
+    if (mNativeWindow) {
+        ANativeWindow_release(mNativeWindow);
+        mNativeWindow = nullptr;
+    }
     mNativeWindow = ANativeWindow_fromSurface(mEnv, androidSurface);
     if (!mNativeWindow) {
         LOGE("Couldn't get native window from surface");
@@ -186,6 +208,7 @@ bool FFGLPlayer::start() {
 
     mStopRequested = false;
     mIsPlaying = true;
+    mDecodeFinished = false;
     videoFrameQueue.clear();
 
     if (pthread_create(&mDecodeThread, nullptr, decodeThreadWrapper, this) != 0) {
@@ -219,8 +242,10 @@ void FFGLPlayer::stop() {
 
     mStopRequested = true;
     mIsPlaying = false;
+    mDecodeFinished = true;
 
     // 通知所有等待的线程
+    videoFrameQueue.stop();
     pthread_cond_broadcast(&mBufferMaxCond);
     pthread_cond_broadcast(&mRenderCond);
 
@@ -231,13 +256,19 @@ void FFGLPlayer::stop() {
     }
 
 
-    // 等待解码线程结束
+    // 等待渲染线程结束
     if (mRenderThread) {
         pthread_join(mRenderThread, nullptr);
         mRenderThread = 0;
     }
 
-    videoFrameQueue.clear();
+    AVFrame *frame = nullptr;
+    while (videoFrameQueue.pop(frame)) {
+        if (frame) {
+            av_frame_free(&frame);
+        }
+    }
+    videoFrameQueue.restart();
 
     LOGI("Playback stopped");
     PostStatusMessage("Playback stopped");
@@ -284,6 +315,17 @@ void FFGLPlayer::decodeThread() {
 
             if (ret == AVERROR_EOF) {
                 LOGI("End of file reached");
+                // Flush decoder
+                avcodec_send_packet(mCodecContext, nullptr);
+                while (avcodec_receive_frame(mCodecContext, frame) == 0) {
+                    AVFrame *frameCopy = av_frame_alloc();
+                    if (av_frame_ref(frameCopy, frame) >= 0) {
+                        videoFrameQueue.push(frameCopy);
+                        pthread_cond_signal(&mRenderCond);
+                    } else {
+                        av_frame_free(&frameCopy);
+                    }
+                }
                 break;
             } else {
                 LOGE("Error reading frame: %d", ret);
@@ -322,6 +364,8 @@ void FFGLPlayer::decodeThread() {
     }
 
     av_frame_free(&frame);
+    mDecodeFinished = true;
+    pthread_cond_signal(&mRenderCond);
     LOGI("Decode thread finished");
 }
 
@@ -341,11 +385,16 @@ void FFGLPlayer::renderVideoThread() {
     while (!mStopRequested && mIsPlaying) {
         pthread_mutex_lock(&mRenderMutex);
 
-        while (videoFrameQueue.empty() && !mStopRequested && mIsPlaying) {
+        while (videoFrameQueue.empty() && !mStopRequested && mIsPlaying && !mDecodeFinished) {
             pthread_cond_wait(&mRenderCond, &mRenderMutex);
         }
 
         if (mStopRequested || !mIsPlaying) {
+            pthread_mutex_unlock(&mRenderMutex);
+            break;
+        }
+
+        if (videoFrameQueue.empty() && mDecodeFinished) {
             pthread_mutex_unlock(&mRenderMutex);
             break;
         }
@@ -365,6 +414,7 @@ void FFGLPlayer::renderVideoThread() {
             }
             lastPts = frame->pts;
             sendFrameDataToEGL(frame);
+            av_frame_free(&frame);
             // 通知解码线程
             if (videoFrameQueue.size() < maxVideoFrames / 2) {
                 pthread_cond_signal(&mBufferMaxCond);
@@ -375,6 +425,9 @@ void FFGLPlayer::renderVideoThread() {
     }
 
     LOGI("Render thread finished");
+    if (!mStopRequested && mIsPlaying) {
+        PostStatusMessage("Playback finished");
+    }
 }
 
 int FFGLPlayer::sendFrameDataToEGL(AVFrame *frame) {
@@ -383,11 +436,13 @@ int FFGLPlayer::sendFrameDataToEGL(AVFrame *frame) {
     }
     LOGI("sendFrameDataToEGL");
 
-    uint8_t *buffer;
-    int length;
-    yuv420p_frame_to_buffer(frame, &buffer, &length);
-    eglsurfaceViewRender->draw(buffer, length, mWidth, mHeight, 90);
-    eglsurfaceViewRender->render();
+    uint8_t *buffer = nullptr;
+    int length = 0;
+    if (yuv420p_frame_to_buffer(frame, &buffer, &length) == 0) {
+        eglsurfaceViewRender->draw(buffer, length, mWidth, mHeight, 90);
+        eglsurfaceViewRender->render();
+        av_free(buffer);
+    }
     return 0;
 }
 

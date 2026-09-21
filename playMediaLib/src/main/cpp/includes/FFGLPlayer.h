@@ -70,6 +70,7 @@ private:
     std::atomic<bool> mIsPlaying;
     std::atomic<bool> mInitialized;
     std::atomic<bool> mStopRequested;
+    std::atomic<bool> mDecodeFinished;
 
     // 视频帧队列
     ThreadSafeQueue<AVFrame *> videoFrameQueue;

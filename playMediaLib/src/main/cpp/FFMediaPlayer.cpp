@@ -34,24 +34,51 @@ FFMediaPlayer::FFMediaPlayer(JNIEnv *env, jobject thiz)
 }
 
 FFMediaPlayer::~FFMediaPlayer() {
-    if (androidSurface) {
-        mEnv->DeleteLocalRef(androidSurface);
-    }
+    release();
     if (mNativeWindow) {
         ANativeWindow_release(mNativeWindow);
         mNativeWindow = nullptr;
     }
-    mEnv->DeleteGlobalRef(mJavaObj);
-    release();
+
+    // 清理缓冲区
+    for (int i = 0; i < NUM_BUFFERS; i++) {
+        delete[] mBuffers[i];
+        mBuffers[i] = nullptr;
+    }
+
     pthread_mutex_destroy(&mStateMutex);
     pthread_cond_destroy(&mStateCond);
     pthread_mutex_destroy(&mPacketMutex);
     pthread_cond_destroy(&mPacketCond);
     pthread_mutex_destroy(&mBufferMutex);
     pthread_cond_destroy(&mBufferReadyCond);
+
+    bool isAttach = false;
+    JNIEnv *env = GetJNIEnv(&isAttach);
+    if (env) {
+        if (androidSurface) {
+            env->DeleteGlobalRef(androidSurface);
+            androidSurface = nullptr;
+        }
+        if (mJavaObj) {
+            env->DeleteGlobalRef(mJavaObj);
+            mJavaObj = nullptr;
+        }
+        if (isAttach) {
+            mJavaVm->DetachCurrentThread();
+        }
+    }
 }
 
 bool FFMediaPlayer::init(const char *url, jobject surface) {
+    if (mUrl) {
+        free(mUrl);
+        mUrl = nullptr;
+    }
+    if (androidSurface) {
+        mEnv->DeleteGlobalRef(androidSurface);
+        androidSurface = nullptr;
+    }
 
     androidSurface = mEnv->NewGlobalRef(surface);
     mUrl = strdup(url);
@@ -65,7 +92,7 @@ bool FFMediaPlayer::prepare() {
     playAudioInfo =
             "prepare() \n";
     PostStatusMessage(playAudioInfo.c_str());
-    if (mState != STATE_INITIALIZED) {
+    if (mState != STATE_INITIALIZED && mState != STATE_STOPPED) {
         LOGE("prepare called in invalid state: %d", mState);
         return false;
     }
@@ -96,7 +123,8 @@ bool FFMediaPlayer::prepare() {
     } else {
         // 初始化音频重采样
         mAudioInfo.sampleRate = mAudioInfo.codecContext->sample_rate;
-        mAudioInfo.channels = mAudioInfo.codecContext->channels;
+        // 强制输出为双声道，以匹配 initOpenSLES 中的配置
+        mAudioInfo.channels = 2;
         mAudioInfo.channelLayout = &mAudioInfo.codecContext->ch_layout;
         mAudioInfo.format = mAudioInfo.codecContext->sample_fmt;
 
@@ -225,7 +253,11 @@ bool FFMediaPlayer::pause() {
 }
 
 bool FFMediaPlayer::stop() {
-    if (mState != STATE_STARTED && mState != STATE_PAUSED) {
+    if (mState == STATE_STOPPED || mState == STATE_IDLE) {
+        return true;
+    }
+
+    if (mState != STATE_STARTED && mState != STATE_PAUSED && mState != STATE_PREPARED) {
         LOGE("stop called in invalid state: %d", mState);
         return false;
     }
@@ -247,16 +279,17 @@ bool FFMediaPlayer::stop() {
     pthread_cond_broadcast(&mAudioInfo.audioCond);
     pthread_cond_broadcast(&mVideoInfo.videoCond);
 
-    cleanupANativeWindow();
-
-
-    if (mAudioInfo.codecContext) {
-        pthread_join(mAudioDecodeThread, nullptr);
-        pthread_join(mAudioPlayThread, nullptr);
+    if (mState == STATE_STARTED || mState == STATE_PAUSED) {
+        if (mAudioInfo.codecContext) {
+            pthread_join(mAudioDecodeThread, nullptr);
+            pthread_join(mAudioPlayThread, nullptr);
+        }
+        pthread_join(mVideoDecodeThread, nullptr);
+        pthread_join(mVideoPlayThread, nullptr);
+        pthread_join(mDemuxThread, nullptr);
     }
-    pthread_join(mVideoDecodeThread, nullptr);
-    pthread_join(mVideoPlayThread, nullptr);
-    pthread_join(mDemuxThread, nullptr);
+
+    cleanupANativeWindow();
 
     // 清空队列
     clearAudioPackets();
@@ -268,35 +301,27 @@ bool FFMediaPlayer::stop() {
         helper.stop();
     }
 
+    helper.release();
+
     // 清空缓冲区队列
     if (helper.bufferQueueItf) {
         (*helper.bufferQueueItf)->Clear(helper.bufferQueueItf);
     }
 
-    // 清理缓冲区
-    for (int i = 0; i < NUM_BUFFERS; i++) {
-        delete[] mBuffers[i];
-    }
-    mState = STATE_STOPPED;
-    return true;
-}
-
-void FFMediaPlayer::release() {
-    if (mState == STATE_IDLE || mState == STATE_ERROR) {
-        return;
-    }
-    stop();
+    // 释放FFmpeg资源，以便下次prepare能重新打开
     if (mAudioInfo.swrContext) {
         swr_free(&mAudioInfo.swrContext);
+        mAudioInfo.swrContext = nullptr;
     }
 
-    // 释放FFmpeg资源
     if (mAudioInfo.codecContext) {
         avcodec_free_context(&mAudioInfo.codecContext);
+        mAudioInfo.codecContext = nullptr;
     }
 
     if (mVideoInfo.codecContext) {
         avcodec_free_context(&mVideoInfo.codecContext);
+        mVideoInfo.codecContext = nullptr;
     }
 
     if (mFormatContext) {
@@ -304,9 +329,24 @@ void FFMediaPlayer::release() {
         mFormatContext = nullptr;
     }
 
+    mState = STATE_STOPPED;
+    return true;
+}
+
+void FFMediaPlayer::release() {
+    if (mState == STATE_IDLE) {
+        return;
+    }
+    stop();
+
     if (mUrl) {
         free(mUrl);
         mUrl = nullptr;
+    }
+
+    if (androidSurface) {
+        mEnv->DeleteGlobalRef(androidSurface);
+        androidSurface = nullptr;
     }
 
     mState = STATE_IDLE;
@@ -520,6 +560,12 @@ void FFMediaPlayer::audioPlay() {
                     // 成功入队，更新状态
                     mQueuedBufferCount++;
                     mCurrentBuffer = (mCurrentBuffer + 1) % NUM_BUFFERS;
+
+                    // 更新音频时钟为当前入队音频块的结束 PTS
+                    if (aframe->pts != AV_NOPTS_VALUE) {
+                        double frame_duration = (double) aframe->frame->nb_samples / mAudioInfo.sampleRate;
+                        setAudioClock(aframe->pts + frame_duration);
+                    }
                 }
             } else if (outSamples < 0) {
                 LOGE("swr_convert failed: %d", outSamples);
@@ -643,7 +689,6 @@ AudioFrame *FFMediaPlayer::decodeAudioFrame(AVFrame *frame) {
     double pts = frame->best_effort_timestamp;
     if (pts != AV_NOPTS_VALUE) {
         pts *= av_q2d(mAudioInfo.timeBase);
-        setAudioClock(pts);
     }
 
     // 创建视频帧副本
@@ -882,6 +927,13 @@ double FFMediaPlayer::getAudioClock() {
     pthread_mutex_lock(&mAudioInfo.clockMutex);
     double clock = mAudioInfo.clock;
     pthread_mutex_unlock(&mAudioInfo.clockMutex);
+
+    // 减去尚未播放的缓冲区时间，以获得更准确的当前播放 PTS
+    if (mAudioInfo.sampleRate > 0 && mAudioInfo.channels > 0) {
+        double buffer_duration = (double) BUFFER_SIZE / (mAudioInfo.channels * 2 * mAudioInfo.sampleRate);
+        clock -= mQueuedBufferCount * buffer_duration;
+    }
+
     return clock;
 }
 
@@ -1043,17 +1095,6 @@ void FFMediaPlayer::processBufferQueue() {
     // 缓冲区已播放完成，减少计数
     if (mQueuedBufferCount > 0) {
         mQueuedBufferCount--;
-
-        // 更新音频时钟（减去已播放的缓冲区时长）
-        if (mAudioInfo.codecContext && mAudioInfo.sampleRate > 0) {
-            double buffer_duration = (double) BUFFER_SIZE /
-                                     (mAudioInfo.channels * 2 * mAudioInfo.sampleRate);
-
-            pthread_mutex_lock(&mAudioInfo.clockMutex);
-            // 更新音频时钟
-            mAudioInfo.clock -= buffer_duration;
-            pthread_mutex_unlock(&mAudioInfo.clockMutex);
-        }
     }
     // 通知解码线程有可用的缓冲区槽位
     pthread_cond_signal(&mBufferReadyCond);
@@ -1251,7 +1292,7 @@ void FFMediaPlayer::logPerformanceStats() {
         stats.videoClock = getVideoClock();
         stats.syncDiff = stats.videoClock - stats.audioClock;
 
-        LOGW("Performance: Demux=%ld, AudioQ=%ld, VideoQ=%ld, A-V=%.3fs",
+        LOGW("Performance: Demux=%" PRId64 ", AudioQ=%" PRId64 ", VideoQ=%" PRId64 ", A-V=%.3fs",
              stats.demuxPackets, stats.audioQueueSize, stats.videoQueueSize, stats.syncDiff);
         playAudioInfo =
                 "Performance: Demux=" + to_string(stats.demuxPackets)

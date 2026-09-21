@@ -24,6 +24,7 @@ void EGLSurfaceViewVideoRender::release() {
 }
 
 void EGLSurfaceViewVideoRender::updateFrame(const egl_surface_video_frame &frame) {
+    pthread_mutex_lock(&m_Mutex);
     m_sizeY = frame.width * frame.height;
     m_sizeU = frame.width * frame.height / 4;
     m_sizeV = frame.width * frame.height / 4;
@@ -74,6 +75,7 @@ void EGLSurfaceViewVideoRender::updateFrame(const egl_surface_video_frame &frame
     }
 
     isDirty = true;
+    pthread_mutex_unlock(&m_Mutex);
 }
 
 void
@@ -158,7 +160,11 @@ bool EGLSurfaceViewVideoRender::createTextures() {
 }
 
 bool EGLSurfaceViewVideoRender::updateTextures() {
-    if (!m_textureIdY && !m_textureIdU && !m_textureIdV /*&& !createTextures()*/) return false;
+    pthread_mutex_lock(&m_Mutex);
+    if (!m_textureIdY && !m_textureIdU && !m_textureIdV /*&& !createTextures()*/) {
+        pthread_mutex_unlock(&m_Mutex);
+        return false;
+    }
 //    LOGE("updateTextures m_textureIdY:%d,m_textureIdU:%d,m_textureIdV:%d,===isDirty:%d",
 //         m_textureIdY,
 //         m_textureIdU, m_textureIdV, isDirty);
@@ -183,9 +189,11 @@ bool EGLSurfaceViewVideoRender::updateTextures() {
 
         isDirty = false;
 
+        pthread_mutex_unlock(&m_Mutex);
         return true;
     }
 
+    pthread_mutex_unlock(&m_Mutex);
     return false;
 }
 
@@ -256,6 +264,7 @@ bool EGLSurfaceViewVideoRender::setSharderStringPath(string vertexPath, string f
 
 EGLSurfaceViewVideoRender::EGLSurfaceViewVideoRender() {
     openGlShader = new OpenGLShader();
+    pthread_mutex_init(&m_Mutex, nullptr);
 }
 
 EGLSurfaceViewVideoRender::~EGLSurfaceViewVideoRender() {
@@ -263,17 +272,13 @@ EGLSurfaceViewVideoRender::~EGLSurfaceViewVideoRender() {
     delete_program(m_program);
     m_vertexShader = 0;
     m_pixelShader = 0;
+    pthread_mutex_lock(&m_Mutex);
     if (m_pDataY) {
         m_pDataY = nullptr;
     }
-    if (m_pDataU) {
-        delete m_pDataU;
-        m_pDataU = nullptr;
-    }
-    if (m_pDataV) {
-        delete m_pDataV;
-        m_pDataV = nullptr;
-    }
+    m_pDataU = nullptr;
+    m_pDataV = nullptr;
+    pthread_mutex_unlock(&m_Mutex);
 
     if (openGlShader) {
         delete openGlShader;
@@ -297,6 +302,7 @@ EGLSurfaceViewVideoRender::~EGLSurfaceViewVideoRender() {
         delete m_WindowSurface;
         m_WindowSurface = nullptr;
     }
+    pthread_mutex_destroy(&m_Mutex);
     quit();
 }
 
@@ -370,7 +376,7 @@ void EGLSurfaceViewVideoRender::OnSurfaceCreated() {
     LOGE("OnSurfaceCreated m_ANWindow:%p", m_ANWindow);
 
     m_WindowSurface = new WindowSurface(m_EglCore, m_ANWindow);
-    if (!m_EglCore) {
+    if (!m_WindowSurface) {
         LOGE("new WindowSurface failed!");
         return;
     }
@@ -416,8 +422,10 @@ void EGLSurfaceViewVideoRender::OnDrawFrame() {
     LOGE("OnDrawFrame thread:%ld", pthread_self());
 
     //切换到m_WindowSurface
-    m_WindowSurface->makeCurrent();
-    m_WindowSurface->swapBuffers();
+    if (m_WindowSurface) {
+        m_WindowSurface->makeCurrent();
+        m_WindowSurface->swapBuffers();
+    }
 
 }
 
@@ -459,8 +467,6 @@ void EGLSurfaceViewVideoRender::OnSurfaceDestroyed() {
         delete m_WindowSurface;
         m_WindowSurface = nullptr;
     }
-
-    quit();
 
 }
 

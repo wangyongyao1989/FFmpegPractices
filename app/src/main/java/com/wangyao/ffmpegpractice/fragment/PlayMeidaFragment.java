@@ -140,6 +140,10 @@ public class PlayMeidaFragment extends BaseFragment {
             getActivity().runOnUiThread(() -> {
                 mStringBuilder.append(msg);
                 mTv.setText(mStringBuilder);
+                if (msg.contains("Playback finished")) {
+                    isGLViewPlaying = false;
+                    mBtn5.setText("GLTexture 播放");
+                }
             });
 
         });
