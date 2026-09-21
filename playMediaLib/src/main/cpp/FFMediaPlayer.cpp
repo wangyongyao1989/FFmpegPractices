@@ -176,6 +176,9 @@ bool FFMediaPlayer::start() {
 
     mExit = false;
     mPause = false;
+    mDemuxFinished = false;
+    mAudioDecodeFinished = false;
+    mVideoDecodeFinished = false;
 
 
     // 重置状态
@@ -405,6 +408,7 @@ void FFMediaPlayer::demux() {
         pthread_mutex_unlock(&mPacketMutex);
 
         if (av_read_frame(mFormatContext, packet) < 0) {
+            mDemuxFinished = true;
             break;
         }
 
@@ -463,6 +467,8 @@ void FFMediaPlayer::audioDecode() {
     flushPacket->size = 0;
     processAudioPacket(flushPacket);
     av_packet_free(&flushPacket);
+    mAudioDecodeFinished = true;
+    pthread_cond_broadcast(&mAudioInfo.audioCond);
 }
 
 void FFMediaPlayer::videoDecode() {
@@ -493,6 +499,8 @@ void FFMediaPlayer::videoDecode() {
     flushPacket->size = 0;
     processVideoPacket(flushPacket);
     av_packet_free(&flushPacket);
+    mVideoDecodeFinished = true;
+    pthread_cond_broadcast(&mVideoInfo.videoCond);
 }
 
 void FFMediaPlayer::audioPlay() {
@@ -507,13 +515,17 @@ void FFMediaPlayer::audioPlay() {
         // 等待直到有可用的缓冲区槽位
         pthread_mutex_lock(&mBufferMutex);
 
-        while (mQueuedBufferCount >= NUM_BUFFERS) {
+        while (mQueuedBufferCount >= NUM_BUFFERS && !mExit) {
             pthread_cond_wait(&mBufferReadyCond, &mBufferMutex);
         }
+        pthread_mutex_unlock(&mBufferMutex);
+
+        if (mExit) break;
 
         // 从音频队列获取一帧数据
         AudioFrame *aframe = getAudioFrame();
         if (aframe) {
+            pthread_mutex_lock(&mBufferMutex);
             // 重采样音频数据
             uint8_t *buffer = mBuffers[mCurrentBuffer];
             uint8_t *outBuffer = buffer;
@@ -570,8 +582,11 @@ void FFMediaPlayer::audioPlay() {
             } else if (outSamples < 0) {
                 LOGE("swr_convert failed: %d", outSamples);
             }
-            delete aframe;
+
         } else {
+            if (mAudioDecodeFinished) {
+                break;
+            }
             // 队列为空，送入静音数据
             static uint8_t silence[4096] = {0};
             // 将缓冲区加入播放队列
@@ -612,6 +627,9 @@ void FFMediaPlayer::videoPlay() {
 
         VideoFrame *vframe = getVideoFrame();
         if (!vframe) {
+            if (mVideoDecodeFinished) {
+                break;
+            }
             usleep(10000);
             continue;
         }
@@ -622,6 +640,11 @@ void FFMediaPlayer::videoPlay() {
         // 渲染视频
         renderVideoFrame(vframe);
         delete vframe;
+    }
+
+    if (!mExit) {
+        LOGI("Video play finished");
+        PostStatusMessage("Playback finished");
     }
 }
 

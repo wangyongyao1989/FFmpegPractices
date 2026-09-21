@@ -225,6 +225,9 @@ private:
     // 控制变量
     std::atomic<bool> mExit;
     std::atomic<bool> mPause;
+    std::atomic<bool> mDemuxFinished;
+    std::atomic<bool> mAudioDecodeFinished;
+    std::atomic<bool> mVideoDecodeFinished;
     int64_t mDuration;
 
     // 同步变量

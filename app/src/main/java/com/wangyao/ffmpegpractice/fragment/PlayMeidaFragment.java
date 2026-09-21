@@ -143,6 +143,8 @@ public class PlayMeidaFragment extends BaseFragment {
                 if (msg.contains("Playback finished")) {
                     isGLViewPlaying = false;
                     mBtn5.setText("GLTexture 播放");
+                    isMediaPlaying = false;
+                    mBtn6.setText("音视频同步 播放");
                 }
             });
 
