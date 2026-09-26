@@ -148,11 +148,14 @@ private:
     struct PoolWorker {
         pthread_t thread;
         std::atomic<bool> shouldStop;
+        // 超时退出的工作线程只打这个标记，真正的 join + 从 vector 摘除交给
+        // reapExitedWorkers()（见 AndroidThreadManager.cpp 里的说明）。
+        std::atomic<bool> exiting;
         AndroidThreadManager *manager;
         pid_t tid;
 
         PoolWorker(AndroidThreadManager *m) :
-                shouldStop(false), manager(m), tid(-1) {}
+                shouldStop(false), exiting(false), manager(m), tid(-1) {}
     };
 
     // 线程执行函数
@@ -160,6 +163,12 @@ private:
 
     // 线程池工作函数
     static void *threadPoolWorker(void *arg);
+
+    // 回收已打 exiting 标记的工作线程（调用方需持有 m_poolMutex）
+    void reapExitedWorkers();
+
+    // 关闭线程池的持锁版本，供已持有 m_poolMutex 的调用方使用
+    void shutdownLocked(std::unique_lock<std::mutex> &lock, bool waitForCompletion);
 
     // JVM附加/分离辅助函数
     static JNIEnv *attachJVM(JavaVM *jvm, const std::string &threadName);

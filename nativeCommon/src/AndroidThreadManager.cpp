@@ -33,23 +33,33 @@ AndroidThreadManager::~AndroidThreadManager() {
     shutdownThreadPool(false);
 
     // 停止所有线程
-    std::unique_lock<std::mutex> lock(m_threadsMutex);
-    for (auto &pair: m_threads) {
-        auto &data = pair.second;
+    std::vector<pthread_t> joinableThreads;
+    {
+        std::unique_lock<std::mutex> lock(m_threadsMutex);
+        for (auto &pair: m_threads) {
+            auto &data = pair.second;
 
-        {
-            std::unique_lock<std::mutex> threadLock(data->mutex);
-            data->shouldStop = true;
-            data->state = THREAD_STATE_STOPPING;
-            data->condition.notify_all();
-        }
+            {
+                std::unique_lock<std::mutex> threadLock(data->mutex);
+                // 必须先取改写前的状态：原来这里先把 state 置成 STOPPING，再在锁外判断
+                // state == RUNNING || PAUSED，条件永远不成立，一个线程都不会被 join，
+                // 管理器析构后工作线程仍在访问已释放的 ThreadData。
+                data->shouldStop = true;
+                data->state = THREAD_STATE_STOPPING;
+                data->condition.notify_all();
+            }
 
-        // 等待线程结束
-        if (data->state == THREAD_STATE_RUNNING || data->state == THREAD_STATE_PAUSED) {
-            pthread_join(data->thread, nullptr);
+            // pthread_create 成功后才会进 m_threads，所以这里的 thread 一定是 joinable 的；
+            // 已结束的线程 join 会立即返回，同时回收线程资源。
+            joinableThreads.push_back(data->thread);
         }
+        m_threads.clear();
     }
-    m_threads.clear();
+
+    // join 放在 m_threadsMutex 之外，避免被 join 的线程回调里再取同一把锁时互等
+    for (auto &thread: joinableThreads) {
+        pthread_join(thread, nullptr);
+    }
 }
 
 bool AndroidThreadManager::createThread(const std::string &threadName, ThreadTask task,
@@ -258,6 +268,10 @@ AndroidThreadManager::setThreadPriority(const std::string &threadName, ThreadPri
 bool AndroidThreadManager::initThreadPool(const ThreadPoolConfig &config) {
     std::unique_lock<std::mutex> lock(m_poolMutex);
 
+    // 先回收已超时退出的线程，否则 m_poolWorkers 里残留的 exiting 项会让下面的
+    // "already initialized" 判断永远成立（hwCodecLib 每次点按钮都会再调一次 initThreadPool）。
+    reapExitedWorkers();
+
     if (!m_poolWorkers.empty()) {
         LOGE("Thread pool already initialized");
         return false;
@@ -265,6 +279,7 @@ bool AndroidThreadManager::initThreadPool(const ThreadPoolConfig &config) {
 
     m_poolConfig = config;
     m_poolShutdown = false;
+    m_activeWorkers = 0;
 
     // 创建最小数量的工作线程
     for (size_t i = 0; i < m_poolConfig.minThreads; ++i) {
@@ -277,7 +292,9 @@ bool AndroidThreadManager::initThreadPool(const ThreadPoolConfig &config) {
         if (pthread_create(&worker->thread, &attr, threadPoolWorker, worker.get()) != 0) {
             LOGE("Failed to create pool worker thread");
             pthread_attr_destroy(&attr);
-            shutdownThreadPool(false);
+            // 这里已经持有 m_poolMutex，必须走持锁版本：
+            // 直接调 shutdownThreadPool 会在同一把非递归锁上二次加锁，卡死。
+            shutdownLocked(lock, false);
             return false;
         }
 
@@ -304,6 +321,9 @@ bool AndroidThreadManager::submitTask(const std::string &taskName, ThreadTask ta
         return false;
     }
 
+    // 先回收超时退出的工作线程，再判断是否需要扩容
+    reapExitedWorkers();
+
     m_taskQueue.emplace(taskName, task, priority);
     m_poolCondition.notify_one();
 
@@ -325,6 +345,24 @@ bool AndroidThreadManager::submitTask(const std::string &taskName, ThreadTask ta
     }
 
     return true;
+}
+
+void AndroidThreadManager::reapExitedWorkers() {
+    // 调用方必须持有 m_poolMutex。
+    // 只清理工作线程自己置好 exiting 标记的那一项：这些线程置标记后只剩 detachJVM + return，
+    // 不会再回来抢 m_poolMutex，所以在持锁状态下 join 不会互等。
+    bool removed = true;
+    while (removed) {
+        removed = false;
+        for (auto it = m_poolWorkers.begin(); it != m_poolWorkers.end(); ++it) {
+            if ((*it)->exiting.load()) {
+                pthread_join((*it)->thread, nullptr);
+                m_poolWorkers.erase(it);
+                removed = true;
+                break;
+            }
+        }
+    }
 }
 
 bool AndroidThreadManager::cancelTask(const std::string &taskName) {
@@ -352,7 +390,14 @@ bool AndroidThreadManager::cancelTask(const std::string &taskName) {
 
 void AndroidThreadManager::shutdownThreadPool(bool waitForCompletion) {
     std::unique_lock<std::mutex> lock(m_poolMutex);
+    shutdownLocked(lock, waitForCompletion);
+}
 
+// 调用方必须持有 m_poolMutex（用 unique_lock 引用传入，内部会临时解锁 join）。
+// 单独拆出来是因为 initThreadPool 的 pthread_create 失败分支本来就持着 m_poolMutex，
+// 直接调 shutdownThreadPool 会对同一把非递归锁二次加锁 —— 死锁。
+void AndroidThreadManager::shutdownLocked(std::unique_lock<std::mutex> &lock,
+                                          bool waitForCompletion) {
     if (m_poolShutdown) {
         return;
     }
@@ -361,11 +406,12 @@ void AndroidThreadManager::shutdownThreadPool(bool waitForCompletion) {
     m_poolCondition.notify_all();
 
     if (waitForCompletion) {
-        // 等待所有任务完成
-        while (!m_taskQueue.empty()) {
-            lock.unlock();
-            usleep(100000); // 100ms
-            lock.lock();
+        // 等待队列排空且没有任务在执行，用条件变量替代原来的 unlock + usleep(100ms) 轮询。
+        // 设上限兜底：工作线程可能已经全部超时退出，此时不应无限等下去。
+        const auto deadline = std::chrono::steady_clock::now()
+                              + std::chrono::milliseconds(m_poolConfig.idleTimeoutMs + 5000);
+        while ((!m_taskQueue.empty() || m_activeWorkers.load() != 0)
+               && m_poolCondition.wait_until(lock, deadline) != std::cv_status::timeout) {
         }
     } else {
         // 清空任务队列
@@ -374,19 +420,25 @@ void AndroidThreadManager::shutdownThreadPool(bool waitForCompletion) {
         }
     }
 
-    // 通知所有工作线程停止
+    // 通知所有工作线程停止，并先把句柄抄出来：
+    // join 期间不持锁，也不依赖 m_poolWorkers 元素的稳定性（原来边遍历 vector 边 join，
+    // 工作线程超时自删会使元素前移/析构，读到的 worker->thread 已是野值）。
+    std::vector<pthread_t> threads;
+    threads.reserve(m_poolWorkers.size());
     for (auto &worker: m_poolWorkers) {
         worker->shouldStop = true;
+        threads.push_back(worker->thread);
     }
 
     m_poolCondition.notify_all();
     lock.unlock();
 
     // 等待所有工作线程退出
-    for (auto &worker: m_poolWorkers) {
-        pthread_join(worker->thread, nullptr);
+    for (auto &thread: threads) {
+        pthread_join(thread, nullptr);
     }
 
+    lock.lock();
     m_poolWorkers.clear();
     m_activeWorkers = 0;
 
@@ -577,7 +629,10 @@ void *AndroidThreadManager::threadPoolWorker(void *arg) {
 
         {
             std::unique_lock<std::mutex> lock(manager->m_poolMutex);
-            manager->m_activeWorkers--;
+
+            if (worker->shouldStop) {
+                break;
+            }
 
             // 等待任务或超时
             if (manager->m_taskQueue.empty()) {
@@ -597,11 +652,11 @@ void *AndroidThreadManager::threadPoolWorker(void *arg) {
                 task = manager->m_taskQueue.front();
                 manager->m_taskQueue.pop();
                 hasTask = true;
+                // m_activeWorkers 的口径是"正在执行任务的工作线程数"，取到任务时 +1、
+                // 执行完 -1。原来每轮先无条件 --、只有取到任务才 ++，空闲一轮就净 -1，
+                // size_t 直接下溢成大数，submitTask 里 m_activeWorkers == m_poolWorkers.size()
+                // 的扩容条件永远不成立，maxThreads 配置形同废弃。
                 manager->m_activeWorkers++;
-            }
-
-            if (worker->shouldStop) {
-                break;
             }
         }
 
@@ -620,6 +675,11 @@ void *AndroidThreadManager::threadPoolWorker(void *arg) {
             } catch (...) {
                 LOGE("Unknown exception in task %s", task.name.c_str());
             }
+
+            std::unique_lock<std::mutex> lock(manager->m_poolMutex);
+            manager->m_activeWorkers--;
+            // 唤醒 shutdownThreadPool(true) 的"队列已空且无任务在执行"等待
+            manager->m_poolCondition.notify_all();
         }
     }
 
@@ -628,15 +688,14 @@ void *AndroidThreadManager::threadPoolWorker(void *arg) {
         detachJVM(manager->m_javaVM);
     }
 
-    // 从工作线程列表中移除
+    // 不在工作线程里把自己从 m_poolWorkers 中 erase：
+    // m_poolWorkers 是 vector<unique_ptr<PoolWorker>>，自己 erase 会当场析构自己的 PoolWorker，
+    // 并且后面的元素前移，正在遍历该 vector 的一方（shutdown）拿到的就是野指针。
+    // 这里只打标记，join + erase 由持有 m_poolMutex 的 reapExitedWorkers() 完成。
     {
         std::unique_lock<std::mutex> lock(manager->m_poolMutex);
-        for (auto it = manager->m_poolWorkers.begin(); it != manager->m_poolWorkers.end(); ++it) {
-            if ((*it)->tid == worker->tid) {
-                manager->m_poolWorkers.erase(it);
-                break;
-            }
-        }
+        worker->exiting.store(true);
+        manager->m_poolCondition.notify_all();
     }
 
     LOGD("Pool worker thread exited");
