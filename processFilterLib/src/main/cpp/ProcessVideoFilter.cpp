@@ -51,10 +51,10 @@ void ProcessVideoFilter::processVideoFilterProcedure() {
     // 下面把过滤字符串中的特定串替换为相应数值
 //    char total_frames[16]; // 总帧数
 //    sprintf(total_frames, "%d", src_video->nb_frames);
-    total_frames = to_string(src_video->nb_frames).c_str();
-    filters_desc = sFilterCmd.c_str();
+    total_frames = to_string(src_video->nb_frames);
+    filters_desc = sFilterCmd;
     // start_frame可以使用算术表达式
-    filters_desc = strrpl((char *) filters_desc, "TOTAL_FRAMES", total_frames);
+    filters_desc = strrpl(filters_desc, "TOTAL_FRAMES", total_frames);
     int interval = 2; // 淡出间隔
 //    if (argc > 3) {
 //        interval = atoi(argv[3]); // 淡出间隔从命令行读取
@@ -62,8 +62,10 @@ void ProcessVideoFilter::processVideoFilterProcedure() {
     char start_time[16]; // 开始淡出的时间点
     sprintf(start_time, "%.2f", in_fmt_ctx->duration / 1000 / 1000.0 - interval);
     // start_time不能使用算术表达式
-    filters_desc = strrpl((char *) filters_desc, "START_TIME", start_time);
-    init_filter(filters_desc); // 初始化滤镜
+    filters_desc = strrpl(filters_desc, "START_TIME", start_time);
+    if (init_filter(filters_desc.c_str()) < 0) { // 初始化滤镜
+        return;
+    }
     if (open_output_file(sOutPath.c_str()) < 0) { // 打开输出文件
         return;
     }
@@ -186,14 +188,24 @@ int ProcessVideoFilter::open_input_file(const char *src_name) {
 }
 
 
-// 替换字符串中的特定字符串
-char *ProcessVideoFilter::strrpl(char *s, const char *s1, const char *s2) {
-    char *ptr;
-    while (ptr = strstr(s, s1)) { // 如果在s中找到s1
-        memmove(ptr + strlen(s2), ptr + strlen(s1), strlen(ptr) - strlen(s1) + 1);
-        memcpy(ptr, &s2[0], strlen(s2));
+// 替换字符串中的特定字符串（全部出现处）
+// 原实现是 char*+memmove 就地改写，调用方传进来的却是 std::string 的
+// c_str()（靠 (char*) 强转丢掉 const），等于直接改写 std::string 的内部缓冲，
+// 长度变化时越界写；而且 strstr 每次从头扫，替换串若含被替换串会死循环。
+string ProcessVideoFilter::strrpl(const string &s, const string &s1, const string &s2) {
+    if (s1.empty()) {
+        return s;
     }
-    return s;
+    string result;
+    size_t pos = 0;
+    size_t found;
+    while ((found = s.find(s1, pos)) != string::npos) {
+        result.append(s, pos, found - pos);
+        result += s2;
+        pos = found + s1.size(); // 只在未扫描过的部分继续找，替换结果不会再被扫
+    }
+    result.append(s, pos, string::npos);
+    return result;
 }
 
 // 打开输出文件
@@ -393,11 +405,19 @@ int ProcessVideoFilter::output_video(AVFrame *frame) {
         PostStatusMessage(videoFilterInfo.c_str());
         return ret;
     }
+    // 数据包只在循环外分配一次。原先每次迭代 av_packet_alloc()，而
+    // EAGAIN/EOF 分支直接 return，既不 unref 也不 free：每调用一次本函数
+    // 至少泄漏一个 AVPacket，编码器一次吐出多包时按包数累加。
+    AVPacket *packet = av_packet_alloc(); // 分配一个数据包
+    if (!packet) {
+        LOGE("Can't alloc packet.\n");
+        return AVERROR(ENOMEM);
+    }
     while (1) {
-        AVPacket *packet = av_packet_alloc(); // 分配一个数据包
         // 从编码器实例获取压缩后的数据包
         ret = avcodec_receive_packet(video_encode_ctx, packet);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            av_packet_free(&packet);
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
@@ -410,11 +430,8 @@ int ProcessVideoFilter::output_video(AVFrame *frame) {
         // 把数据包的时间戳从一个时间基转换为另一个时间基
         av_packet_rescale_ts(packet, video_encode_ctx->time_base, dest_video->time_base);
         packet->stream_index = 0;
-        if (packet != nullptr && packet->buf != nullptr) {
-            videoFilterInfo =
-                    "往文件写入大小：" + to_string(packet->buf->size) + "的数据包...\n";
-            PostStatusMessage(videoFilterInfo.c_str());
-        }
+        videoFilterInfo = "往文件写入大小：" + to_string(packet->size) + "的数据包...\n";
+        PostStatusMessage(videoFilterInfo.c_str());
         ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包
         if (ret < 0) {
             LOGE("write frame occur error %d.\n", ret);
@@ -426,6 +443,7 @@ int ProcessVideoFilter::output_video(AVFrame *frame) {
         }
         av_packet_unref(packet); // 清除数据包
     }
+    av_packet_free(&packet);
     return ret;
 }
 

@@ -27,8 +27,8 @@ private:
 
     char errbuf[1024];
 
-    const char *total_frames; // 总帧数
-    const char *filters_desc = "";
+    string total_frames; // 总帧数（必须是值语义：原先存 to_string(...).c_str()，临时串析构后即悬垂）
+    string filters_desc; // 替换占位符之后的滤镜串
 
     AVFormatContext *in_fmt_ctx = nullptr; // 输入文件的封装器实例
     AVCodecContext *video_decode_ctx = nullptr; // 视频解码器的实例
@@ -53,7 +53,7 @@ private:
 
     int open_input_file(const char *src_name);
 
-    char *strrpl(char *s, const char *s1, const char *s2);
+    string strrpl(const string &s, const string &s1, const string &s2);
 
     int open_output_file(const char *dest_name);
 

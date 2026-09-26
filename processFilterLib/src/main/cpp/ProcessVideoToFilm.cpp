@@ -43,25 +43,37 @@ void ProcessVideoToFilm::ProcessVideoToFilmProcedure() {
         int side = 30; // 方块的边长
         int gap = 20; // 两个方块之间的距离
         int box_count = width / (side + gap); // 小方块的数量
-        char film_desc[(box_count + 1) * 60 * 2]; // 老电影的过滤字符串
+        // 用 std::string 逐段追加。原先是 VLA + snprintf(film_desc, sizeof(film_desc),
+        // "%s,...", film_desc)：输入输出同一块缓冲（区间重叠，标准里是未定义行为）、
+        // 每格只预留 60 字节而一条 drawbox 就有 50 多字符（撞上限后被静默截断，
+        // 滤镜串残缺），VLA 本身也不是标准 C++。
+        std::string film_desc; // 老电影的过滤字符串
+        char piece[128];
         // 视频的上下两侧各往外侧延伸出一排黑边
-        snprintf(film_desc, sizeof(film_desc), "pad=w=iw:h=ih+%d:x=0:y=%d:color=black", add_height,
+        snprintf(piece, sizeof(piece), "pad=w=iw:h=ih+%d:x=0:y=%d:color=black", add_height,
                  add_height / 2);
+        film_desc = piece;
         int i = 0;
         while (i <= box_count) { // 往上下两侧新增的黑边添加白色小方块
             int x_pos = gap + i * (side + gap);
-            int x_side = x_pos + side > width ? width - x_pos : side;
-            snprintf(film_desc, sizeof(film_desc),
-                     "%s,drawbox=x=%d:y=%d:w=%d:h=%d:color=white:t=fill", film_desc, x_pos, gap,
-                     side, side);
-            snprintf(film_desc, sizeof(film_desc),
-                     "%s,drawbox=x=%d:y=ih-%d:w=%d:h=%d:color=white:t=fill", film_desc, x_pos,
-                     side + gap, side, side);
+            // 保持与改动前逐字一致的输出：原代码算出了用于收窄末格的 x_side
+            // （x_pos+side 超出画面时截断）却从没传给 snprintf，是死代码。
+            // 是否启用截断会改变画面，属行为变更，只在报告里作为建议提出。
+            snprintf(piece, sizeof(piece), ",drawbox=x=%d:y=%d:w=%d:h=%d:color=white:t=fill", x_pos,
+                     gap, side, side);
+            film_desc += piece;
+            snprintf(piece, sizeof(piece), ",drawbox=x=%d:y=ih-%d:w=%d:h=%d:color=white:t=fill",
+                     x_pos, side + gap, side, side);
+            film_desc += piece;
             i++;
         }
-        init_filter(film_desc); // 初始化滤镜
+        if (init_filter(film_desc.c_str()) < 0) { // 初始化滤镜
+            return;
+        }
     } else {
-        init_filter(sFilterCmd.c_str()); // 初始化滤镜
+        if (init_filter(sFilterCmd.c_str()) < 0) { // 初始化滤镜
+            return;
+        }
     }
     if (open_output_file(sOutPath.c_str()) < 0) { // 打开输出文件
         return;
@@ -406,11 +418,18 @@ int ProcessVideoToFilm::output_video(AVFrame *frame) {
         PostStatusMessage(videoFilterInfo.c_str());
         return ret;
     }
+    // 数据包只在循环外分配一次：原先每次迭代都 av_packet_alloc()，
+    // 而 EAGAIN/EOF 分支直接 return，每轮泄漏一个 AVPacket。
+    AVPacket *packet = av_packet_alloc(); // 分配一个数据包
+    if (!packet) {
+        LOGE("Can't alloc packet.\n");
+        return AVERROR(ENOMEM);
+    }
     while (1) {
-        AVPacket *packet = av_packet_alloc(); // 分配一个数据包
         // 从编码器实例获取压缩后的数据包
         ret = avcodec_receive_packet(video_encode_ctx, packet);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            av_packet_free(&packet);
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
@@ -441,6 +460,7 @@ int ProcessVideoToFilm::output_video(AVFrame *frame) {
         }
         av_packet_unref(packet); // 清除数据包
     }
+    av_packet_free(&packet);
     return ret;
 }
 
