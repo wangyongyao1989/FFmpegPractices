@@ -265,11 +265,26 @@ void ProcessEnCodec::processProcessEnCodec() {
         // 放在两条 dumpStatistics 之后，避免把刚统计完的 mStats 清掉。
         pHwEnCodec->resetEncoder();
     }
-    fclose(inputFp);
-    fclose(outputFp);
-    mHwExtractor->deInitExtractor();
+    // 同 ProcessDeCodec：这两个 FILE* 只在轨道循环里赋值，循环未进入时为 nullptr。
+    if (inputFp) {
+        fclose(inputFp);
+        inputFp = nullptr;
+    }
+    if (outputFp) {
+        fclose(outputFp);
+        outputFp = nullptr;
+    }
+    if (mHwExtractor) {
+        mHwExtractor->deInitExtractor();
+    }
     delete pHwDeCodec;
     pHwDeCodec = nullptr; // 不置空的话，下一轮进入本函数时的 delete 就是二次释放
+    // mHwExtractor 指向 pHwDeCodec 内部的 extractor，上一句 delete 之后它已经悬空。
+    mHwExtractor = nullptr;
+    // 编码器以前只在下一轮入口 delete，本轮结束时留一个已 deInit 的空壳没意义，
+    // 这里一并回收，入口的判空 delete 仍然保留（覆盖中途 return 的情况）。
+    delete pHwEnCodec;
+    pHwEnCodec = nullptr;
 
     LOGI("ProcessEnCodec Success");
     callbackInfo = "ProcessEnCodec Success outfile:" + sOutPath2 + " \n";

@@ -135,6 +135,7 @@ void ProcessMuxer::processProcessMuxer() {
                 LOGE("Memory allocated not sufficient");
                 callbackInfo = "Memory allocated not sufficient \n";
                 PostStatusMessage(callbackInfo.c_str());
+                free(inputBuffer);
                 return;
             }
             memcpy(inputBuffer + inputBufferOffset, mHwExtractor->getFrameBuf(), info.size);
@@ -164,6 +165,11 @@ void ProcessMuxer::processProcessMuxer() {
             LOGE("initMuxer failed");
             callbackInfo = "initMuxer failed \n";
             PostStatusMessage(callbackInfo.c_str());
+            // 这里的每个 return 都在轨道循环内部：不关掉 outputFp、不 free inputBuffer，
+            // 下一轮迭代就会把它们覆盖掉，每失败一次泄漏一个 fd + 一块 kMaxBufferSize。
+            fclose(outputFp);
+            outputFp = nullptr;
+            free(inputBuffer);
             return;
         }
         LOGI("initMuxer Success");
@@ -175,6 +181,9 @@ void ProcessMuxer::processProcessMuxer() {
             LOGE("Mux failed");
             callbackInfo = "Mux failed \n";
             PostStatusMessage(callbackInfo.c_str());
+            fclose(outputFp);
+            outputFp = nullptr;
+            free(inputBuffer);
             return;
         }
         LOGI("Mux Success");
@@ -188,7 +197,11 @@ void ProcessMuxer::processProcessMuxer() {
         mHwMuxer->resetMuxer();
     }
     LOGI("processProcessMuxer Success");
-    fclose(inputFp);
+    if (inputFp) {
+        fclose(inputFp);
+        // 不置空的话，析构函数里的 if (inputFp) fclose(inputFp) 就是二次关闭。
+        inputFp = nullptr;
+    }
     mHwExtractor->deInitExtractor();
 
 }

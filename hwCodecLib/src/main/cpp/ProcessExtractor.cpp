@@ -207,7 +207,12 @@ void ProcessExtractor::processProcessExtractor() {
     callbackInfo = "dumpStatistics Success file:" + sOutPath + "\n";
     PostStatusMessage(callbackInfo.c_str());
 
-    fclose(inputFp);
+    // inputFp 由本函数开头赋值，正常走到这里关闭；置空是为了
+    // 析构函数里的 if (inputFp) fclose(inputFp) 不会二次关闭。
+    if (inputFp) {
+        fclose(inputFp);
+        inputFp = nullptr;
+    }
 }
 
 

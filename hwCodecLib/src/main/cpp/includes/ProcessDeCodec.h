@@ -25,11 +25,14 @@ private:
     string sOutPath2;
     string sCodecName;
 
-    FILE *inputFp;
-    FILE *outputFp;
+    // 必须显式初始化为 nullptr：析构函数和 startProcessDecodec() 入口都会
+    // 无条件判空后 fclose/delete 这几个成员，没有初值时判的是栈/堆上的随机数，
+    // 首次点击按钮就会 free/delete 野指针（SIGSEGV 或堆破坏 SIGABRT）。
+    FILE *inputFp = nullptr;
+    FILE *outputFp = nullptr;
 
-    HwDeCodec *pHwDeCodec;
-    HwExtractor *mHwExtractor;
+    HwDeCodec *pHwDeCodec = nullptr;
+    HwExtractor *mHwExtractor = nullptr;
 
 
 

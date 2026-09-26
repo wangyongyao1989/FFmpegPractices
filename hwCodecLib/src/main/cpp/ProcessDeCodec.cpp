@@ -173,11 +173,23 @@ void ProcessDeCodec::processProcessDecodec() {
         free(inputBuffer);
         pHwDeCodec->resetDecoder();
     }
-    fclose(inputFp);
-    fclose(outputFp);
-    mHwExtractor->deInitExtractor();
+    // 这两个 FILE* 只有在 trackCount>0 且解码走完时才会被赋值；
+    // 直接 fclose(未赋值的成员) 就是 fclose(nullptr)。
+    if (inputFp) {
+        fclose(inputFp);
+        inputFp = nullptr;
+    }
+    if (outputFp) {
+        fclose(outputFp);
+        outputFp = nullptr;
+    }
+    if (mHwExtractor) {
+        mHwExtractor->deInitExtractor();
+    }
     delete pHwDeCodec;
     pHwDeCodec = nullptr; // 不置空的话，下一轮进入本函数时的 delete 就是二次释放
+    // mHwExtractor 指向 pHwDeCodec 内部的 extractor，上一句 delete 之后它已经悬空。
+    mHwExtractor = nullptr;
 
     LOGI("ProcessDeCodec Success");
     callbackInfo = "ProcessDeCodec Success outfile:" + sOutPath2 + " \n";
