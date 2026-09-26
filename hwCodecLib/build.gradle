@@ -16,9 +16,13 @@ android {
                 cppFlags ""
             }
         }
-//        ndk{
-//            abiFilters "armeabi-v7a", "arm64-v8a"
-//        }
+        // 其余 7 个 native 模块都锁在 armeabi-v7a + arm64-v8a，只有这里是注释掉的，
+        // 于是 merged_native_libs 里 x86 / x86_64 两个目录只躺着 libhwcodec.so：
+        // APK 在 x86 设备/模拟器上能装能起，但除硬件编解码页以外全部功能因为
+        // 找不到 .so 而 loadLibrary 失败。跟上其余模块的 ABI 口径。
+        ndk{
+            abiFilters "armeabi-v7a", "arm64-v8a"
+        }
     }
 
     buildTypes {

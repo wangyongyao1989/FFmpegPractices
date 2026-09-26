@@ -44,6 +44,12 @@ void ProcessExtractor::startProcessExtractor(const char *srcPath, const char *ou
     callbackInfo =
             "sSrcPath:" + sSrcPath + "\n";
     PostStatusMessage(callbackInfo.c_str());
+    // 成员指针每点一次按钮就被覆盖一次，上一个实例（连同它持有的 AMediaCodec /
+    // AMediaExtractor 等 native 句柄）再也拿不到，只能等进程退出。先回收上一轮。
+    if (mHwExtractor != nullptr) {
+        delete mHwExtractor;
+        mHwExtractor = nullptr;
+    }
     mHwExtractor = new HwExtractor();
     if (mHwExtractor == nullptr) {
         LOGE("Extractor creation failed ");
@@ -107,8 +113,9 @@ void ProcessExtractor::processProcessExtractor() {
         const char *video_mime_type = nullptr;
         AMediaFormat_getString(videoFormat, AMEDIAFORMAT_KEY_MIME, &video_mime_type);
         LOGI("video mime_type: %s", video_mime_type);
-        callbackInfo = "video mime_type:" + string(video_mime_type) + "\n";
-        delete (video_mime_type);
+        callbackInfo = "video mime_type:" + string(video_mime_type ? video_mime_type : "null") + "\n";
+        // AMediaFormat_getString 填出来的指针归 AMediaFormat 对象所有，
+        // 调用方 delete 它是在释放非 new 申请的内存（堆破坏，表现为随机崩溃）。
         video_mime_type = nullptr;
 
         int32_t width;
@@ -150,8 +157,9 @@ void ProcessExtractor::processProcessExtractor() {
         const char *audio_mime_type = nullptr;
         AMediaFormat_getString(audioFormat, AMEDIAFORMAT_KEY_MIME, &audio_mime_type);
         LOGI("audio mime_type: %s", audio_mime_type);
-        callbackInfo = "audio mime_type:" + string(audio_mime_type) + "\n";
-        delete (audio_mime_type);
+        callbackInfo = "audio mime_type:" + string(audio_mime_type ? audio_mime_type : "null") + "\n";
+        // AMediaFormat_getString 填出来的指针归 AMediaFormat 对象所有，
+        // 调用方 delete 它是在释放非 new 申请的内存（堆破坏，表现为随机崩溃）。
         audio_mime_type = nullptr;
 
         int32_t frame_rate;

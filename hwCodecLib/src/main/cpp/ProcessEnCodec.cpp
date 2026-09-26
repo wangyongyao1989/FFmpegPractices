@@ -46,6 +46,12 @@ void ProcessEnCodec::startProcessEnCodec(const char *srcPath, const char *outPat
             "sSrcPath:" + sSrcPath + "\n";
     PostStatusMessage(callbackInfo.c_str());
 
+    // 成员指针每点一次按钮就被覆盖一次，上一个实例（连同它持有的 AMediaCodec /
+    // AMediaExtractor 等 native 句柄）再也拿不到，只能等进程退出。先回收上一轮。
+    if (pHwDeCodec != nullptr) {
+        delete pHwDeCodec;
+        pHwDeCodec = nullptr;
+    }
     pHwDeCodec = new HwDeCodec();
     if (pHwDeCodec == nullptr) {
         LOGE("HwEnCodec creation failed ");
@@ -55,6 +61,12 @@ void ProcessEnCodec::startProcessEnCodec(const char *srcPath, const char *outPat
         return;
     }
 
+    // 成员指针每点一次按钮就被覆盖一次，上一个实例（连同它持有的 AMediaCodec /
+    // AMediaExtractor 等 native 句柄）再也拿不到，只能等进程退出。先回收上一轮。
+    if (pHwEnCodec != nullptr) {
+        delete pHwEnCodec;
+        pHwEnCodec = nullptr;
+    }
     pHwEnCodec = new HwEnCodec();
     if (pHwEnCodec == nullptr) {
         LOGE("HwEnCodec creation failed ");
@@ -253,6 +265,7 @@ void ProcessEnCodec::processProcessEnCodec() {
     fclose(outputFp);
     mHwExtractor->deInitExtractor();
     delete pHwDeCodec;
+    pHwDeCodec = nullptr; // 不置空的话，下一轮进入本函数时的 delete 就是二次释放
 
     LOGI("ProcessEnCodec Success");
     callbackInfo = "ProcessEnCodec Success outfile:" + sOutPath2 + " \n";

@@ -370,6 +370,12 @@ bool RtspPlayer::play(const char *url, jobject surface, bool useHardDecode) {
     // 会话起点先丢到下一个关键帧：直播不从队列深处追赶，直接从实时边缘开播，
     // 避免音视频队列被灌满后主时钟长期落后于画面 pts
     mVideoDropping = true;
+    // restart() 只是把队列的停止标志清掉（见 ThreadSafeQueue::restart），
+    // 队列内容一个都不动。只靠退出路径上的 drainPacketQueues() 还不够：
+    // 上一会话的包/帧如果还留在队列里（例如软/硬解切换时读线程刚 push 完就退出），
+    // 新会话的解码线程会先消费这些旧数据——表现就是切解码方式后先闪一下
+    // 上一段画面、音频也是旧内容续播。所以起播前显式排空并释放一次。
+    drainPacketQueues();
     mVideoPackets.restart();
     mAudioPackets.restart();
     mVideoFrames.restart();

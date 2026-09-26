@@ -47,6 +47,12 @@ ProcessMuxer::startProcessMuxer(const char *srcPath, const char *outPath1,
 
     outputFormat = getMuxerOutFormat(sFmt);
 
+    // 成员指针每点一次按钮就被覆盖一次，上一个实例（连同它持有的 AMediaCodec /
+    // AMediaExtractor 等 native 句柄）再也拿不到，只能等进程退出。先回收上一轮。
+    if (mHwMuxer != nullptr) {
+        delete mHwMuxer;
+        mHwMuxer = nullptr;
+    }
     mHwMuxer = new HwMuxer();
     if (mHwMuxer == nullptr) {
         LOGE("Muxer creation failed ");
