@@ -137,11 +137,18 @@ int WriteYUVFrame::output_video(AVFrame *frame) {
         return ret;
     }
 
+    // 数据包只在循环外分配一次：原先每次迭代都 av_packet_alloc()，
+    // 而 EAGAIN/EOF 分支直接 return，每轮泄漏一个 AVPacket。
+    AVPacket *packet = av_packet_alloc(); // 分配一个数据包
+    if (!packet) {
+        LOGE("Can't alloc packet.\n");
+        return AVERROR(ENOMEM);
+    }
     while (1) {
-        AVPacket *packet = av_packet_alloc(); // 分配一个数据包
         // 从编码器实例获取压缩后的数据包
         ret = avcodec_receive_packet(video_encode_ctx, packet);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            av_packet_free(&packet);
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
@@ -169,6 +176,7 @@ int WriteYUVFrame::output_video(AVFrame *frame) {
         }
         av_packet_unref(packet); // 清除数据包
     }
+    av_packet_free(&packet);
     return ret;
 }
 
