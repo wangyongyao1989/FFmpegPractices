@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/ll_rtsp_button_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="5dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_rtsp_back"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="返回"
+                tools:ignore="HardcodedText" />
+
+            <Button
+                android:id="@+id/btn_rtsp_soft"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="软解拉流播放"
+                tools:ignore="HardcodedText" />
+
+            <Button
+                android:id="@+id/btn_rtsp_hard"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="硬解拉流播放"
+                tools:ignore="HardcodedText" />
+
+            <Button
+                android:id="@+id/btn_rtsp_stop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="停止"
+                tools:ignore="HardcodedText" />
+
+            <Button
+                android:id="@+id/btn_rtsp_version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="FFmpeg版本"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/white"
+                android:text="RTSP地址:"
+                tools:ignore="HardcodedText" />
+
+            <EditText
+                android:id="@+id/et_rtsp_url"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="8dp"
+                android:textColor="@color/white"
+                android:textColorHint="#80FFFFFF"
+                android:hint="rtsp://192.168.1.4:8554/live"
+                android:inputType="text"
+                android:maxLines="1"
+                android:textSize="14sp"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/scroll_rtsp_msg"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:fillViewport="true"
+        android:background="#1AFFFFFF"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/surface_rtsp_play"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ll_rtsp_button_container">
+
+        <TextView
+            android:id="@+id/tv_rtsp_msg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:textColor="@color/white"
+            android:text="RTSP拉流播放（软/硬解切换）" />
+    </ScrollView>
+
+    <SurfaceView
+        android:id="@+id/surface_rtsp_play"
+        android:layout_width="420dp"
+        android:layout_height="0dp"
+        android:layout_margin="5dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/scroll_rtsp_msg"
+        app:layout_constraintTop_toBottomOf="@id/ll_rtsp_button_container" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

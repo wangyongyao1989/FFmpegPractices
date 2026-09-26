@@ -49,6 +49,7 @@ public class MainFragment extends BaseFragment {
         items.add(new MenuItem("FFmpeg滤镜处理", android.R.drawable.ic_menu_edit, FFViewModel.FRAGMENT_STATUS.PROCESS_FILTER));
         items.add(new MenuItem("Android硬件编解码", android.R.drawable.ic_menu_preferences, FFViewModel.FRAGMENT_STATUS.PROCESS_HW_CODEC));
         items.add(new MenuItem("音视频播放相关", android.R.drawable.ic_menu_slideshow, FFViewModel.FRAGMENT_STATUS.PLAY_MEDIA));
+        items.add(new MenuItem("RTSP拉流播放", android.R.drawable.ic_menu_share, FFViewModel.FRAGMENT_STATUS.RTSP));
 
         MenuAdapter adapter = new MenuAdapter(items, status -> {
             if (mFfViewModel != null) {

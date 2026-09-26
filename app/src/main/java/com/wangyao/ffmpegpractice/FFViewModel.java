@@ -18,6 +18,7 @@ public class FFViewModel extends ViewModel {
         PROCESS_FILTER,
         PROCESS_HW_CODEC,
         PLAY_MEDIA,
+        RTSP,
 
     }
 

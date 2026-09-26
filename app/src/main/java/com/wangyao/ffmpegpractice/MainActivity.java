@@ -23,6 +23,7 @@ import com.wangyao.ffmpegpractice.fragment.MainFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessAudioFragmnet;
 import com.wangyao.ffmpegpractice.fragment.ProcessFilterFragment;
 import com.wangyao.ffmpegpractice.fragment.ProcessImageFragment;
+import com.wangyao.ffmpegpractice.fragment.RtspFragment;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -37,6 +38,7 @@ public class MainActivity extends AppCompatActivity {
     private ProcessFilterFragment mProcessFilterFragment;
     private ProcessHwCodecFragment mProcessHwCodecFragment;
     private PlayMeidaFragment mPlayMeidaFragment;
+    private RtspFragment mRtspFragment;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
             case PROCESS_FILTER: menuId = R.id.menu_filter; break;
             case PROCESS_HW_CODEC: menuId = R.id.menu_hw_codec; break;
             case PLAY_MEDIA: menuId = R.id.menu_play; break;
+            case RTSP: return;   // RTSP 页由主页网格进入，侧边栏最多 7 项无法承载
             default: return;
         }
         if (mBinding.navigationRail.getSelectedItemId() != menuId) {
@@ -214,6 +217,15 @@ public class MainActivity extends AppCompatActivity {
                 fragmentTransaction.show(mPlayMeidaFragment);
             }
             break;
+            case RTSP: {
+                if (mRtspFragment == null) {
+                    mRtspFragment = new RtspFragment();
+                    fragmentTransaction
+                            .add(containerId, mRtspFragment);
+                }
+                fragmentTransaction.show(mRtspFragment);
+            }
+            break;
         }
         fragmentTransaction.commit();
     }
@@ -249,6 +261,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (mPlayMeidaFragment != null) {
             ftr.hide(mPlayMeidaFragment);
+        }
+
+        if (mRtspFragment != null) {
+            ftr.hide(mRtspFragment);
         }
 
     }
