@@ -346,7 +346,7 @@ bool MediaExtratorDecodecEncodec::decodec() {
     LOGI("decodec===========");
     isDeCodec = true;
     bool asyncMode = false;
-    AMediaCodecBufferInfo info;
+    AMediaCodecBufferInfo info = {};
 
     bool sawEOS = false;
     int64_t lastVideoPts = -1;
@@ -376,8 +376,13 @@ bool MediaExtratorDecodecEncodec::decodec() {
         }
 
         if (trackIndex == videoTrackIndex && hasVideo) {
+            // 去重门限用提取器当前样本的时间戳。原来读的是 info.presentationTimeUs，
+            // 而 info 在第一次进入本分支前从未被写过（它是解码循环里 dequeueOutputBuffer
+            // 的输出参数），第一次判断拿到的就是栈残值：残值只要不大于 -1，
+            // 整条视频轨直接被跳过，输出文件 0 字节，界面上还提示 completed。
+            const int64_t sampleTime = AMediaExtractor_getSampleTime(extractor);
             // 检查时间戳是否有效（避免重复或倒退的时间戳）
-            if (info.presentationTimeUs > lastVideoPts) {
+            if (sampleTime > lastVideoPts) {
                 if (!asyncMode) {
                     while (!mSawOutputDecodecEOS && !mSignalledDecodecError) {
                         /* Queue input data */
@@ -388,7 +393,7 @@ bool MediaExtratorDecodecEncodec::decodec() {
                                 LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
                                      inIdx);
                                 mErrorCode = (media_status_t) inIdx;
-                                return mErrorCode;
+                                return false;
                             } else if (inIdx >= 0) {
                                 onInputAvailable(mVideoDeCodec, inIdx);
                             }
@@ -408,7 +413,7 @@ bool MediaExtratorDecodecEncodec::decodec() {
                             LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
                                  outIdx);
                             mErrorCode = (media_status_t) outIdx;
-                            return mErrorCode;
+                            return false;
                         }
                     }
                 } else {
@@ -419,14 +424,15 @@ bool MediaExtratorDecodecEncodec::decodec() {
                 }
                 if (mSignalledDecodecError) {
                     LOGE("Received Error while Decoding");
-                    return mErrorCode;
+                    return false;
                 }
 
-                lastVideoPts = info.presentationTimeUs;
+                lastVideoPts = sampleTime;
             }
         } else if (trackIndex == audioTrackIndex && hasAudio) {     //音频轨道的解码
-            // 检查时间戳是否有效
-            if (info.presentationTimeUs > lastAudioPts) {
+            const int64_t sampleTime = AMediaExtractor_getSampleTime(extractor);
+            // 检查时间戳是否有效（同视频分支：原来读的是尚未赋值的 info）
+            if (sampleTime > lastAudioPts) {
                 // 检查时间戳是否有效（避免重复或倒退的时间戳）
                 if (!asyncMode) {
                     while (!mSawOutputDecodecEOS && !mSignalledDecodecError) {
@@ -438,7 +444,7 @@ bool MediaExtratorDecodecEncodec::decodec() {
                                 LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
                                      inIdx);
                                 mErrorCode = (media_status_t) inIdx;
-                                return mErrorCode;
+                                return false;
                             } else if (inIdx >= 0) {
                                 onInputAvailable(mAudioDeCodec, inIdx);
                             }
@@ -452,13 +458,18 @@ bool MediaExtratorDecodecEncodec::decodec() {
                             const char *s = AMediaFormat_toString(mAudioFormat);
                             LOGI("Output format: %s\n", s);
                         } else if (outIdx >= 0) {
-                            onOutputAvailable(mVideoDeCodec, outIdx, &info);
+                            // 这里原来传的是 mVideoDeCodec。onDecodecOutputAvailable()
+                            // 是按「传进来的 codec 等于 mVideoDeCodec 还是 mAudioDeCodec」
+                            // 分派的，于是音频帧走进视频分支：拿音频的 bufIdx 去
+                            // AMediaCodec_getOutputBuffer(mVideoDeCodec, ...) 取内存、
+                            // 对错误的 codec 调 releaseOutputBuffer。
+                            onOutputAvailable(mAudioDeCodec, outIdx, &info);
                         } else if (!(outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER ||
                                      outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)) {
                             LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
                                  outIdx);
                             mErrorCode = (media_status_t) outIdx;
-                            return mErrorCode;
+                            return false;
                         }
                     }
                 } else {
@@ -469,9 +480,9 @@ bool MediaExtratorDecodecEncodec::decodec() {
                 }
                 if (mSignalledDecodecError) {
                     ALOGE("Received Error while Decoding");
-                    return mErrorCode;
+                    return false;
                 }
-                lastAudioPts = info.presentationTimeUs;
+                lastAudioPts = sampleTime;
             }
         }
 
@@ -599,7 +610,7 @@ bool MediaExtratorDecodecEncodec::initEncodec(bool asyncMode) {
 
 bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
     isDeCodec = false;
-    AMediaCodecBufferInfo info;
+    AMediaCodecBufferInfo info = {};
     bool sawEOS = false;
     int64_t lastVideoPts = -1;
     int64_t lastAudioPts = -1;
@@ -640,8 +651,10 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
 
         if (trackIndex == videoTrackIndex && hasVideo) {
             mEncParams.frameSize = mEncParams.width * mEncParams.height * 3 / 2;
+            // 同 decodec()：门限改用提取器样本时间戳，不再读尚未赋值的 info
+            const int64_t sampleTime = AMediaExtractor_getSampleTime(extractor);
             // 检查时间戳是否有效（避免重复或倒退的时间戳）
-            if (info.presentationTimeUs > lastVideoPts) {
+            if (sampleTime > lastVideoPts) {
                 if (!asyncMode) {
                     while (!mSawOutputEncodecEOS && !mSignalledEncodecError) {
                         /* Queue input data */
@@ -652,7 +665,7 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
                                 LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
                                      inIdx);
                                 mErrorCode = (media_status_t) inIdx;
-                                return mErrorCode;
+                                return false;
                             } else if (inIdx >= 0) {
                                 onInputAvailable(mVideoEnCodec, inIdx);
                             }
@@ -672,7 +685,7 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
                             LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
                                  outIdx);
                             mErrorCode = (media_status_t) outIdx;
-                            return mErrorCode;
+                            return false;
                         }
                     }
                 } else {
@@ -683,10 +696,10 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
                 }
                 if (mSignalledEncodecError) {
                     LOGE("Received Error while Decoding");
-                    return mErrorCode;
+                    return false;
                 }
 
-                lastVideoPts = info.presentationTimeUs;
+                lastVideoPts = sampleTime;
             }
         } else if (trackIndex == audioTrackIndex && hasAudio) {     //音频轨道的解码
 
