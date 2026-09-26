@@ -61,30 +61,46 @@ H264ToMP4::~H264ToMP4() {
         codecThread = nullptr;
     }
 
-    mSrcPath = nullptr;
-    mDestPath = nullptr;
+    mSrcPath = "";
+    mDestPath = "";
 
     packet_index = 0;
 
 }
 
 void H264ToMP4::startWriteMP4Thread(const char *srcPath, const char *destPath) {
+    // 先回收上一轮线程，再赋值路径、打开文件。原先是 detach() + 「thread 成员
+    // 非空就不再启动」：detached 线程对象永远留在成员里，同一个功能点第二次点击
+    // 永久静默空转，而输入/输出文件已在这段代码里被重新打开一遍，句柄和
+    // AVFormatContext 白漏；detach() 又与析构函数里的 join() 直接矛盾
+    // （对 detached 线程 join 会抛 std::system_error 而 abort）。
+    if (codecThread != nullptr) {
+        if (!mWorkFinished) {
+            LOGE("The previous task is still running, ignore this request.\n");
+            h264ToMP4Info = "上一次任务仍在进行中，请等待完成\n";
+            PostStatusMessage(h264ToMP4Info.c_str());
+            return;
+        }
+        codecThread->join();
+        delete codecThread;
+        codecThread = nullptr;
+    }
+
     mSrcPath = srcPath;
     mDestPath = destPath;
-    if (open_input_file(mSrcPath) < 0) { // 打开输入文件
+    if (open_input_file(mSrcPath.c_str()) < 0) { // 打开输入文件
         return;
     }
-    if (open_output_file(mDestPath) < 0) { // 打开输出文件
+    if (open_output_file(mDestPath.c_str()) < 0) { // 打开输出文件
         return;
     }
-    if (codecThread == nullptr) {
-        codecThread = new thread(DoRecoding, this);
-        codecThread->detach();
-    }
+    mWorkFinished = false;
+    codecThread = new thread(DoRecoding, this); // 不 detach：由本类在下一轮或析构时 join
 }
 
 void H264ToMP4::DoRecoding(H264ToMP4 *h264ToMP4) {
     h264ToMP4->recodecVideo();
+    h264ToMP4->mWorkFinished = true; // 本轮跑完，允许下一次点击重启
 }
 
 void H264ToMP4::recodecVideo() {

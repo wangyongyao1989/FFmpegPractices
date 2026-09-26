@@ -47,17 +47,33 @@ SaveYUVFromVideo::~SaveYUVFromVideo() {
 }
 
 void SaveYUVFromVideo::startWriteYUVThread(const char *srcPath, const char *destPath) {
+    // 先回收上一轮线程，再覆盖路径。原先是 detach() + 「thread 成员非空就不再
+    // 启动」：detached 线程对象永远留在成员里，同一个功能点第二次点击永久静默
+    // 空转；而且直接覆盖 sSrcPath 会改写正在跑的那一轮赖以工作的路径。
+    // detach() 又与析构函数里的 join() 直接矛盾（对 detached 线程 join 会抛
+    // std::system_error 而 abort）。
+    if (mThread != nullptr) {
+        if (!mWorkFinished) {
+            LOGE("The previous task is still running, ignore this request.\n");
+            saveYUVInfo = "上一次任务仍在进行中，请等待完成\n";
+            PostStatusMessage(saveYUVInfo.c_str());
+            return;
+        }
+        mThread->join();
+        delete mThread;
+        mThread = nullptr;
+    }
+
     sSrcPath = srcPath;
     sDestPath = destPath;
-    if (mThread == nullptr) {
-        mThread = new thread(DoThreading, this);
-        mThread->detach();
-    }
+    mWorkFinished = false;
+    mThread = new thread(DoThreading, this); // 不 detach：由本类在下一轮或析构时 join
 }
 
 
 void SaveYUVFromVideo::DoThreading(SaveYUVFromVideo *saveYUV) {
     saveYUV->processImageProcedure();
+    saveYUV->mWorkFinished = true; // 本轮跑完，允许下一次点击重启
 }
 
 void SaveYUVFromVideo::processImageProcedure() {
