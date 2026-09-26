@@ -125,9 +125,9 @@ void MergeVideo::mergeVideo() {
     while (av_read_frame(in_fmt_ctx[0], packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index[0]) { // 视频包需要重新编码
             mergeInfo =
-                    "第一个视频读出视频包的大小：" + to_string(packet->buf->size) +
+                    "第一个视频读出视频包的大小：" + to_string(packet->size) +
                     "，并重新编码写入...\n";
-            if (packet->buf->size < 600) {
+            if (packet->size < 600) {
                 PostStatusMessage(mergeInfo.c_str());
             }
             LOGD("%s.\n", mergeInfo.c_str());
@@ -149,9 +149,9 @@ void MergeVideo::mergeVideo() {
     while (av_read_frame(in_fmt_ctx[1], packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index[1]) { // 视频包需要重新编码
             mergeInfo =
-                    "第二个视频读出视频包的大小：" + to_string(packet->buf->size) +
+                    "第二个视频读出视频包的大小：" + to_string(packet->size) +
                     "，并重现编码写入...\n";
-            if (packet->buf->size < 600) {
+            if (packet->size < 600) {
                 PostStatusMessage(mergeInfo.c_str());
             }
             LOGD("%s.\n", mergeInfo.c_str());

@@ -443,9 +443,9 @@ int ProcessVideoToFilm::output_video(AVFrame *frame) {
         // 把数据包的时间戳从一个时间基转换为另一个时间基
         av_packet_rescale_ts(packet, video_encode_ctx->time_base, dest_video->time_base);
         packet->stream_index = 0;
-        if (packet != nullptr && packet->buf != nullptr) {
+        if (packet != nullptr) {
             videoFilterInfo =
-                    "往文件写入大小：" + to_string(packet->buf->size) + "的数据包...\n";
+                    "往文件写入大小：" + to_string(packet->size) + "的数据包...\n";
             PostStatusMessage(videoFilterInfo.c_str());
         }
         ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包

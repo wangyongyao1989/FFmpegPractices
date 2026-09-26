@@ -174,11 +174,9 @@ int WriteYUVFrame::output_video(AVFrame *frame) {
             PostStatusMessage(writeYUVInfo.c_str());
             break;
         }
-        if (packet->buf) {
-            writeYUVInfo =
-                    "写入packet的大小：" + to_string(packet->buf->size) + "\n";
-            PostStatusMessage(writeYUVInfo.c_str());
-        }
+        writeYUVInfo =
+                "写入packet的大小：" + to_string(packet->size) + "\n";
+        PostStatusMessage(writeYUVInfo.c_str());
         // 把数据包的时间戳从一个时间基转换为另一个时间基
         av_packet_rescale_ts(packet, video_encode_ctx->time_base, dest_video->time_base);
         packet->stream_index = 0;

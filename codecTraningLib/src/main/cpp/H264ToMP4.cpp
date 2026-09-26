@@ -110,9 +110,9 @@ void H264ToMP4::recodecVideo() {
     while (av_read_frame(in_fmt_ctx, packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index) { // 视频包需要重新编码
             packet->stream_index = 0;
-            if (packet->buf->size < 600) {
+            if (packet->size < 600) {
                 h264ToMP4Info =
-                        "读出视频包的大小：" + to_string(packet->buf->size) + "，并重新编码写入...\n";
+                        "读出视频包的大小：" + to_string(packet->size) + "，并重新编码写入...\n";
                 PostStatusMessage(h264ToMP4Info.c_str());
             }
             LOGD("%s.\n", h264ToMP4Info.c_str());
@@ -122,7 +122,7 @@ void H264ToMP4::recodecVideo() {
             av_packet_rescale_ts(packet, src_audio->time_base, dest_audio->time_base);
             ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包
             h264ToMP4Info =
-                    "读出音频包的大小：" + to_string(packet->buf->size) + "，并写入...\n";
+                    "读出音频包的大小：" + to_string(packet->size) + "，并写入...\n";
             PostStatusMessage(h264ToMP4Info.c_str());
             LOGD("%s.\n", h264ToMP4Info.c_str());
             if (ret < 0) {
