@@ -260,6 +260,10 @@ void ProcessEnCodec::processProcessEnCodec() {
                                    sOutPath1);
         free(inputBuffer);
         pHwDeCodec->resetDecoder();
+        // 解码器每轨都复位，编码器却从来没人调过 resetEncoder()：mSawOutputEOS 在
+        // 视频轨编码完成后一直是 true，下一条音频轨的 drain 循环一次都不进。
+        // 放在两条 dumpStatistics 之后，避免把刚统计完的 mStats 清掉。
+        pHwEnCodec->resetEncoder();
     }
     fclose(inputFp);
     fclose(outputFp);

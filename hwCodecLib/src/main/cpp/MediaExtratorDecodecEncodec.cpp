@@ -46,6 +46,22 @@ MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputP
     sSrcPath = inputPath;
     sOutPath1 = outpath1;
     sOutPath2 = outPath2;
+    // 本对象在 JNI 层是缓存复用的单例，下面这些「一轮一清」的运行态标志如果不复位，
+    // 第二轮进来时 mSawOutputDecodecEOS/mSawOutputEncodecEOS 还是上一轮的 true，
+    // 解码/编码的 drain 循环一次都不进 —— 输出文件 0 字节，界面却提示成功。
+    mSawInputDecodecEOS = false;
+    mSawOutputDecodecEOS = false;
+    mSignalledDecodecError = false;
+    mSawInputEncodecEOS = false;
+    mSawOutputEncodecEOS = false;
+    mSignalledEncodecError = false;
+    mErrorCode = AMEDIA_OK;
+    mNumOutputDecodecVideoFrame = 0;
+    mNumOutputDecodecAudioFrame = 0;
+    mNumInputFrame = 0;
+    mNumOutputVideoFrame = 0;
+    CallBackHandle::mSawError = false;
+    CallBackHandle::mIsDone = false;
 
     LOGI("sSrcPath :%s \n ", sSrcPath.c_str());
     callbackInfo =
@@ -57,6 +73,9 @@ MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputP
         callbackInfo =
                 "Failed to initialize extractor \n";
         PostStatusMessage(callbackInfo.c_str());
+        // 失败分支也要 release()：否则 AMediaExtractor_new() 的对象和输入 FILE*
+        // 挂在复用的单例上，下一轮直接被覆盖，每失败一次泄漏一份。
+        release();
         return;
     }
 
@@ -66,6 +85,7 @@ MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputP
         callbackInfo =
                 "No valid tracks found \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -75,6 +95,7 @@ MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputP
         callbackInfo =
                 "Failed to initialize Decodec \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -84,6 +105,7 @@ MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputP
         callbackInfo =
                 "Decodec failed \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -93,6 +115,7 @@ MediaExtratorDecodecEncodec::startMediaExtratorDecodecEncodec(const char *inputP
         callbackInfo =
                 "Failed to initialize Encodec \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -124,8 +147,8 @@ bool MediaExtratorDecodecEncodec::initExtractor() {
         return false;
     }
     LOGE("inputPath:%s", sSrcPath.c_str());
-    FILE *inputFp = fopen(sSrcPath.c_str(), "rb");
-    if (!inputFp) {
+    mInputFp = fopen(sSrcPath.c_str(), "rb");
+    if (!mInputFp) {
         LOGE("Unable to open output file :%s", sSrcPath.c_str());
         callbackInfo =
                 "Unable to open output file :" + sSrcPath + "\n";
@@ -135,7 +158,7 @@ bool MediaExtratorDecodecEncodec::initExtractor() {
     struct stat buf;
     stat(sSrcPath.c_str(), &buf);
     size_t fileSize = buf.st_size;
-    int32_t input_fd = fileno(inputFp);
+    int32_t input_fd = fileno(mInputFp);
 
     LOGE("input_fd:%d", input_fd);
     media_status_t status = AMediaExtractor_setDataSourceFd(extractor, input_fd, 0, fileSize);
@@ -456,7 +479,14 @@ bool MediaExtratorDecodecEncodec::decodec() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    LOGI("media decodec completed out file:%c", sOutPath1.c_str());
+    LOGI("media decodec completed out file:%s", sOutPath1.c_str());
+    // 必须在这里就关掉：encodec() 第二步会把 sOutPath1 当输入文件读它的大小和内容
+    // （ifstream eleStream(sOutPath1...)），mDecodecOutFp 一直不 fclose 的话，
+    // 还留在 stdio 缓冲区里的尾部数据对它不可见，第二遍拿到的尺寸/帧就是残缺的。
+    if (mDecodecOutFp) {
+        fclose(mDecodecOutFp);
+        mDecodecOutFp = nullptr;
+    }
     callbackInfo =
             "media decodec completed file:" + sOutPath1 + "\n";
     PostStatusMessage(callbackInfo.c_str());
@@ -667,7 +697,16 @@ bool MediaExtratorDecodecEncodec::encodec(bool asyncMode) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    LOGI("media encodec completed out file:%c", sOutPath2.c_str());
+    LOGI("media encodec completed out file:%s", sOutPath2.c_str());
+    // fwrite 之后必须 fclose，否则最后一缓冲区的数据不会落盘（界面上已经提示完成，
+    // 文件却是残缺的），fd 也一直泄漏。
+    if (mEncodecOutFp) {
+        fclose(mEncodecOutFp);
+        mEncodecOutFp = nullptr;
+    }
+    // mEleStream 指的是 encodec() 的栈上 ifstream（eleStream），函数一返回它就是悬垂
+    // 指针；就地置空，避免后面任何一处再通过成员去摸已经析构的对象。
+    mEleStream = nullptr;
     callbackInfo =
             "media encodec completed file:" + sOutPath2 + "\n";
     PostStatusMessage(callbackInfo.c_str());
@@ -692,27 +731,48 @@ void MediaExtratorDecodecEncodec::release() {
     if (mVideoDeCodec) {
         AMediaCodec_stop(mVideoDeCodec);
         AMediaCodec_delete(mVideoDeCodec);
+        // delete 之后必须置空：对象是 JNI 层缓存复用的单例，留着悬垂地址的话，
+        // 下一轮任何 if (mVideoDeCodec) 判断都会拿它去 stop/delete（二次释放）。
+        mVideoDeCodec = nullptr;
     }
 
     if (mVideoEnCodec) {
         AMediaCodec_stop(mVideoEnCodec);
         AMediaCodec_delete(mVideoEnCodec);
+        mVideoEnCodec = nullptr;
     }
 
     if (mAudioDeCodec) {
         AMediaCodec_stop(mAudioDeCodec);
         AMediaCodec_delete(mAudioDeCodec);
+        mAudioDeCodec = nullptr;
     }
 
     if (mAudioEnCodec) {
         AMediaCodec_stop(mAudioEnCodec);
         AMediaCodec_delete(mAudioEnCodec);
+        mAudioEnCodec = nullptr;
     }
 
     if (mAudioFormat) {
         AMediaFormat_delete(mAudioFormat);
         mAudioFormat = nullptr;
     }
+    // 三个 FILE* 原先没有任何一处 fclose：解码/编码输出用 fwrite 写，缓冲区最后
+    // 一段永远不落盘，fd 也每轮各泄漏一个；mInputFp 是 initExtractor() 打开的输入。
+    if (mDecodecOutFp) {
+        fclose(mDecodecOutFp);
+        mDecodecOutFp = nullptr;
+    }
+    if (mEncodecOutFp) {
+        fclose(mEncodecOutFp);
+        mEncodecOutFp = nullptr;
+    }
+    if (mInputFp) {
+        fclose(mInputFp);
+        mInputFp = nullptr;
+    }
+    mEleStream = nullptr;
     LOGI("Resources released");
 }
 

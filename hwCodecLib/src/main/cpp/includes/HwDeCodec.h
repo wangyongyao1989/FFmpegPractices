@@ -81,23 +81,30 @@ public:
                         string statsFile = "");
 
 private:
-    AMediaCodec *mCodec;
-    AMediaFormat *mFormat;
+    // 本类没有自定义构造函数（MediaExtratorDecodec/Encodec 同理），这些标量成员
+    // 之前全部处于 indeterminate 值。而它们是解码循环的守卫条件：
+    //     while (!mSawOutputEOS && !mSignalledError)
+    // 读到非 0 残值就直接不进循环，一帧都不解，输出文件 0 字节且没有任何报错。
+    // 更隐蔽的是对象复用：ProcessDeCodec 每轮 delete 后 new 同样大小的对象，
+    // 内存块被回收再使用，上一轮的 mSawOutputEOS=true 会原样留在里面，
+    // 于是「第一次点有输出、第二次点输出 0 字节」。
+    AMediaCodec *mCodec = nullptr;
+    AMediaFormat *mFormat = nullptr;
 
-    HwExtractor *mExtractor;
+    HwExtractor *mExtractor = nullptr;
 
-    int32_t mNumInputFrame;
-    int32_t mNumOutputFrame;
+    int32_t mNumInputFrame = 0;
+    int32_t mNumOutputFrame = 0;
 
-    bool mSawInputEOS;
-    bool mSawOutputEOS;
-    bool mSignalledError;
-    media_status_t mErrorCode;
+    bool mSawInputEOS = false;
+    bool mSawOutputEOS = false;
+    bool mSignalledError = false;
+    media_status_t mErrorCode = AMEDIA_OK;
 
-    int32_t mOffset;
-    uint8_t *mInputBuffer;
+    int32_t mOffset = 0;
+    uint8_t *mInputBuffer = nullptr;
     vector<AMediaCodecBufferInfo> mFrameMetaData;
-    FILE *mOutFp;
+    FILE *mOutFp = nullptr;
 
     /* Asynchronous locks */
     mutex mMutex;

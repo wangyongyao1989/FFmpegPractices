@@ -153,6 +153,8 @@ void HwEnCodec::deInitCodec() {
     int64_t sTime = mStats->getCurTime();
     AMediaCodec_stop(mCodec);
     AMediaCodec_delete(mCodec);
+    // delete 后置空，避免下一轮/析构再用 if (mCodec) 判断时拿着悬垂地址二次释放。
+    mCodec = nullptr;
     int64_t eTime = mStats->getCurTime();
     int64_t timeTaken = mStats->getTimeDiff(sTime, eTime);
     mStats->setDeInitTime(timeTaken);
@@ -164,6 +166,17 @@ void HwEnCodec::resetEncoder() {
     if (mMime) mMime = nullptr;
     mInputBufferSize = 0;
     memset(&mParams, 0, sizeof mParams);
+    // 与 HwDeCodec::resetDecoder() 同理：ProcessEnCodec 在 for (curTrack) 里用同一个
+    // 对象依次编视频轨和音频轨，EOS/错误标志不复位的话，第二条轨道的
+    // drain 循环 while (!mSawOutputEOS && !mSignalledError) 一次都不进，音频轨直接不编。
+    mSawInputEOS = false;
+    mSawOutputEOS = false;
+    mSignalledError = false;
+    mErrorCode = AMEDIA_OK;
+    mNumInputFrame = 0;
+    mNumOutputFrame = 0;
+    CallBackHandle::mSawError = false;
+    CallBackHandle::mIsDone = false;
 }
 
 void HwEnCodec::dumpStatistics(string inputReference, int64_t durationUs, string componentName,
