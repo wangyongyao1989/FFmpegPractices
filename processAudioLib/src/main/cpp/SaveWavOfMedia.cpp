@@ -231,6 +231,13 @@ int SaveWavOfMedia::save_wav_file(const char *pcm_name) {
     PostStatusMessage(saveWavInfo.c_str());
 
     WAVHeader wavHeader; // wav文件头结构
+    // 四个固定标识字段必须显式赋值。原先整段都没写，riffCkID/format/fmtCkID/
+    // dataCkID 直接取栈上未初始化的内容，导出的 .wav 头里 "RIFF"、"WAVE"、
+    // "fmt "、"data" 四个魔数全是随机字节，任何播放器都不认这个文件。
+    memcpy(wavHeader.riffCkID, "RIFF", 4);
+    memcpy(wavHeader.format, "WAVE", 4);
+    memcpy(wavHeader.fmtCkID, "fmt ", 4);
+    memcpy(wavHeader.dataCkID, "data", 4);
     // 设置 RIFF chunk size，RIFF chunk size 不包含 RIFF Chunk ID 和 RIFF Chunk Size的大小，所以用 PCM 数据大小加 RIFF 头信息大小减去 RIFF Chunk ID 和 RIFF Chunk Size的大小
     wavHeader.riffCkSize = (pcmDataSize + sizeof(WAVHeader) - 4 - 4);
     wavHeader.fmtCkSize = 16;
@@ -255,11 +262,21 @@ int SaveWavOfMedia::save_wav_file(const char *pcm_name) {
     fwrite((const char *) &wavHeader, 1, sizeof(WAVHeader), fp_wav);
     const int per_size = 1024; // 每次读取的大小
     uint8_t *per_buff = (uint8_t *) av_malloc(per_size); // 读取缓冲区
+    if (!per_buff) {
+        LOGE("Can't alloc pcm buffer.\n");
+        fclose(fp_pcm);
+        fclose(fp_wav);
+        return -1;
+    }
     int len = 0;
     // 循环读取PCM文件中的音频数据
     while ((len = fread(per_buff, 1, per_size, fp_pcm)) > 0) {
-        fwrite(per_buff, 1, per_size, fp_wav); // 依次写入每个PCM数据
+        // 按实际读到的长度写入。原先固定写 per_size：最后一块不足 1024 字节时，
+        // 会把缓冲区里残留的上一轮数据一起写进去，文件比 dataCkSize 声明的长度
+        // 更长，尾部是垃圾。
+        fwrite(per_buff, 1, len, fp_wav); // 依次写入每个PCM数据
     }
+    av_free(per_buff); // 释放读取缓冲区
     fclose(fp_pcm); // 关闭pcm文件
     fclose(fp_wav); // 关闭wav文件
     return 0;

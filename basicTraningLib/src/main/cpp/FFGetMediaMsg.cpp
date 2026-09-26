@@ -21,14 +21,14 @@ string FFGetMediaMsg::getMediaMsg(const char *cFragPath) {
     int ret = avformat_open_input(&fmt_ctx, cFragPath, nullptr, nullptr);
     if (ret < 0) {
         LOGE("Can't open file %s.\n", cFragPath);
-        return nullptr;
+        return string(); // 原为 return nullptr：用空指针构造 std::string 是未定义行为
     }
     LOGI("Success open input_file %s.\n", cFragPath);
     // 查找音视频文件中的流信息
     ret = avformat_find_stream_info(fmt_ctx, nullptr);
     if (ret < 0) {
         LOGE("Can't find stream information.\n");
-        return nullptr;
+        return string(); // 同上，不能拿 nullptr 构造 std::string
     }
     LOGI("Success find stream information.\n");
     // 格式化输出文件信息
