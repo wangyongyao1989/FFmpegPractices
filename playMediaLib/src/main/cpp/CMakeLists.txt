@@ -21,6 +21,7 @@ set(third-party-libs
 
 include_directories(
         includes
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../nativeCommon/include
 )
 
 add_library(
@@ -28,7 +29,7 @@ add_library(
         SHARED
         # List C/C++ source files with relative paths to this CMakeLists.txt.
         PlayMediaJniCall.cpp
-        AndroidThreadManager.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../nativeCommon/src/AndroidThreadManager.cpp
         PlayAudioTrack.cpp
         OpenslHelper.cpp
         FFmpegOpenSLPlayer.cpp
