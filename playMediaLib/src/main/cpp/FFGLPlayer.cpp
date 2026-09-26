@@ -203,18 +203,34 @@ bool FFGLPlayer::start() {
     pthread_mutex_lock(&mDecodeMutex);
 
     if (mIsPlaying) {
+        // 每个 return 都在 mDecodeMutex 保护区内，必须先解锁再返回：
+        // 原先三处 return 都不解锁，解码/渲染线程一上来就要拿这把锁，
+        // 于是永远拿不到，第二次播放直接卡死。
+        pthread_mutex_unlock(&mDecodeMutex);
         return true;
     }
 
     mStopRequested = false;
     mIsPlaying = true;
     mDecodeFinished = false;
-    videoFrameQueue.clear();
+    // clear() 只丢指针，队列里残留的 AVFrame 本体（连同 av_frame_ref 引用的
+    // 解码器缓冲区）不会释放；逐帧 free。pop(T&) 在队列空且未 stop 时会阻塞，
+    // 所以带 empty() 守卫。
+    AVFrame *leftover = nullptr;
+    while (!videoFrameQueue.empty() && videoFrameQueue.pop(leftover)) {
+        if (leftover) {
+            av_frame_unref(leftover);
+            av_frame_free(&leftover);
+        }
+    }
+    // stop() 里给队列打过停止标记，重启后必须清掉，否则 push() 永远返回 false
+    videoFrameQueue.restart();
 
     if (pthread_create(&mDecodeThread, nullptr, decodeThreadWrapper, this) != 0) {
         LOGE("Failed to create decode thread");
         PostStatusMessage("Failed to create decode thread");
         mIsPlaying = false;
+        pthread_mutex_unlock(&mDecodeMutex);
         return false;
     }
 
@@ -223,8 +239,11 @@ bool FFGLPlayer::start() {
         PostStatusMessage("Failed to create render thread");
         mIsPlaying = false;
         mStopRequested = true;
+        pthread_cond_signal(&mBufferMaxCond);
         pthread_join(mDecodeThread, nullptr);
         mDecodeThread = 0;
+        // 必须在 join 之后解锁：解码线程正等这把锁，持锁 join 是死锁
+        pthread_mutex_unlock(&mDecodeMutex);
         return false;
     }
 
@@ -319,9 +338,19 @@ void FFGLPlayer::decodeThread() {
                 avcodec_send_packet(mCodecContext, nullptr);
                 while (avcodec_receive_frame(mCodecContext, frame) == 0) {
                     AVFrame *frameCopy = av_frame_alloc();
+                    if (!frameCopy) {
+                        LOGE("Could not allocate frame copy");
+                        break;
+                    }
                     if (av_frame_ref(frameCopy, frame) >= 0) {
-                        videoFrameQueue.push(frameCopy);
-                        pthread_cond_signal(&mRenderCond);
+                        if (!videoFrameQueue.push(frameCopy)) {
+                            // 队列已 stop 时 push 返回 false 且不接管指针，
+                            // 不接住返回值就等于每帧漏一帧
+                            av_frame_unref(frameCopy);
+                            av_frame_free(&frameCopy);
+                        } else {
+                            pthread_cond_signal(&mRenderCond);
+                        }
                     } else {
                         av_frame_free(&frameCopy);
                     }
@@ -350,11 +379,17 @@ void FFGLPlayer::decodeThread() {
                     continue;
                 }
                 if (av_frame_ref(frameCopy, frame) >= 0) {
-                    videoFrameQueue.push(frameCopy);
-                    pthread_cond_signal(&mRenderCond);
+                    if (!videoFrameQueue.push(frameCopy)) {
+                        av_frame_unref(frameCopy);
+                        av_frame_free(&frameCopy);
+                    } else {
+                        pthread_cond_signal(&mRenderCond);
+                    }
                 } else {
                     av_frame_free(&frameCopy);
-                    pthread_mutex_unlock(&mDecodeMutex);
+                    // 这里不能 unlock：整个 while 循环都在 mDecodeMutex 保护区内，
+                    // 由循环末尾统一释放。提前解锁后再走到末尾的 unlock，就是同一把
+                    // 非递归锁解两次（未定义行为），之后的加/解锁配对全部错位。
                 }
             }
         }

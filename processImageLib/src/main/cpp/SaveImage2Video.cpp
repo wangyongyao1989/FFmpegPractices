@@ -144,7 +144,9 @@ int SaveImage2Video::open_input_file(int seq, const char *src_name) {
             return -1;
         }
         image_decode_ctx[seq] = avcodec_alloc_context3(video_codec); // 分配解码器的实例
-        if (!image_decode_ctx) {
+        if (!image_decode_ctx[seq]) { // 判的是这一路刚刚申请的实例，不是数组名
+            // 原先写的是 if (!image_decode_ctx)：数组名退化成永远非空的指针，
+            // 这个空检查是死代码，alloc 失败时会带着 null 元素继续往下走。
             LOGE("image_decode_ctx is null\n");
             image2VideoInfo = "image_decode_ctx is null\n";
             PostStatusMessage(image2VideoInfo.c_str());

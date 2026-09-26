@@ -236,17 +236,32 @@ bool FFSurfacePlayer::start() {
     pthread_mutex_lock(&mDecodeMutex);
 
     if (mIsPlaying) {
+        // 每个 return 都在 mDecodeMutex 保护区内，必须先解锁再返回。
+        // 原先三处 return 都不解锁：解码/渲染线程一上来就要拿这把锁，
+        // 于是永远拿不到，第二次播放直接卡死在这里。
+        pthread_mutex_unlock(&mDecodeMutex);
         return true;
     }
 
     mStopRequested = false;
     mIsPlaying = true;
-    videoFrameQueue.clear();
+    // 不能用 ThreadSafeQueue::clear()：它只把元素 pop 掉，AVFrame* 指向的帧
+    // 本体连同引用的解码器缓冲区全留在 native heap 上（它自己的注释就写着
+    // 「如果 T 是指针类型，可能需要特殊处理」）。这里逐帧真正释放。
+    // pop(T&) 在队列空且未 stop 时会阻塞，所以必须带 empty() 守卫。
+    AVFrame *leftover = nullptr;
+    while (!videoFrameQueue.empty() && videoFrameQueue.pop(leftover)) {
+        if (leftover) {
+            av_frame_unref(leftover);
+            av_frame_free(&leftover);
+        }
+    }
 
     if (pthread_create(&mDecodeThread, nullptr, decodeThreadWrapper, this) != 0) {
         LOGE("Failed to create decode thread");
         PostStatusMessage("Failed to create decode thread");
         mIsPlaying = false;
+        pthread_mutex_unlock(&mDecodeMutex);
         return false;
     }
 
@@ -255,8 +270,11 @@ bool FFSurfacePlayer::start() {
         PostStatusMessage("Failed to create render thread");
         mIsPlaying = false;
         mStopRequested = true;
+        pthread_cond_signal(&mBufferMaxCond);
         pthread_join(mDecodeThread, nullptr);
         mDecodeThread = 0;
+        // 必须在 join 之后解锁：解码线程正等这把锁，持锁 join 是死锁
+        pthread_mutex_unlock(&mDecodeMutex);
         return false;
     }
 
@@ -292,7 +310,14 @@ void FFSurfacePlayer::stop() {
         mRenderThread = 0;
     }
 
-    videoFrameQueue.clear();
+    // 停止时把残余帧逐帧释放（同 start() 里的说明），clear() 只丢指针不释放帧。
+    AVFrame *leftover = nullptr;
+    while (!videoFrameQueue.empty() && videoFrameQueue.pop(leftover)) {
+        if (leftover) {
+            av_frame_unref(leftover);
+            av_frame_free(&leftover);
+        }
+    }
 
     LOGI("Playback stopped");
     PostStatusMessage("Playback stopped");
@@ -363,11 +388,20 @@ void FFSurfacePlayer::decodeThread() {
                     continue;
                 }
                 if (av_frame_ref(frameCopy, frame) >= 0) {
-                    videoFrameQueue.push(frameCopy);
-                    pthread_cond_signal(&mRenderCond);
+                    if (!videoFrameQueue.push(frameCopy)) {
+                        // 队列已 stop 时 push 返回 false 且不接管指针，
+                        // 不接住这个返回值就等于每帧漏一帧
+                        av_frame_unref(frameCopy);
+                        av_frame_free(&frameCopy);
+                    } else {
+                        pthread_cond_signal(&mRenderCond);
+                    }
                 } else {
                     av_frame_free(&frameCopy);
-                    pthread_mutex_unlock(&mDecodeMutex);
+                    // 这里不能 unlock：整个 while 循环都处在 mDecodeMutex 保护区内，
+                    // 由循环末尾统一释放。原先在失败分支提前解锁，接着走到下面的
+                    // pthread_mutex_unlock(&mDecodeMutex) 就是同一把锁解两次，
+                    // 非递归锁二次解锁是未定义行为，之后所有加/解锁的配对都乱了。
                 }
             }
         }
@@ -421,6 +455,13 @@ void FFSurfacePlayer::renderVideoThread() {
             lastPts = frame->pts;
 
             sendFrameDataToANativeWindow(frame);
+
+            // 队列里存的是 av_frame_alloc()+av_frame_ref() 得到的引用，渲染完必须
+            // 归还。原先只让包着指针的 shared_ptr<AVFrame*> 析构——它销毁的是那个
+            // 「指针的指针」，AVFrame 本体和它引用的解码器缓冲区一个都没释放，
+            // 于是每渲染一帧漏一帧（FFGLPlayer 的同名循环是有 av_frame_free 的）。
+            av_frame_unref(frame);
+            av_frame_free(&frame);
 
             // 通知解码线程
             if (videoFrameQueue.size() < maxVideoFrames / 2) {
