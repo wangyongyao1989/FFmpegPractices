@@ -47,8 +47,10 @@ cpp_process_hw_extractor(JNIEnv *env, jobject thiz, jstring srcPath, jstring out
     if (mProcessExtractor == nullptr) {
         mProcessExtractor = new ProcessExtractor(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mProcessExtractor->startProcessExtractor(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mProcessExtractor->startProcessExtractor(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("ProcessExtractorThread", task, PRIORITY_NORMAL);
@@ -70,8 +72,12 @@ cpp_process_hw_muxer(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPath
     if (mProcessMuxer == nullptr) {
         mProcessMuxer = new ProcessMuxer(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2, cFmt]() {
-        mProcessMuxer->startProcessMuxer(cSrcPath, cOutPath1, cOutPath2, cFmt);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath1 = cOutPath1 ? cOutPath1 : "";
+    const std::string own_cOutPath2 = cOutPath2 ? cOutPath2 : "";
+    const std::string own_cFmt = cFmt ? cFmt : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath1, own_cOutPath2, own_cFmt]() {
+        mProcessMuxer->startProcessMuxer(own_cSrcPath.c_str(), own_cOutPath1.c_str(), own_cOutPath2.c_str(), own_cFmt.c_str());
     };
 
     g_threadManager->submitTask("ProcessMuxerThread", task, PRIORITY_NORMAL);
@@ -95,8 +101,12 @@ cpp_process_hw_decodec(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPa
     if (mProcessDeCodec == nullptr) {
         mProcessDeCodec = new ProcessDeCodec(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2, cCodecName]() {
-        mProcessDeCodec->startProcessDecodec(cSrcPath, cOutPath1, cOutPath2, cCodecName);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath1 = cOutPath1 ? cOutPath1 : "";
+    const std::string own_cOutPath2 = cOutPath2 ? cOutPath2 : "";
+    const std::string own_cCodecName = cCodecName ? cCodecName : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath1, own_cOutPath2, own_cCodecName]() {
+        mProcessDeCodec->startProcessDecodec(own_cSrcPath.c_str(), own_cOutPath1.c_str(), own_cOutPath2.c_str(), own_cCodecName.c_str());
     };
 
     g_threadManager->submitTask("ProcessDecodecThread", task, PRIORITY_NORMAL);
@@ -117,8 +127,10 @@ cpp_media_trans_muxer(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPat
     if (mMediaTransmuxer == nullptr) {
         mMediaTransmuxer = new MediaTransMuxer(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mMediaTransmuxer->startMediaTransMuxer(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mMediaTransmuxer->startMediaTransMuxer(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("MediaTransmuxerThread", task, PRIORITY_NORMAL);
@@ -137,8 +149,10 @@ cpp_media_extractor_decodec(JNIEnv *env, jobject thiz, jstring srcPath, jstring 
     if (mMediaExtratorDecodec == nullptr) {
         mMediaExtratorDecodec = new MediaExtratorDecodec(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mMediaExtratorDecodec->startMediaExtratorDecodec(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mMediaExtratorDecodec->startMediaExtratorDecodec(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("MediaExtractorDecodecThread", task, PRIORITY_NORMAL);
@@ -159,8 +173,12 @@ cpp_process_hw_encodec(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPa
     if (mProcessEnCodec == nullptr) {
         mProcessEnCodec = new ProcessEnCodec(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2, cCodecName]() {
-        mProcessEnCodec->startProcessEnCodec(cSrcPath, cOutPath1, cOutPath2, cCodecName);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath1 = cOutPath1 ? cOutPath1 : "";
+    const std::string own_cOutPath2 = cOutPath2 ? cOutPath2 : "";
+    const std::string own_cCodecName = cCodecName ? cCodecName : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath1, own_cOutPath2, own_cCodecName]() {
+        mProcessEnCodec->startProcessEnCodec(own_cSrcPath.c_str(), own_cOutPath1.c_str(), own_cOutPath2.c_str(), own_cCodecName.c_str());
     };
 
     g_threadManager->submitTask("ProcessEncodecThread", task, PRIORITY_NORMAL);
@@ -183,9 +201,12 @@ cpp_media_extractor_decodec_encodec(JNIEnv *env, jobject thiz, jstring srcPath,
     if (mMediaExtratorDecodecEncodec == nullptr) {
         mMediaExtratorDecodecEncodec = new MediaExtratorDecodecEncodec(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath1, cOutPath2]() {
-        mMediaExtratorDecodecEncodec->startMediaExtratorDecodecEncodec(cSrcPath, cOutPath1,
-                                                                       cOutPath2);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath1 = cOutPath1 ? cOutPath1 : "";
+    const std::string own_cOutPath2 = cOutPath2 ? cOutPath2 : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath1, own_cOutPath2]() {
+        mMediaExtratorDecodecEncodec->startMediaExtratorDecodecEncodec(own_cSrcPath.c_str(), own_cOutPath1.c_str(),
+                                                                       own_cOutPath2.c_str());
     };
 
     g_threadManager->submitTask("MediaExtractorDecodecEncodecThread", task, PRIORITY_NORMAL);

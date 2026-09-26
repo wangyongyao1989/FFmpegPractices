@@ -95,8 +95,10 @@ cpp_save_jpg_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outP
         mSaveJPGFromVideo = new SaveJPGFromVideo(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mSaveJPGFromVideo->startWriteJPGThread(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mSaveJPGFromVideo->startWriteJPGThread(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("WriteJPGThread", task, PRIORITY_NORMAL);
@@ -115,8 +117,10 @@ cpp_save_jpg_sws_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring 
         mSaveJPGSwsFromVideo = new SaveJPGSwsFromVideo(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mSaveJPGSwsFromVideo->startWriteJPGSws(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mSaveJPGSwsFromVideo->startWriteJPGSws(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("WriteJPGThread", task, PRIORITY_NORMAL);
@@ -135,8 +139,10 @@ cpp_save_png_sws_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring 
         mSavePNGSwsFromVideo = new SavePNGSwsFromVideo(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mSavePNGSwsFromVideo->startWritePNGSws(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mSavePNGSwsFromVideo->startWritePNGSws(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("WritePNGThread", task, PRIORITY_NORMAL);
@@ -155,8 +161,10 @@ cpp_save_bmp_sws_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring 
         mSaveBMPSwsFromVideo = new SaveBMPSwsFromVideo(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mSaveBMPSwsFromVideo->startWriteBMPSws(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mSaveBMPSwsFromVideo->startWriteBMPSws(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("WriteBMPThread", task, PRIORITY_NORMAL);
@@ -175,8 +183,10 @@ cpp_save_gif_from_video(JNIEnv *env, jobject thiz, jstring srcPath, jstring outP
         mSaveGifOfVideo = new SaveGifSwsOfVideo(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mSaveGifOfVideo->startWriteGif(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mSaveGifOfVideo->startWriteGif(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("WriteGIFThread", task, PRIORITY_NORMAL);
@@ -196,8 +206,11 @@ cpp_save_image_to_video(JNIEnv *env, jobject thiz, jstring srcPath1,
         mSaveImage2Video = new SaveImage2Video(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath1, cSrcPath2, cOutPath]() {
-        mSaveImage2Video->startImage2Video(cSrcPath1, cSrcPath2, cOutPath);
+    const std::string own_cSrcPath1 = cSrcPath1 ? cSrcPath1 : "";
+    const std::string own_cSrcPath2 = cSrcPath2 ? cSrcPath2 : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath1, own_cSrcPath2, own_cOutPath]() {
+        mSaveImage2Video->startImage2Video(own_cSrcPath1.c_str(), own_cSrcPath2.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("Image2VideoThread", task, PRIORITY_NORMAL);
