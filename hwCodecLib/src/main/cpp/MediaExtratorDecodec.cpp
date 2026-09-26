@@ -441,7 +441,7 @@ bool MediaExtratorDecodec::decodec() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    LOGI("media decodec completed out file:%c", sOutPath.c_str());
+    LOGI("media decodec completed out file:%s", sOutPath.c_str());
     callbackInfo =
             "media decodec completed file:" + sOutPath + "\n";
     PostStatusMessage(callbackInfo.c_str());

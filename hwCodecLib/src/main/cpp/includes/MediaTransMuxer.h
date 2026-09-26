@@ -37,6 +37,13 @@ private:
     bool hasVideo = false;
     bool hasAudio = false;
 
+    // 输入/输出文件句柄。原先是 initExtractor()/initMuxer() 里的局部变量，
+    // 两个 FILE* 全项目没有任何一处 fclose：每点一次按钮泄漏两个 fd。
+    // 提成成员后由 release() 统一关（不提前关，是因为 AMediaMuxer/AMediaExtractor
+    // 对传入 fd 的所有权 NDK 头文件里没写清楚，保持与改动前一致的存活区间最稳妥）。
+    FILE *mInputFp = nullptr;
+    FILE *mOutputFp = nullptr;
+
     string sSrcPath;
     string sOutPath;
 
