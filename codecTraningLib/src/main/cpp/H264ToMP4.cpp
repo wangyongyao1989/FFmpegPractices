@@ -61,30 +61,46 @@ H264ToMP4::~H264ToMP4() {
         codecThread = nullptr;
     }
 
-    mSrcPath = nullptr;
-    mDestPath = nullptr;
+    mSrcPath = "";
+    mDestPath = "";
 
     packet_index = 0;
 
 }
 
 void H264ToMP4::startWriteMP4Thread(const char *srcPath, const char *destPath) {
+    // 先回收上一轮线程，再赋值路径、打开文件。原先是 detach() + 「thread 成员
+    // 非空就不再启动」：detached 线程对象永远留在成员里，同一个功能点第二次点击
+    // 永久静默空转，而输入/输出文件已在这段代码里被重新打开一遍，句柄和
+    // AVFormatContext 白漏；detach() 又与析构函数里的 join() 直接矛盾
+    // （对 detached 线程 join 会抛 std::system_error 而 abort）。
+    if (codecThread != nullptr) {
+        if (!mWorkFinished) {
+            LOGE("The previous task is still running, ignore this request.\n");
+            h264ToMP4Info = "上一次任务仍在进行中，请等待完成\n";
+            PostStatusMessage(h264ToMP4Info.c_str());
+            return;
+        }
+        codecThread->join();
+        delete codecThread;
+        codecThread = nullptr;
+    }
+
     mSrcPath = srcPath;
     mDestPath = destPath;
-    if (open_input_file(mSrcPath) < 0) { // 打开输入文件
+    if (open_input_file(mSrcPath.c_str()) < 0) { // 打开输入文件
         return;
     }
-    if (open_output_file(mDestPath) < 0) { // 打开输出文件
+    if (open_output_file(mDestPath.c_str()) < 0) { // 打开输出文件
         return;
     }
-    if (codecThread == nullptr) {
-        codecThread = new thread(DoRecoding, this);
-        codecThread->detach();
-    }
+    mWorkFinished = false;
+    codecThread = new thread(DoRecoding, this); // 不 detach：由本类在下一轮或析构时 join
 }
 
 void H264ToMP4::DoRecoding(H264ToMP4 *h264ToMP4) {
     h264ToMP4->recodecVideo();
+    h264ToMP4->mWorkFinished = true; // 本轮跑完，允许下一次点击重启
 }
 
 void H264ToMP4::recodecVideo() {
@@ -94,9 +110,9 @@ void H264ToMP4::recodecVideo() {
     while (av_read_frame(in_fmt_ctx, packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index) { // 视频包需要重新编码
             packet->stream_index = 0;
-            if (packet->buf->size < 600) {
+            if (packet->size < 600) {
                 h264ToMP4Info =
-                        "读出视频包的大小：" + to_string(packet->buf->size) + "，并重新编码写入...\n";
+                        "读出视频包的大小：" + to_string(packet->size) + "，并重新编码写入...\n";
                 PostStatusMessage(h264ToMP4Info.c_str());
             }
             LOGD("%s.\n", h264ToMP4Info.c_str());
@@ -106,7 +122,7 @@ void H264ToMP4::recodecVideo() {
             av_packet_rescale_ts(packet, src_audio->time_base, dest_audio->time_base);
             ret = av_write_frame(out_fmt_ctx, packet); // 往文件写入一个数据包
             h264ToMP4Info =
-                    "读出音频包的大小：" + to_string(packet->buf->size) + "，并写入...\n";
+                    "读出音频包的大小：" + to_string(packet->size) + "，并写入...\n";
             PostStatusMessage(h264ToMP4Info.c_str());
             LOGD("%s.\n", h264ToMP4Info.c_str());
             if (ret < 0) {
@@ -221,11 +237,18 @@ int H264ToMP4::output_video(AVFrame *frame) {
         PostStatusMessage(h264ToMP4Info.c_str());
         return ret;
     }
+    // 数据包只在循环外分配一次：原先每次迭代都 av_packet_alloc()，
+    // 而 EAGAIN/EOF 分支直接 return，每轮泄漏一个 AVPacket。
+    AVPacket *packet = av_packet_alloc(); // 分配一个数据包
+    if (!packet) {
+        LOGE("Can't alloc packet.\n");
+        return AVERROR(ENOMEM);
+    }
     while (1) {
-        AVPacket *packet = av_packet_alloc(); // 分配一个数据包
         // 从编码器实例获取压缩后的数据包
         ret = avcodec_receive_packet(video_encode_ctx, packet);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            av_packet_free(&packet);
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
@@ -250,6 +273,7 @@ int H264ToMP4::output_video(AVFrame *frame) {
         }
         av_packet_unref(packet); // 清除数据包
     }
+    av_packet_free(&packet);
     return ret;
 }
 

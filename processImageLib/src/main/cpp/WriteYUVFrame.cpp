@@ -47,25 +47,41 @@ WriteYUVFrame::~WriteYUVFrame() {
         mFrame = nullptr;
     }
 
-    mDestPath = nullptr;
+    mDestPath = "";
 
 }
 
 
 void WriteYUVFrame::startWriteYUVThread(const char *destPath) {
+    // 先回收上一轮线程，再打开输出文件。原先是 detach() + 「thread 成员非空就
+    // 不再启动」：detached 线程对象永远留在成员里，同一个功能点第二次点击永久
+    // 静默空转，而输出文件已经在上面被重新打开，句柄和上下文白漏；detach()
+    // 又与析构函数里的 join() 直接矛盾（对 detached 线程 join 会抛
+    // std::system_error 而 abort）。
+    if (mThread != nullptr) {
+        if (!mWorkFinished) {
+            LOGE("The previous task is still running, ignore this request.\n");
+            writeYUVInfo = "上一次任务仍在进行中，请等待完成\n";
+            PostStatusMessage(writeYUVInfo.c_str());
+            return;
+        }
+        mThread->join();
+        delete mThread;
+        mThread = nullptr;
+    }
+
     LOGE("startWriteYUVThread %s.\n", destPath);
     mDestPath = destPath;
     if (open_output_file(destPath) < 0) { // 打开输出文件
         return;
     }
-    if (mThread == nullptr) {
-        mThread = new thread(DoThreading, this);
-        mThread->detach();
-    }
+    mWorkFinished = false;
+    mThread = new thread(DoThreading, this); // 不 detach：由本类在下一轮或析构时 join
 }
 
 void WriteYUVFrame::DoThreading(WriteYUVFrame *writeYUV) {
     writeYUV->processImageProcedure();
+    writeYUV->mWorkFinished = true; // 本轮跑完，允许下一次点击重启
 }
 
 void WriteYUVFrame::processImageProcedure() {
@@ -137,11 +153,18 @@ int WriteYUVFrame::output_video(AVFrame *frame) {
         return ret;
     }
 
+    // 数据包只在循环外分配一次：原先每次迭代都 av_packet_alloc()，
+    // 而 EAGAIN/EOF 分支直接 return，每轮泄漏一个 AVPacket。
+    AVPacket *packet = av_packet_alloc(); // 分配一个数据包
+    if (!packet) {
+        LOGE("Can't alloc packet.\n");
+        return AVERROR(ENOMEM);
+    }
     while (1) {
-        AVPacket *packet = av_packet_alloc(); // 分配一个数据包
         // 从编码器实例获取压缩后的数据包
         ret = avcodec_receive_packet(video_encode_ctx, packet);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            av_packet_free(&packet);
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
@@ -151,11 +174,9 @@ int WriteYUVFrame::output_video(AVFrame *frame) {
             PostStatusMessage(writeYUVInfo.c_str());
             break;
         }
-        if (packet->buf) {
-            writeYUVInfo =
-                    "写入packet的大小：" + to_string(packet->buf->size) + "\n";
-            PostStatusMessage(writeYUVInfo.c_str());
-        }
+        writeYUVInfo =
+                "写入packet的大小：" + to_string(packet->size) + "\n";
+        PostStatusMessage(writeYUVInfo.c_str());
         // 把数据包的时间戳从一个时间基转换为另一个时间基
         av_packet_rescale_ts(packet, video_encode_ctx->time_base, dest_video->time_base);
         packet->stream_index = 0;
@@ -169,31 +190,32 @@ int WriteYUVFrame::output_video(AVFrame *frame) {
         }
         av_packet_unref(packet); // 清除数据包
     }
+    av_packet_free(&packet);
     return ret;
 }
 
 int WriteYUVFrame::open_output_file(const char *destPath) {
     // 分配音视频文件的封装实例
-    int ret = avformat_alloc_output_context2(&out_fmt_ctx, nullptr, nullptr, mDestPath);
+    int ret = avformat_alloc_output_context2(&out_fmt_ctx, nullptr, nullptr, mDestPath.c_str());
     if (ret < 0) {
-        LOGE("Can't alloc output_file %s.\n", mDestPath);
+        LOGE("Can't alloc output_file %s.\n", mDestPath.c_str());
         av_strerror(ret, errbuf, sizeof(errbuf));
-        writeYUVInfo = "Can't alloc output_file:" + string(mDestPath) + "\n";
+        writeYUVInfo = "Can't alloc output_file:" + mDestPath + "\n";
         PostStatusMessage(writeYUVInfo.c_str());
         return -1;
     }
     // 打开输出流
-    ret = avio_open(&out_fmt_ctx->pb, mDestPath, AVIO_FLAG_READ_WRITE);
+    ret = avio_open(&out_fmt_ctx->pb, mDestPath.c_str(), AVIO_FLAG_READ_WRITE);
     if (ret < 0) {
-        LOGE("Can't open output_file %s.\n", mDestPath);
+        LOGE("Can't open output_file %s.\n", mDestPath.c_str());
         av_strerror(ret, errbuf, sizeof(errbuf));
         writeYUVInfo = "Can't open output_file:" + to_string(ret) + "\n error msg：" +
                        string(errbuf) + "\n";
         PostStatusMessage(writeYUVInfo.c_str());
         return -1;
     }
-    LOGI("Success open output_file %s.\n", mDestPath);
-    writeYUVInfo = "Success open output_file:" + string(mDestPath);
+    LOGI("Success open output_file %s.\n", mDestPath.c_str());
+    writeYUVInfo = "Success open output_file:" + mDestPath;
     PostStatusMessage(writeYUVInfo.c_str());
 //    // 查找编码器
 //    AVCodec *video_codec = (AVCodec *) avcodec_find_encoder(AV_CODEC_ID_H264);

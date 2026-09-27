@@ -16,7 +16,13 @@ string FFWriteMediaFilter::init_filter(AVStream *video_stream, AVCodecContext *v
     enum AVPixelFormat pix_fmts[] = {AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE};
     filter_graph = avfilter_graph_alloc(); // 分配一个滤镜图
     if (!outputs || !inputs || !filter_graph) {
-        retFilterMsg = &"AVERROR(ENOMEM):" [ AVERROR(ENOMEM)];
+        // 原先写的是 retFilterMsg = &"AVERROR(ENOMEM):" [ AVERROR(ENOMEM) ];
+        // AVERROR(ENOMEM) 是负数，等于对字符串字面量取负下标，读的是字面量之前
+        // 的内存（未定义行为），据此构造的 std::string 内容随机、长度可能失控。
+        retFilterMsg = "AVERROR(ENOMEM): alloc filter graph failed";
+        // 这三个对象是本函数申请的，失败分支直接返回就必须自己回收
+        if (inputs) avfilter_inout_free(&inputs);
+        if (outputs) avfilter_inout_free(&outputs);
         return retFilterMsg;
     }
     char args[512]; // 临时字符串，存放输入源的媒体参数信息，比如视频的宽高、像素格式等

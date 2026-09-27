@@ -26,9 +26,11 @@ private:
     string sSrcPath;
     string sOutPath;
 
-    HwExtractor *mHwExtractor;
+    // 必须显式初始化：入口的判空回收和析构函数都会用到这些成员，
+    // 无初值时首次点击按钮就会 delete/fclose 野指针。
+    HwExtractor *mHwExtractor = nullptr;
 
-    FILE *inputFp;
+    FILE *inputFp = nullptr;
 
     void processProcessExtractor();
 

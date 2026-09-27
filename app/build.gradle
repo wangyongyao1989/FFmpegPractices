@@ -53,6 +53,7 @@ dependencies {
     implementation project(':processFilterLib')
     implementation project(':hwCodecLib')
     implementation project(':playMediaLib')
+    implementation project(':rtspLib')
 
     implementation libs.appcompat
     implementation libs.material

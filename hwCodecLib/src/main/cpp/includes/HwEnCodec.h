@@ -79,20 +79,22 @@ public:
                         string mode = "", string statsFile = "");
 
 private:
-    AMediaCodec *mCodec;
-    AMediaFormat *mFormat;
+    // 与 HwDeCodec 同一类问题：无自定义构造函数，标量成员初值不确定，
+    // 而这些成员是编码 drain 循环的守卫条件和写入文件用的 FILE*。
+    AMediaCodec *mCodec = nullptr;
+    AMediaFormat *mFormat = nullptr;
 
-    int32_t mNumInputFrame;
-    int32_t mNumOutputFrame;
-    bool mSawInputEOS;
-    bool mSawOutputEOS;
-    bool mSignalledError;
-    media_status_t mErrorCode;
+    int32_t mNumInputFrame = 0;
+    int32_t mNumOutputFrame = 0;
+    bool mSawInputEOS = false;
+    bool mSawOutputEOS = false;
+    bool mSignalledError = false;
+    media_status_t mErrorCode = AMEDIA_OK;
 
-    char *mMime;
-    int32_t mOffset;
-    std::ifstream *mEleStream;
-    size_t mInputBufferSize;
+    char *mMime = nullptr;
+    int32_t mOffset = 0;
+    std::ifstream *mEleStream = nullptr;
+    size_t mInputBufferSize = 0;
     encParameter mParams;
 
     // Asynchronous locks

@@ -69,8 +69,10 @@ private:
     const char *audio_mime = nullptr;
 
     // 音频格式信息
-    int audioSampleRate;
-    int audioChannelCount;
+    // 与 MediaExtratorDecodec 同样的问题：标量成员无初值，且对象被 JNI 层缓存复用，
+    // EOS/错误标志和帧计数不会随新一轮点击复位，drain 循环因此可能一帧都不进。
+    int audioSampleRate = 0;
+    int audioChannelCount = 0;
 
 
     bool hasVideo = false;
@@ -81,30 +83,30 @@ private:
     string sOutPath2;
 
 
-    int32_t mNumOutputDecodecVideoFrame;
-    int32_t mNumOutputDecodecAudioFrame;
+    int32_t mNumOutputDecodecVideoFrame = 0;
+    int32_t mNumOutputDecodecAudioFrame = 0;
 
-    bool mSawInputDecodecEOS;
-    bool mSawOutputDecodecEOS;
-    bool mSignalledDecodecError;
-    media_status_t mErrorCode;
+    bool mSawInputDecodecEOS = false;
+    bool mSawOutputDecodecEOS = false;
+    bool mSignalledDecodecError = false;
+    media_status_t mErrorCode = AMEDIA_OK;
 
-    int32_t mOffset;
+    int32_t mOffset = 0;
     AMediaCodecBufferInfo mFrameMetaData;
-    FILE *mDecodecOutFp;
-    FILE *mEncodecOutFp;
+    FILE *mDecodecOutFp = nullptr;
+    FILE *mEncodecOutFp = nullptr;
 
 
     encodecParameter mEncParams;
-    size_t mEncodecInputBufferSize;
+    size_t mEncodecInputBufferSize = 0;
 
-    bool mSawInputEncodecEOS;
-    bool mSawOutputEncodecEOS;
-    bool mSignalledEncodecError;
+    bool mSawInputEncodecEOS = false;
+    bool mSawOutputEncodecEOS = false;
+    bool mSignalledEncodecError = false;
 
-    int mNumInputFrame;
-    int mNumOutputVideoFrame;
-    ifstream *mEleStream;
+    int mNumInputFrame = 0;
+    int mNumOutputVideoFrame = 0;
+    ifstream *mEleStream = nullptr;
 
 
     /* Asynchronous locks */
@@ -115,7 +117,13 @@ private:
 
     bool isDeCodec = false;
 
-    std::ifstream *mSrcEleStream;
+    std::ifstream *mSrcEleStream = nullptr;
+
+    // 输入文件的 FILE*。原先是 initExtractor() 里的局部变量，函数一返回就没人管了，
+    // 每点一次按钮泄漏一个 fd；放到成员里由 release() 统一关。
+    // 不直接在 initExtractor() 里 fclose，是因为 AMediaExtractor_setDataSourceFd
+    // 对 fd 所有权的说明并没有写进 NDK 头文件，保守起见让它在整个解码期间保持打开。
+    FILE *mInputFp = nullptr;
 
 
     bool initExtractor();

@@ -40,17 +40,23 @@ private:
     int videoTrackIndex = -1;
     int audioTrackIndex = -1;
     // 视频格式信息
-    int videoWidth;
-    int videoHeight;
-    int64_t videoDuration;
+    // 本类没有自定义构造函数，下面这批标量成员初值不确定；而 JNI 层把对象
+    // 缓存在全局指针里（HwCodecJniCall.cpp 的 if (mMediaExtratorDecodec == nullptr)），
+    // 每点一次按钮都是同一个对象第二次进入 decodec()，于是这一批「一轮一清」的
+    // 状态会带着上一轮的值：mSawOutputEOS 还是 true，drain 循环
+    //     while (!mSawOutputEOS && !mSignalledError)
+    // 一次都不进，输出文件 0 字节。所以这里全部给默认值，并在 decodec() 开头复位。
+    int videoWidth = 0;
+    int videoHeight = 0;
+    int64_t videoDuration = 0;
 
     const char *video_mime = nullptr;
 
     const char *audio_mime = nullptr;
 
     // 音频格式信息
-    int audioSampleRate;
-    int audioChannelCount;
+    int audioSampleRate = 0;
+    int audioChannelCount = 0;
 
 
     bool hasVideo = false;
@@ -61,23 +67,27 @@ private:
 
 
 
-    int32_t mNumOutputVideoFrame;
-    int32_t mNumOutputAudioFrame;
+    int32_t mNumOutputVideoFrame = 0;
+    int32_t mNumOutputAudioFrame = 0;
 
-    bool mSawInputEOS;
-    bool mSawOutputEOS;
-    bool mSignalledError;
-    media_status_t mErrorCode;
+    bool mSawInputEOS = false;
+    bool mSawOutputEOS = false;
+    bool mSignalledError = false;
+    media_status_t mErrorCode = AMEDIA_OK;
 
-    int32_t mOffset;
+    int32_t mOffset = 0;
     AMediaCodecBufferInfo mFrameMetaData;
-    FILE *mOutFp;
+    FILE *mOutFp = nullptr;
 
     /* Asynchronous locks */
     mutex mMutex;
     condition_variable mDecoderDoneCondition;
 
     std::unique_ptr<AndroidThreadManager> g_threadManager;
+
+    // 输入文件的 FILE*。原先是 initExtractor() 里的局部变量，函数一返回就没人管了，
+    // 每点一次按钮泄漏一个 fd；放到成员里由 release() 统一关。
+    FILE *mInputFp = nullptr;
 
 
     bool initExtractor();

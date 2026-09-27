@@ -144,7 +144,9 @@ int SaveImage2Video::open_input_file(int seq, const char *src_name) {
             return -1;
         }
         image_decode_ctx[seq] = avcodec_alloc_context3(video_codec); // 分配解码器的实例
-        if (!image_decode_ctx) {
+        if (!image_decode_ctx[seq]) { // 判的是这一路刚刚申请的实例，不是数组名
+            // 原先写的是 if (!image_decode_ctx)：数组名退化成永远非空的指针，
+            // 这个空检查是死代码，alloc 失败时会带着 null 元素继续往下走。
             LOGE("image_decode_ctx is null\n");
             image2VideoInfo = "image_decode_ctx is null\n";
             PostStatusMessage(image2VideoInfo.c_str());
@@ -266,11 +268,18 @@ int SaveImage2Video::output_video(AVFrame *frame) {
         PostStatusMessage(image2VideoInfo.c_str());
         return ret;
     }
+    // 数据包只在循环外分配一次：原先每次迭代都 av_packet_alloc()，
+    // 而 EAGAIN/EOF 分支直接 return，每轮泄漏一个 AVPacket。
+    AVPacket *packet = av_packet_alloc(); // 分配一个数据包
+    if (!packet) {
+        LOGE("Can't alloc packet.\n");
+        return AVERROR(ENOMEM);
+    }
     while (1) {
-        AVPacket *packet = av_packet_alloc(); // 分配一个数据包
         // 从编码器实例获取压缩后的数据包
         ret = avcodec_receive_packet(video_encode_ctx, packet);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            av_packet_free(&packet);
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
@@ -294,6 +303,7 @@ int SaveImage2Video::output_video(AVFrame *frame) {
         }
         av_packet_unref(packet); // 清除数据包
     }
+    av_packet_free(&packet);
     return ret;
 }
 

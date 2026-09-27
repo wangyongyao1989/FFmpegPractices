@@ -57,8 +57,11 @@ cpp_process_video_filter(JNIEnv *env, jobject thiz, jstring srcPath, jstring out
     if (mProcessVideoFilter == nullptr) {
         mProcessVideoFilter = new ProcessVideoFilter(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath, cFilterCmd]() {
-        mProcessVideoFilter->startProcessVideoFilter(cSrcPath, cOutPath, cFilterCmd);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    const std::string own_cFilterCmd = cFilterCmd ? cFilterCmd : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath, own_cFilterCmd]() {
+        mProcessVideoFilter->startProcessVideoFilter(own_cSrcPath.c_str(), own_cOutPath.c_str(), own_cFilterCmd.c_str());
     };
 
     g_threadManager->submitTask("videoFilterThread", task, PRIORITY_NORMAL);
@@ -80,8 +83,11 @@ cpp_process_video_to_png(JNIEnv *env, jobject thiz, jstring srcPath, jstring out
     if (mProcessVideoToPNG == nullptr) {
         mProcessVideoToPNG = new ProcessVideoToPNG(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath, cFilterCmd]() {
-        mProcessVideoToPNG->startProcessVideoToPNG(cSrcPath, cOutPath, cFilterCmd);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    const std::string own_cFilterCmd = cFilterCmd ? cFilterCmd : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath, own_cFilterCmd]() {
+        mProcessVideoToPNG->startProcessVideoToPNG(own_cSrcPath.c_str(), own_cOutPath.c_str(), own_cFilterCmd.c_str());
     };
 
     g_threadManager->submitTask("videoToPNGThread", task, PRIORITY_NORMAL);
@@ -103,8 +109,11 @@ cpp_process_video_to_film(JNIEnv *env, jobject thiz, jstring srcPath, jstring ou
     if (mProcessVideoToFilm == nullptr) {
         mProcessVideoToFilm = new ProcessVideoToFilm(env, thiz);
     }
-    ThreadTask task = [cSrcPath, cOutPath, cFilterCmd]() {
-        mProcessVideoToFilm->startProcessVideoToFilm(cSrcPath, cOutPath, cFilterCmd);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    const std::string own_cFilterCmd = cFilterCmd ? cFilterCmd : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath, own_cFilterCmd]() {
+        mProcessVideoToFilm->startProcessVideoToFilm(own_cSrcPath.c_str(), own_cOutPath.c_str(), own_cFilterCmd.c_str());
     };
 
     g_threadManager->submitTask("videoToPNGThread", task, PRIORITY_NORMAL);

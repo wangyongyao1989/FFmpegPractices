@@ -14,6 +14,7 @@ set(third-party-libs
 
 include_directories(
         includes
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../nativeCommon/include
 
 )
 
@@ -24,7 +25,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         utils/Stats.cpp
         utils/BenchmarkCommon.cpp
 
-        utils/AndroidThreadManager.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../nativeCommon/src/AndroidThreadManager.cpp
 
         HwExtractor.cpp
         HwMuxer.cpp

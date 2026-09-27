@@ -55,8 +55,10 @@ cpp_save_pcm_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPat
         mSavePCMOfMeida = new SavePCMOfMeida(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mSavePCMOfMeida->startSavePCM(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mSavePCMOfMeida->startSavePCM(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("savePCMThread", task, PRIORITY_NORMAL);
@@ -75,8 +77,10 @@ cpp_save_aac_of_media(JNIEnv *env, jobject thiz, jstring srcPath, jstring outPat
         mSaveAACOfMedia = new SaveAACOfMedia(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath, cOutPath]() {
-        mSaveAACOfMedia->startSaveAAC(cSrcPath, cOutPath);
+    const std::string own_cSrcPath = cSrcPath ? cSrcPath : "";
+    const std::string own_cOutPath = cOutPath ? cOutPath : "";
+    ThreadTask task = [own_cSrcPath, own_cOutPath]() {
+        mSaveAACOfMedia->startSaveAAC(own_cSrcPath.c_str(), own_cOutPath.c_str());
     };
 
     g_threadManager->submitTask("saveAACThread", task, PRIORITY_NORMAL);
@@ -98,8 +102,11 @@ cpp_save_wav_of_media(JNIEnv *env, jobject thiz, jstring srcPath1, jstring outPa
         mSaveWavOfMedia = new SaveWavOfMedia(env, thiz);
     }
 
-    ThreadTask task = [cSrcPath1, cOutPath1, cOutPath2]() {
-        mSaveWavOfMedia->startSaveWav(cSrcPath1, cOutPath1, cOutPath2);
+    const std::string own_cSrcPath1 = cSrcPath1 ? cSrcPath1 : "";
+    const std::string own_cOutPath1 = cOutPath1 ? cOutPath1 : "";
+    const std::string own_cOutPath2 = cOutPath2 ? cOutPath2 : "";
+    ThreadTask task = [own_cSrcPath1, own_cOutPath1, own_cOutPath2]() {
+        mSaveWavOfMedia->startSaveWav(own_cSrcPath1.c_str(), own_cOutPath1.c_str(), own_cOutPath2.c_str());
     };
 
     g_threadManager->submitTask("saveWavThread", task, PRIORITY_NORMAL);

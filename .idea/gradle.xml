@@ -19,6 +19,7 @@
             <option value="$PROJECT_DIR$/processAudioLib" />
             <option value="$PROJECT_DIR$/processFilterLib" />
             <option value="$PROJECT_DIR$/processImageLib" />
+            <option value="$PROJECT_DIR$/rtspLib" />
           </set>
         </option>
       </GradleProjectSettings>

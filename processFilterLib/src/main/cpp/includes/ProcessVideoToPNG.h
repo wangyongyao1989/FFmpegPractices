@@ -27,8 +27,8 @@ private:
 
     char errbuf[1024];
 
-    const char *total_frames; // 总帧数
-    const char *filters_desc = "";
+    const char *total_frames = ""; // 总帧数
+    const char *filters_desc = ""; // 实际传给 init_filter 的滤镜串，取自 sFilterCmd
 
     AVFormatContext *in_fmt_ctx = nullptr; // 输入文件的封装器实例
     AVCodecContext *video_decode_ctx = nullptr; // 视频解码器的实例

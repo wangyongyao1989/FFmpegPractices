@@ -165,8 +165,14 @@ PlayAudioTrack::playAudioProcedure() {
             }
         }
 //        av_packet_free(&packet); // 这句会导致程序挂掉
+        // 上一行注释里说的「程序挂掉」是因为 free 掉后再进循环继续
+        // av_read_frame(mFmtCtx, mPacket)，是用已释放的指针收发数据；
+        // 正确的做法是每轮 unref：av_read_frame 每次都会换掉 packet->buf，
+        // 不 unref 就等于每读一个包漏一个 AVBufferRef，整首歌下来是几千个。
+        av_packet_unref(mPacket);
     }
     release();
+    av_free(out); // 重采样输出缓冲是本地 av_malloc 的，播完一次必须回收
 
 }
 
@@ -183,13 +189,13 @@ void PlayAudioTrack::release() {
         swr_free(&mSwrCtx); // 释放音频采样器的实例
     }
     if (mDecodeCtx) {
-        avcodec_close(mDecodeCtx); // 关闭音频解码器的实例
-    }
-    if (mDecodeCtx) {
-        avcodec_free_context(&mDecodeCtx); // 释放音频解码器的实例
+        avcodec_free_context(&mDecodeCtx); // 释放音频解码器的实例（内部已 close，无需先 avcodec_close）
     }
     if (mFmtCtx) {
-        avformat_free_context(mFmtCtx); // 关闭音视频文件
+        // 原先用 avformat_free_context：它只丢结构体本身，不关 pb/AVIO 与
+        // 探测出来的内部数据，文件句柄留在进程里；关闭输入要用
+        // avformat_close_input（它会把指针置空）。
+        avformat_close_input(&mFmtCtx); // 关闭音视频文件
     }
 }
 

@@ -22,6 +22,7 @@ set(third-party-libs
 
 include_directories(
         includes
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../nativeCommon/include
 
 )
 

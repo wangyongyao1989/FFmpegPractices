@@ -27,12 +27,14 @@ private:
     string sOutPath2;
     string sFmt;
 
-    HwMuxer *mHwMuxer;
-    HwExtractor *mHwExtractor;
+    // 必须显式初始化：入口的判空回收和析构函数都会用到这些成员，
+    // 无初值时首次点击按钮就会 delete/fclose 野指针。
+    HwMuxer *mHwMuxer = nullptr;
+    HwExtractor *mHwExtractor = nullptr;
 
-    FILE *inputFp;
+    FILE *inputFp = nullptr;
 
-    MUXER_OUTPUT_T outputFormat;
+    MUXER_OUTPUT_T outputFormat = MUXER_OUTPUT_FORMAT_INVALID;
 
 
     void processProcessMuxer();

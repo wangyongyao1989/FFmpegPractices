@@ -7,6 +7,7 @@
 
 #include <jni.h>
 #include <thread>
+#include <atomic>
 #include "BasicCommon.h"
 #include "string"
 
@@ -23,6 +24,7 @@ private:
     JNIEnv *mEnv = nullptr;
 
     thread *mThread = nullptr;
+    std::atomic<bool> mWorkFinished{true}; // 工作线程是否已跑完（跨线程读写）
 
     string sSrcPath;
     string sDestPath;

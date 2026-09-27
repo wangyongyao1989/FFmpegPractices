@@ -40,7 +40,24 @@ void ProcessVideoToPNG::processVideoFilterProcedure() {
         return;
     }
 
-    init_filter(filters_desc); // 初始化滤镜
+    // 滤镜串要取调用方传进来的 sFilterCmd。这里原先用的是成员 filters_desc，
+    // 而它的默认值是 ""（见 ProcessVideoToPNG.h:31），sFilterCmd 从未赋给它，
+    // 于是 avfilter_graph_parse_ptr 解析的是一条空描述：in/out 之间没有连接，滤镜图通不过 config。
+    // 崩溃链（取自设备 tombstone）：未连接的 sink 上 av_buffersink_get_w/h 只会返回 0，
+    // 于是编码器按 0x0 打开；随后 recode_video() 的 av_buffersink_get_frame()
+    // 进到 libavfilter 的 avfilter_graph_request_oldest() 触发断言 → abort(SIGABRT)，
+    // 表现为界面上报「Cannot parse graph string」后进程崩掉、out_png_filter*.png 一直是 0 字节。
+    if (sFilterCmd.empty()) { // 没传滤镜串时补一条：PNG 编码器只接受 RGB24
+        sFilterCmd = "format=pix_fmts=rgb24";
+    }
+    filters_desc = sFilterCmd.c_str();
+    LOGI("ProcessVideoToPNG filters_desc : %s\n", filters_desc);
+
+    if (init_filter(filters_desc) < 0) { // 初始化滤镜
+        // 滤镜图不可用就不能再往后走，否则又是在未连接的 sink 上取宽高
+        LOGE("init_filter failed, filters_desc : %s\n", filters_desc);
+        return;
+    }
     if (open_output_file(sOutPath.c_str()) < 0) { // 打开输出文件
         return;
     }
@@ -286,6 +303,10 @@ int ProcessVideoToPNG::open_output_file(const char *dest_name) {
         // 把编码器实例的参数复制给目标视频流
         avcodec_parameters_from_context(dest_video->codecpar, video_encode_ctx);
         dest_video->codecpar->codec_tag = 0;
+        // image2 封装器不会替我们回填 time_base，留空就是 0/1；
+        // output_video() 里的 av_packet_rescale_ts(..., dest_video->time_base)
+        // 拿到分母为 0 的时间基会走非法除法，这里显式与编码器对齐。
+        dest_video->time_base = video_encode_ctx->time_base;
         const char *pix_names = av_get_pix_fmt_name(video_encode_ctx->pix_fmt);
         LOGI("pix_names: %s\n", pix_names);
         videoFilterInfo = "pix_names: ." + string(pix_names) + "\n";
@@ -319,11 +340,18 @@ int ProcessVideoToPNG::output_video(AVFrame *frame) {
         PostStatusMessage(videoFilterInfo.c_str());
         return ret;
     }
+    // 数据包只在循环外分配一次：原先每次迭代都 av_packet_alloc()，
+    // 而 EAGAIN/EOF 分支直接 return，每轮泄漏一个 AVPacket。
+    AVPacket *packet = av_packet_alloc(); // 分配一个数据包
+    if (!packet) {
+        LOGE("Can't alloc packet.\n");
+        return AVERROR(ENOMEM);
+    }
     while (1) {
-        AVPacket *packet = av_packet_alloc(); // 分配一个数据包
         // 从编码器实例获取压缩后的数据包
         ret = avcodec_receive_packet(video_encode_ctx, packet);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            av_packet_free(&packet);
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
@@ -347,6 +375,7 @@ int ProcessVideoToPNG::output_video(AVFrame *frame) {
         }
         av_packet_unref(packet); // 清除数据包
     }
+    av_packet_free(&packet);
     return ret;
 }
 

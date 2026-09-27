@@ -7,6 +7,7 @@
 
 #include <jni.h>
 #include <thread>
+#include <atomic>
 #include "BasicCommon.h"
 #include "string"
 
@@ -36,9 +37,10 @@ private:
     JNIEnv *mEnv = nullptr;
 
     thread *codecThread = nullptr;
+    std::atomic<bool> mWorkFinished{true}; // 工作线程是否已跑完（跨线程读写）
 
-    const char *mSrcPath;
-    const char *mDestPath;
+    string mSrcPath; // 必须是值语义：原先只存调用方 char*，JNI 释放 UTF 缓冲后成员即悬垂
+    string mDestPath; // 必须是值语义：原先只存调用方 char*，JNI 释放 UTF 缓冲后成员即悬垂
 
     char errbuf[1024];
 

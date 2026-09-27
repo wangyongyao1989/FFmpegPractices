@@ -228,6 +228,9 @@ void HwDeCodec::deInitCodec() {
     int64_t sTime = mStats->getCurTime();
     AMediaCodec_stop(mCodec);
     AMediaCodec_delete(mCodec);
+    // delete 后必须置空：本对象的 mCodec 还会被后面的 if (mCodec) 判断用到
+    // （例如再来一次 deInitCodec() 或析构），留着悬垂地址就是二次释放。
+    mCodec = nullptr;
     int64_t eTime = mStats->getCurTime();
     int64_t timeTaken = mStats->getTimeDiff(sTime, eTime);
     mStats->setDeInitTime(timeTaken);
@@ -244,4 +247,18 @@ void HwDeCodec::resetDecoder() {
     if (mStats) mStats->reset();
     if (mInputBuffer) mInputBuffer = nullptr;
     if (!mFrameMetaData.empty()) mFrameMetaData.clear();
+    // ProcessDeCodec 是同一条码流里每条轨道复用同一个 HwDeCodec 对象（for curTrack 循环
+    // 里 setupDecoder()/decode()/deInitCodec()/resetDecoder() 各一次），而这些是
+    // 「一条轨道一清」的运行态：视频轨解到 EOS 后 mSawOutputEOS 一直是 true，
+    // 音频轨的 drain 循环 while (!mSawOutputEOS && !mSignalledError) 一次都不进，
+    // 于是音频一帧都不解（基线日志里第二条轨道紧跟一句 E Stats: No output produced）。
+    // 头文件里的默认初值只保证第一条轨道干净，跨轨道必须在这里复位。
+    mSawInputEOS = false;
+    mSawOutputEOS = false;
+    mSignalledError = false;
+    mErrorCode = AMEDIA_OK;
+    mNumInputFrame = 0;
+    mNumOutputFrame = 0;
+    CallBackHandle::mSawError = false;
+    CallBackHandle::mIsDone = false;
 }

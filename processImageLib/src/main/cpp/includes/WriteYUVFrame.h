@@ -7,6 +7,7 @@
 
 #include <jni.h>
 #include <thread>
+#include <atomic>
 #include "BasicCommon.h"
 #include "string"
 
@@ -22,13 +23,14 @@ private:
     JNIEnv *mEnv = nullptr;
 
     thread *mThread = nullptr;
+    std::atomic<bool> mWorkFinished{true}; // 工作线程是否已跑完（跨线程读写）
 
     AVFormatContext *out_fmt_ctx; // 输出文件的封装器实例
     AVStream *dest_video = nullptr; // 目标文件的视频流
     AVCodecContext *video_encode_ctx = nullptr; // 视频编码器的实例
     AVFrame *mFrame = nullptr;
 
-    const char *mDestPath;
+    string mDestPath; // 必须是值语义：原先只存调用方 char*，JNI 释放 UTF 缓冲后成员即悬垂
 
     char errbuf[1024];
 

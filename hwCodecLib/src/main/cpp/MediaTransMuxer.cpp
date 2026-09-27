@@ -38,12 +38,16 @@ void MediaTransMuxer::startMediaTransMuxer(const char *inputPath, const char *ou
     callbackInfo =
             "sSrcPath:" + sSrcPath + "\n";
     PostStatusMessage(callbackInfo.c_str());
+    // 四条失败分支都补 release()：这些分支以前直接 return，
+    // 已经打开的 extractor/muxer 和两个 FILE* 就一直挂在缓存复用的单例上，
+    // 每失败一次泄漏一份。
     // 1. 初始化提取器
     if (!initExtractor()) {
         LOGE("Failed to initialize extractor");
         callbackInfo =
                 "Failed to initialize extractor \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -53,6 +57,7 @@ void MediaTransMuxer::startMediaTransMuxer(const char *inputPath, const char *ou
         callbackInfo =
                 "No valid tracks found \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -62,6 +67,7 @@ void MediaTransMuxer::startMediaTransMuxer(const char *inputPath, const char *ou
         callbackInfo =
                 "Failed to initialize muxer \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -71,6 +77,7 @@ void MediaTransMuxer::startMediaTransMuxer(const char *inputPath, const char *ou
         callbackInfo =
                 "Transmuxing failed \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -89,9 +96,9 @@ bool MediaTransMuxer::initExtractor() {
         PostStatusMessage(callbackInfo.c_str());
         return false;
     }
-    LOGE("inputPath:%c", sSrcPath.c_str());
-    FILE *inputFp = fopen(sSrcPath.c_str(), "rb");
-    if (!inputFp) {
+    LOGE("inputPath:%s", sSrcPath.c_str());
+    mInputFp = fopen(sSrcPath.c_str(), "rb");
+    if (!mInputFp) {
         LOGE("Unable to open output file :%s", sSrcPath.c_str());
         callbackInfo =
                 "Unable to open output file :" + sSrcPath + "\n";
@@ -101,7 +108,7 @@ bool MediaTransMuxer::initExtractor() {
     struct stat buf;
     stat(sSrcPath.c_str(), &buf);
     size_t fileSize = buf.st_size;
-    int32_t input_fd = fileno(inputFp);
+    int32_t input_fd = fileno(mInputFp);
 
     LOGE("input_fd:%d", input_fd);
     media_status_t status = AMediaExtractor_setDataSourceFd(extractor, input_fd, 0, fileSize);
@@ -158,16 +165,16 @@ bool MediaTransMuxer::selectTracks() {
 
 // 初始化复用器
 bool MediaTransMuxer::initMuxer() {
-    LOGE("outputPath:%c", sOutPath.c_str());
-    FILE *outputFp = fopen(sOutPath.c_str(), "w+b");
-    if (!outputFp) {
+    LOGE("outputPath:%s", sOutPath.c_str());
+    mOutputFp = fopen(sOutPath.c_str(), "w+b");
+    if (!mOutputFp) {
         LOGE("Unable to open output file :%s", sOutPath.c_str());
         callbackInfo =
                 "Unable to open output file :" + sOutPath + "\n";
         PostStatusMessage(callbackInfo.c_str());
         return false;
     }
-    int32_t output_fd = fileno(outputFp);
+    int32_t output_fd = fileno(mOutputFp);
 
     muxer = AMediaMuxer_new(output_fd, AMEDIAMUXER_OUTPUT_FORMAT_MPEG_4);
     if (!muxer) {
@@ -351,6 +358,16 @@ void MediaTransMuxer::release() {
     if (extractor) {
         AMediaExtractor_delete(extractor);
         extractor = nullptr;
+    }
+    // 先 stop/delete muxer 再关文件：AMediaMuxer_new() 内部是 dup(fd)，
+    // 所以这个 FILE* 一直归本类持有，之前从来没人 fclose。
+    if (mOutputFp) {
+        fclose(mOutputFp);
+        mOutputFp = nullptr;
+    }
+    if (mInputFp) {
+        fclose(mInputFp);
+        mInputFp = nullptr;
     }
     LOGI("Resources released");
 }

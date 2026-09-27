@@ -46,6 +46,12 @@ void ProcessDeCodec::startProcessDecodec(const char *srcPath, const char *outPat
             "sSrcPath:" + sSrcPath + "\n";
     PostStatusMessage(callbackInfo.c_str());
 
+    // 成员指针每点一次按钮就被覆盖一次，上一个实例（连同它持有的 AMediaCodec /
+    // AMediaExtractor 等 native 句柄）再也拿不到，只能等进程退出。先回收上一轮。
+    if (pHwDeCodec != nullptr) {
+        delete pHwDeCodec;
+        pHwDeCodec = nullptr;
+    }
     pHwDeCodec = new HwDeCodec();
     if (pHwDeCodec == nullptr) {
         LOGE("HwDeCodec creation failed ");
@@ -167,10 +173,23 @@ void ProcessDeCodec::processProcessDecodec() {
         free(inputBuffer);
         pHwDeCodec->resetDecoder();
     }
-    fclose(inputFp);
-    fclose(outputFp);
-    mHwExtractor->deInitExtractor();
+    // 这两个 FILE* 只有在 trackCount>0 且解码走完时才会被赋值；
+    // 直接 fclose(未赋值的成员) 就是 fclose(nullptr)。
+    if (inputFp) {
+        fclose(inputFp);
+        inputFp = nullptr;
+    }
+    if (outputFp) {
+        fclose(outputFp);
+        outputFp = nullptr;
+    }
+    if (mHwExtractor) {
+        mHwExtractor->deInitExtractor();
+    }
     delete pHwDeCodec;
+    pHwDeCodec = nullptr; // 不置空的话，下一轮进入本函数时的 delete 就是二次释放
+    // mHwExtractor 指向 pHwDeCodec 内部的 extractor，上一句 delete 之后它已经悬空。
+    mHwExtractor = nullptr;
 
     LOGI("ProcessDeCodec Success");
     callbackInfo = "ProcessDeCodec Success outfile:" + sOutPath2 + " \n";

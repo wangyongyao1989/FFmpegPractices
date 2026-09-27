@@ -57,8 +57,9 @@ cpp_play_audio_by_track(JNIEnv *env, jobject thiz, jstring audioPath) {
         playAudioTrack = new PlayAudioTrack(env, thiz);
     }
 
-    ThreadTask task = [cAudioPath]() {
-        playAudioTrack->startPlayAudioTrack(cAudioPath);
+    const std::string own_cAudioPath = cAudioPath ? cAudioPath : "";
+    ThreadTask task = [own_cAudioPath]() {
+        playAudioTrack->startPlayAudioTrack(own_cAudioPath.c_str());
     };
     g_threadManager->submitTask("play_audio_by_track", task, PRIORITY_NORMAL);
     env->ReleaseStringUTFChars(audioPath, cAudioPath);

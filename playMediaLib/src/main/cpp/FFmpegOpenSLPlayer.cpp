@@ -126,7 +126,12 @@ bool FFmpegOpenSLPlayer::initFFmpeg(const std::string &filePath) {
 
     // 设置音频参数
     mSampleRate = mCodecContext->sample_rate;
-    mChannels = mCodecContext->channels;
+    // mChannels 必须是重采样之后的声道数，而不是源声道数。下面的 swr 固定输出
+    // AV_CHANNEL_LAYOUT_STEREO，而 OpenSL 的 createPlayer 和 processBufferQueue
+    // 里的 maxSamples/bytesDecoded 都拿 mChannels 计算——用源声道数的话，遇到
+    // 单声道素材时 bytesDecoded 只有真实数据的一半，等于每帧丢掉一半的 PCM
+    // （表现是单声道音频播放变快/发碎）。源声道数只在日志里保留。
+    mChannels = 2;
     mSampleFormat = mCodecContext->sample_fmt;
     mDuration = mFormatContext->duration;
 
@@ -143,10 +148,13 @@ bool FFmpegOpenSLPlayer::initFFmpeg(const std::string &filePath) {
         return false;
     }
 
+    // 这一条报的是「源」的声道数（mChannels 现在是重采样之后的固定 2 声道），
+    // 立体声素材两者相同，单声道素材才看得出差别。
     LOGI("FFmpeg initialized: %d Hz, %d channels, duration: %lld",
-         mSampleRate, mChannels, mDuration);
+         mSampleRate, mCodecContext->ch_layout.nb_channels, mDuration);
     playAudioInfo = "FFmpeg initialized ,Hz:" + to_string(mSampleRate) + ",channels:" +
-                    to_string(mChannels) + " ,duration:" + to_string(mDuration) + "\n";
+                    to_string(mCodecContext->ch_layout.nb_channels) + " ,duration:" +
+                    to_string(mDuration) + "\n";
     PostStatusMessage(playAudioInfo.c_str());
 
     return true;

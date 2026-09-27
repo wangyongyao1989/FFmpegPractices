@@ -43,6 +43,20 @@ void
 MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath, const char *outpath) {
     sSrcPath = inputPath;
     sOutPath = outpath;
+    // 本对象在 JNI 层是缓存复用的单例（HwCodecJniCall.cpp 里只在为空时 new），
+    // 每点一次按钮都走同一个实例，而下面这批是「一轮一清」的运行态标志。
+    // 不复位的话：上一轮解到 EOS 后 mSawOutputEOS 一直是 true，decodec() 里的
+    //     while (!mSawOutputEOS && !mSignalledError)
+    // 一次都不进，一个字节都不写 —— 表现就是「第二次点击没反应，输出文件 0 字节」，
+    // 而且界面上还是提示 completed。头文件里的默认成员初始化只保证了第一次。
+    mSawInputEOS = false;
+    mSawOutputEOS = false;
+    mSignalledError = false;
+    mErrorCode = AMEDIA_OK;
+    mNumOutputVideoFrame = 0;
+    mNumOutputAudioFrame = 0;
+    CallBackHandle::mSawError = false;
+    CallBackHandle::mIsDone = false;
 
     LOGI("sSrcPath :%s \n ", sSrcPath.c_str());
     callbackInfo =
@@ -54,6 +68,10 @@ MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath, const cha
         callbackInfo =
                 "Failed to initialize extractor \n";
         PostStatusMessage(callbackInfo.c_str());
+        // 四条失败分支都要走 release()：否则 AMediaExtractor_new() 出来的对象、
+        // 输入 FILE* 和后面几轮的解码器就留在单例上，下一轮直接被覆盖（泄漏），
+        // 界面上只提示一句失败，看不出资源没回收。
+        release();
         return;
     }
 
@@ -63,6 +81,7 @@ MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath, const cha
         callbackInfo =
                 "No valid tracks found \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -72,6 +91,7 @@ MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath, const cha
         callbackInfo =
                 "Failed to initialize Decodec \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -81,6 +101,7 @@ MediaExtratorDecodec::startMediaExtratorDecodec(const char *inputPath, const cha
         callbackInfo =
                 "Decodec failed \n";
         PostStatusMessage(callbackInfo.c_str());
+        release();
         return;
     }
 
@@ -100,8 +121,8 @@ bool MediaExtratorDecodec::initExtractor() {
         return false;
     }
     LOGE("inputPath:%s", sSrcPath.c_str());
-    FILE *inputFp = fopen(sSrcPath.c_str(), "rb");
-    if (!inputFp) {
+    mInputFp = fopen(sSrcPath.c_str(), "rb");
+    if (!mInputFp) {
         LOGE("Unable to open output file :%s", sSrcPath.c_str());
         callbackInfo =
                 "Unable to open output file :" + sSrcPath + "\n";
@@ -111,7 +132,7 @@ bool MediaExtratorDecodec::initExtractor() {
     struct stat buf;
     stat(sSrcPath.c_str(), &buf);
     size_t fileSize = buf.st_size;
-    int32_t input_fd = fileno(inputFp);
+    int32_t input_fd = fileno(mInputFp);
 
     LOGE("input_fd:%d", input_fd);
     media_status_t status = AMediaExtractor_setDataSourceFd(extractor, input_fd, 0, fileSize);
@@ -282,11 +303,21 @@ bool MediaExtratorDecodec::initDecodec(bool asyncMode) {
 
 
 // 执行解码
+//
+// 说明两处批量改动：
+// 1) 错误分支原来是 `return mErrorCode;`。本函数返回 bool，media_status_t 非 0
+//    就是 true，于是「解码失败」被调用方当成成功（调用方是 if (!decodec()) 报错），
+//    出错时界面照样提示 completed。现在统一 return false，错误码仍然记在
+//    mErrorCode 里并已由上一行 LOGE 打印。
+// 2) 视频/音频两条轨道各自用「上一帧 pts」做去重门限。原来门限读的是外层那个
+//    从来没被写过的 info（内层循环里又声明了同名局部变量，dequeueOutputBuffer
+//    的结果写进了那个阴影里的副本），第一次判断读的是栈残值：
+//    残值只要不大于 -1 就整条轨道直接跳过。现在改成直接取提取器的样本时间，
+//    语义就是它注释里写的「避免重复或倒退的时间戳」。
 bool MediaExtratorDecodec::decodec() {
     LOGI("decodec===========");
     bool asyncMode = false;
 
-    AMediaCodecBufferInfo info;
     bool sawEOS = false;
     int64_t lastVideoPts = -1;
     int64_t lastAudioPts = -1;
@@ -314,9 +345,12 @@ bool MediaExtratorDecodec::decodec() {
             break;
         }
 
+        // 去重门限一律用提取器当前样本的时间戳。
+        const int64_t sampleTime = AMediaExtractor_getSampleTime(extractor);
+
         if (trackIndex == videoTrackIndex && hasVideo) {
             // 检查时间戳是否有效（避免重复或倒退的时间戳）
-            if (AMediaExtractor_getSampleTime(extractor) > lastVideoPts) {
+            if (sampleTime > lastVideoPts) {
                 if (!asyncMode) {
                     while (!mSawOutputEOS && !mSignalledError) {
                         /* Queue input data */
@@ -327,7 +361,7 @@ bool MediaExtratorDecodec::decodec() {
                                 LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
                                      inIdx);
                                 mErrorCode = (media_status_t) inIdx;
-                                return mErrorCode;
+                                return false;
                             } else if (inIdx >= 0) {
                                 onInputAvailable(mVideoCodec, inIdx);
                             }
@@ -348,7 +382,7 @@ bool MediaExtratorDecodec::decodec() {
                             LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
                                  outIdx);
                             mErrorCode = (media_status_t) outIdx;
-                            return mErrorCode;
+                            return false;
                         }
                     }
                 } else {
@@ -359,14 +393,14 @@ bool MediaExtratorDecodec::decodec() {
                 }
                 if (mSignalledError) {
                     LOGE("Received Error while Decoding");
-                    return mErrorCode;
+                    return false;
                 }
 
-                lastVideoPts = info.presentationTimeUs;
+                lastVideoPts = sampleTime;
             }
         } else if (trackIndex == audioTrackIndex && hasAudio) {     //音频轨道的解码
-            // 检查时间戳是否有效
-            if (info.presentationTimeUs > lastAudioPts) {
+            // 检查时间戳是否有效（避免重复或倒退的时间戳）
+            if (sampleTime > lastAudioPts) {
                 // 检查时间戳是否有效（避免重复或倒退的时间戳）
                 if (!asyncMode) {
                     while (!mSawOutputEOS && !mSignalledError) {
@@ -378,7 +412,7 @@ bool MediaExtratorDecodec::decodec() {
                                 LOGE("AMediaCodec_dequeueInputBuffer returned invalid index %zd\n",
                                      inIdx);
                                 mErrorCode = (media_status_t) inIdx;
-                                return mErrorCode;
+                                return false;
                             } else if (inIdx >= 0) {
                                 onInputAvailable(mAudioCodec, inIdx);
                             }
@@ -393,13 +427,19 @@ bool MediaExtratorDecodec::decodec() {
                             const char *s = AMediaFormat_toString(mAudioFormat);
                             LOGI("Output format: %s\n", s);
                         } else if (outIdx >= 0) {
-                            onOutputAvailable(mVideoCodec, outIdx, &info);
+                            // 这里原来传的是 mVideoCodec。onOutputAvailable() 是按
+                            // 「传进来的 codec 等于 mVideoCodec 还是 mAudioCodec」分派的，
+                            // 于是音频帧走进了视频分支：拿音频的 bufIdx 去
+                            // AMediaCodec_getOutputBuffer(mVideoCodec, ...) 取内存、
+                            // 对错误的 codec 调 releaseOutputBuffer，帧数还计到
+                            // mNumOutputVideoFrame 上。
+                            onOutputAvailable(mAudioCodec, outIdx, &info);
                         } else if (!(outIdx == AMEDIACODEC_INFO_TRY_AGAIN_LATER ||
                                      outIdx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)) {
                             LOGE("AMediaCodec_dequeueOutputBuffer returned invalid index %zd\n",
                                  outIdx);
                             mErrorCode = (media_status_t) outIdx;
-                            return mErrorCode;
+                            return false;
                         }
                     }
                 } else {
@@ -410,9 +450,9 @@ bool MediaExtratorDecodec::decodec() {
                 }
                 if (mSignalledError) {
                     ALOGE("Received Error while Decoding");
-                    return mErrorCode;
+                    return false;
                 }
-                lastAudioPts = info.presentationTimeUs;
+                lastAudioPts = sampleTime;
             }
         }
 
@@ -420,7 +460,7 @@ bool MediaExtratorDecodec::decodec() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    LOGI("media decodec completed out file:%c", sOutPath.c_str());
+    LOGI("media decodec completed out file:%s", sOutPath.c_str());
     callbackInfo =
             "media decodec completed file:" + sOutPath + "\n";
     PostStatusMessage(callbackInfo.c_str());
@@ -444,15 +484,30 @@ void MediaExtratorDecodec::release() {
     if (mVideoCodec) {
         AMediaCodec_stop(mVideoCodec);
         AMediaCodec_delete(mVideoCodec);
+        // 不置空的话，指针还留着已释放的地址：下一轮 initDecodec() 之前任何
+        // if (mVideoCodec) 的判断都会拿野指针去 stop/delete（二次释放即堆破坏）。
+        mVideoCodec = nullptr;
     }
 
     if (mAudioCodec) {
         AMediaCodec_stop(mAudioCodec);
         AMediaCodec_delete(mAudioCodec);
+        mAudioCodec = nullptr;
     }
     if (mAudioFormat) {
         AMediaFormat_delete(mAudioFormat);
         mAudioFormat = nullptr;
+    }
+    // 两个 FILE* 原先谁都没关：mOutFp 是解码输出的 .out 文件（fwrite 之后从不
+    // fclose，缓冲区里最后那点数据直接丢，fd 也泄漏），mInputFp 是上一轮
+    // initExtractor() 打开的输入文件。
+    if (mOutFp) {
+        fclose(mOutFp);
+        mOutFp = nullptr;
+    }
+    if (mInputFp) {
+        fclose(mInputFp);
+        mInputFp = nullptr;
     }
     LOGI("Resources released");
 }

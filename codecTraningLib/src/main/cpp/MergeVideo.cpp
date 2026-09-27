@@ -72,34 +72,50 @@ MergeVideo::~MergeVideo() {
         codecThread = nullptr;
     }
 
-    mSrcPath1 = nullptr;
-    mSrcPath2 = nullptr;
-    mDestPath = nullptr;
+    mSrcPath1 = "";
+    mSrcPath2 = "";
+    mDestPath = "";
 
 }
 
 void MergeVideo::startMergeVideoThread(const char *srcPath1, const char *srcPath2,
                                        const char *destPath) {
+    // 先回收上一轮线程，再赋值路径、打开文件。原先是 detach() + 「thread 成员
+    // 非空就不再启动」：detached 线程对象永远留在成员里，同一个功能点第二次点击
+    // 永久静默空转，而两个输入文件与输出文件已在这段代码里被重新打开一遍，
+    // 句柄和 AVFormatContext 白漏；detach() 又与析构函数里的 join() 直接矛盾
+    // （对 detached 线程 join 会抛 std::system_error 而 abort）。
+    if (codecThread != nullptr) {
+        if (!mWorkFinished) {
+            LOGE("The previous task is still running, ignore this request.\n");
+            mergeInfo = "上一次任务仍在进行中，请等待完成\n";
+            PostStatusMessage(mergeInfo.c_str());
+            return;
+        }
+        codecThread->join();
+        delete codecThread;
+        codecThread = nullptr;
+    }
+
     mSrcPath1 = srcPath1;
     mSrcPath2 = srcPath2;
     mDestPath = destPath;
-    if (open_input_file(0, mSrcPath1) < 0) { // 打开第一个输入文件
+    if (open_input_file(0, mSrcPath1.c_str()) < 0) { // 打开第一个输入文件
         return;
     }
-    if (open_input_file(1, mSrcPath2) < 0) { // 打开第二个输入文件
+    if (open_input_file(1, mSrcPath2.c_str()) < 0) { // 打开第二个输入文件
         return;
     }
-    if (open_output_file(mDestPath) < 0) { // 打开输出文件
+    if (open_output_file(mDestPath.c_str()) < 0) { // 打开输出文件
         return;
     }
-    if (codecThread == nullptr) {
-        codecThread = new thread(DoCodecMedia, this);
-        codecThread->detach();
-    }
+    mWorkFinished = false;
+    codecThread = new thread(DoCodecMedia, this); // 不 detach：由本类在下一轮或析构时 join
 }
 
 void MergeVideo::DoCodecMedia(MergeVideo *mergeVideo) {
     mergeVideo->mergeVideo();
+    mergeVideo->mWorkFinished = true; // 本轮跑完，允许下一次点击重启
 }
 
 void MergeVideo::mergeVideo() {
@@ -109,9 +125,9 @@ void MergeVideo::mergeVideo() {
     while (av_read_frame(in_fmt_ctx[0], packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index[0]) { // 视频包需要重新编码
             mergeInfo =
-                    "第一个视频读出视频包的大小：" + to_string(packet->buf->size) +
+                    "第一个视频读出视频包的大小：" + to_string(packet->size) +
                     "，并重新编码写入...\n";
-            if (packet->buf->size < 600) {
+            if (packet->size < 600) {
                 PostStatusMessage(mergeInfo.c_str());
             }
             LOGD("%s.\n", mergeInfo.c_str());
@@ -133,9 +149,9 @@ void MergeVideo::mergeVideo() {
     while (av_read_frame(in_fmt_ctx[1], packet) >= 0) { // 轮询数据包
         if (packet->stream_index == video_index[1]) { // 视频包需要重新编码
             mergeInfo =
-                    "第二个视频读出视频包的大小：" + to_string(packet->buf->size) +
+                    "第二个视频读出视频包的大小：" + to_string(packet->size) +
                     "，并重现编码写入...\n";
-            if (packet->buf->size < 600) {
+            if (packet->size < 600) {
                 PostStatusMessage(mergeInfo.c_str());
             }
             LOGD("%s.\n", mergeInfo.c_str());
@@ -150,7 +166,7 @@ void MergeVideo::mergeVideo() {
     av_write_trailer(out_fmt_ctx); // 写文件尾
     LOGI("Success merge two video file.\n");
     mergeInfo =
-            "Success merge two video file：" + string(mDestPath) + "...\n";
+            "Success merge two video file：" + mDestPath + "...\n";
     PostStatusMessage(mergeInfo.c_str());
     av_frame_free(&frame); // 释放数据帧资源
     av_packet_free(&packet); // 释放数据包资源
@@ -338,11 +354,18 @@ int MergeVideo::output_video(AVFrame *frame) {
         PostStatusMessage(mergeInfo.c_str());
         return ret;
     }
+    // 数据包只在循环外分配一次：原先每次迭代都 av_packet_alloc()，
+    // 而 EAGAIN/EOF 分支直接 return，每轮泄漏一个 AVPacket。
+    AVPacket *packet = av_packet_alloc(); // 分配一个数据包
+    if (!packet) {
+        LOGE("Can't alloc packet.\n");
+        return AVERROR(ENOMEM);
+    }
     while (1) {
-        AVPacket *packet = av_packet_alloc(); // 分配一个数据包
         // 从编码器实例获取压缩后的数据包
         ret = avcodec_receive_packet(video_encode_ctx, packet);
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            av_packet_free(&packet);
             return (ret == AVERROR(EAGAIN)) ? 0 : 1;
         } else if (ret < 0) {
             LOGE("encode frame occur error %d.\n", ret);
@@ -366,6 +389,7 @@ int MergeVideo::output_video(AVFrame *frame) {
         }
         av_packet_unref(packet); // 清除数据包
     }
+    av_packet_free(&packet);
     return ret;
 }
 
